@@ -1,3 +1,0 @@
-/home/elisee/Raytracer/build/CMakeFiles/mon_projet.dir
-/home/elisee/Raytracer/build/CMakeFiles/edit_cache.dir
-/home/elisee/Raytracer/build/CMakeFiles/rebuild_cache.dir
