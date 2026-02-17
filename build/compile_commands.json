@@ -1,0 +1,212 @@
+[
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/aabb.cpp.o -c /home/elisee/Raytracer/src/aabb.cpp",
+  "file": "/home/elisee/Raytracer/src/aabb.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/aabb.cpp.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/bvh.cpp.o -c /home/elisee/Raytracer/src/bvh.cpp",
+  "file": "/home/elisee/Raytracer/src/bvh.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/bvh.cpp.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/cameras/perspective_camera.cpp.o -c /home/elisee/Raytracer/src/cameras/perspective_camera.cpp",
+  "file": "/home/elisee/Raytracer/src/cameras/perspective_camera.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/cameras/perspective_camera.cpp.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/geometry/plane_geometry.cpp.o -c /home/elisee/Raytracer/src/geometry/plane_geometry.cpp",
+  "file": "/home/elisee/Raytracer/src/geometry/plane_geometry.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/geometry/plane_geometry.cpp.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/geometry/sphere_geometry.cpp.o -c /home/elisee/Raytracer/src/geometry/sphere_geometry.cpp",
+  "file": "/home/elisee/Raytracer/src/geometry/sphere_geometry.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/geometry/sphere_geometry.cpp.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/geometry/triangle_mesh_geometry.cpp.o -c /home/elisee/Raytracer/src/geometry/triangle_mesh_geometry.cpp",
+  "file": "/home/elisee/Raytracer/src/geometry/triangle_mesh_geometry.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/geometry/triangle_mesh_geometry.cpp.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/integrators/direct_lighting_integrator.cpp.o -c /home/elisee/Raytracer/src/integrators/direct_lighting_integrator.cpp",
+  "file": "/home/elisee/Raytracer/src/integrators/direct_lighting_integrator.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/integrators/direct_lighting_integrator.cpp.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/integrators/ray_cast_integrator.cpp.o -c /home/elisee/Raytracer/src/integrators/ray_cast_integrator.cpp",
+  "file": "/home/elisee/Raytracer/src/integrators/ray_cast_integrator.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/integrators/ray_cast_integrator.cpp.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/integrators/whitted_integrator.cpp.o -c /home/elisee/Raytracer/src/integrators/whitted_integrator.cpp",
+  "file": "/home/elisee/Raytracer/src/integrators/whitted_integrator.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/integrators/whitted_integrator.cpp.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/lights/area_light.cpp.o -c /home/elisee/Raytracer/src/lights/area_light.cpp",
+  "file": "/home/elisee/Raytracer/src/lights/area_light.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/lights/area_light.cpp.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/lights/cylinder_light.cpp.o -c /home/elisee/Raytracer/src/lights/cylinder_light.cpp",
+  "file": "/home/elisee/Raytracer/src/lights/cylinder_light.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/lights/cylinder_light.cpp.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/lights/directionnal_light.cpp.o -c /home/elisee/Raytracer/src/lights/directionnal_light.cpp",
+  "file": "/home/elisee/Raytracer/src/lights/directionnal_light.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/lights/directionnal_light.cpp.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/lights/point_light.cpp.o -c /home/elisee/Raytracer/src/lights/point_light.cpp",
+  "file": "/home/elisee/Raytracer/src/lights/point_light.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/lights/point_light.cpp.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/lights/quad_light.cpp.o -c /home/elisee/Raytracer/src/lights/quad_light.cpp",
+  "file": "/home/elisee/Raytracer/src/lights/quad_light.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/lights/quad_light.cpp.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/main.cpp.o -c /home/elisee/Raytracer/src/main.cpp",
+  "file": "/home/elisee/Raytracer/src/main.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/main.cpp.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/objects/implicit_surface.cpp.o -c /home/elisee/Raytracer/src/objects/implicit_surface.cpp",
+  "file": "/home/elisee/Raytracer/src/objects/implicit_surface.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/objects/implicit_surface.cpp.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/objects/plane.cpp.o -c /home/elisee/Raytracer/src/objects/plane.cpp",
+  "file": "/home/elisee/Raytracer/src/objects/plane.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/objects/plane.cpp.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/objects/sphere.cpp.o -c /home/elisee/Raytracer/src/objects/sphere.cpp",
+  "file": "/home/elisee/Raytracer/src/objects/sphere.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/objects/sphere.cpp.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/objects/triangle_mesh.cpp.o -c /home/elisee/Raytracer/src/objects/triangle_mesh.cpp",
+  "file": "/home/elisee/Raytracer/src/objects/triangle_mesh.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/objects/triangle_mesh.cpp.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/renderer.cpp.o -c /home/elisee/Raytracer/src/renderer.cpp",
+  "file": "/home/elisee/Raytracer/src/renderer.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/renderer.cpp.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/local/cuda-12.4/bin/nvcc -forward-unknown-to-host-compiler  --options-file CMakeFiles/mon_projet.dir/includes_CUDA.rsp -g -std=c++17 \"--generate-code=arch=compute_86,code=[compute_86,sm_86]\" -x cu -rdc=true -c /home/elisee/Raytracer/src/renderingGPU/cuda_direct_lighting_integrator.cu -o CMakeFiles/mon_projet.dir/src/renderingGPU/cuda_direct_lighting_integrator.cu.o",
+  "file": "/home/elisee/Raytracer/src/renderingGPU/cuda_direct_lighting_integrator.cu",
+  "output": "CMakeFiles/mon_projet.dir/src/renderingGPU/cuda_direct_lighting_integrator.cu.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/local/cuda-12.4/bin/nvcc -forward-unknown-to-host-compiler  --options-file CMakeFiles/mon_projet.dir/includes_CUDA.rsp -g -std=c++17 \"--generate-code=arch=compute_86,code=[compute_86,sm_86]\" -x cu -rdc=true -c /home/elisee/Raytracer/src/renderingGPU/cuda_light.cu -o CMakeFiles/mon_projet.dir/src/renderingGPU/cuda_light.cu.o",
+  "file": "/home/elisee/Raytracer/src/renderingGPU/cuda_light.cu",
+  "output": "CMakeFiles/mon_projet.dir/src/renderingGPU/cuda_light.cu.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/local/cuda-12.4/bin/nvcc -forward-unknown-to-host-compiler  --options-file CMakeFiles/mon_projet.dir/includes_CUDA.rsp -g -std=c++17 \"--generate-code=arch=compute_86,code=[compute_86,sm_86]\" -x cu -rdc=true -c /home/elisee/Raytracer/src/renderingGPU/cuda_material.cu -o CMakeFiles/mon_projet.dir/src/renderingGPU/cuda_material.cu.o",
+  "file": "/home/elisee/Raytracer/src/renderingGPU/cuda_material.cu",
+  "output": "CMakeFiles/mon_projet.dir/src/renderingGPU/cuda_material.cu.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/local/cuda-12.4/bin/nvcc -forward-unknown-to-host-compiler  --options-file CMakeFiles/mon_projet.dir/includes_CUDA.rsp -g -std=c++17 \"--generate-code=arch=compute_86,code=[compute_86,sm_86]\" -x cu -rdc=true -c /home/elisee/Raytracer/src/renderingGPU/cuda_scene.cu -o CMakeFiles/mon_projet.dir/src/renderingGPU/cuda_scene.cu.o",
+  "file": "/home/elisee/Raytracer/src/renderingGPU/cuda_scene.cu",
+  "output": "CMakeFiles/mon_projet.dir/src/renderingGPU/cuda_scene.cu.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/local/cuda-12.4/bin/nvcc -forward-unknown-to-host-compiler  --options-file CMakeFiles/mon_projet.dir/includes_CUDA.rsp -g -std=c++17 \"--generate-code=arch=compute_86,code=[compute_86,sm_86]\" -x cu -rdc=true -c /home/elisee/Raytracer/src/renderingGPU/cuda_whitted_integrator.cu -o CMakeFiles/mon_projet.dir/src/renderingGPU/cuda_whitted_integrator.cu.o",
+  "file": "/home/elisee/Raytracer/src/renderingGPU/cuda_whitted_integrator.cu",
+  "output": "CMakeFiles/mon_projet.dir/src/renderingGPU/cuda_whitted_integrator.cu.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/local/cuda-12.4/bin/nvcc -forward-unknown-to-host-compiler  --options-file CMakeFiles/mon_projet.dir/includes_CUDA.rsp -g -std=c++17 \"--generate-code=arch=compute_86,code=[compute_86,sm_86]\" -x cu -rdc=true -c /home/elisee/Raytracer/src/renderingGPU/hello_cuda.cu -o CMakeFiles/mon_projet.dir/src/renderingGPU/hello_cuda.cu.o",
+  "file": "/home/elisee/Raytracer/src/renderingGPU/hello_cuda.cu",
+  "output": "CMakeFiles/mon_projet.dir/src/renderingGPU/hello_cuda.cu.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/local/cuda-12.4/bin/nvcc -forward-unknown-to-host-compiler  --options-file CMakeFiles/mon_projet.dir/includes_CUDA.rsp -g -std=c++17 \"--generate-code=arch=compute_86,code=[compute_86,sm_86]\" -x cu -rdc=true -c /home/elisee/Raytracer/src/renderingGPU/objectGPU/cuda_aabb.cu -o CMakeFiles/mon_projet.dir/src/renderingGPU/objectGPU/cuda_aabb.cu.o",
+  "file": "/home/elisee/Raytracer/src/renderingGPU/objectGPU/cuda_aabb.cu",
+  "output": "CMakeFiles/mon_projet.dir/src/renderingGPU/objectGPU/cuda_aabb.cu.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/local/cuda-12.4/bin/nvcc -forward-unknown-to-host-compiler  --options-file CMakeFiles/mon_projet.dir/includes_CUDA.rsp -g -std=c++17 \"--generate-code=arch=compute_86,code=[compute_86,sm_86]\" -x cu -rdc=true -c /home/elisee/Raytracer/src/renderingGPU/objectGPU/cuda_hitrecord.cu -o CMakeFiles/mon_projet.dir/src/renderingGPU/objectGPU/cuda_hitrecord.cu.o",
+  "file": "/home/elisee/Raytracer/src/renderingGPU/objectGPU/cuda_hitrecord.cu",
+  "output": "CMakeFiles/mon_projet.dir/src/renderingGPU/objectGPU/cuda_hitrecord.cu.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/local/cuda-12.4/bin/nvcc -forward-unknown-to-host-compiler  --options-file CMakeFiles/mon_projet.dir/includes_CUDA.rsp -g -std=c++17 \"--generate-code=arch=compute_86,code=[compute_86,sm_86]\" -x cu -rdc=true -c /home/elisee/Raytracer/src/renderingGPU/objectGPU/cuda_plane.cu -o CMakeFiles/mon_projet.dir/src/renderingGPU/objectGPU/cuda_plane.cu.o",
+  "file": "/home/elisee/Raytracer/src/renderingGPU/objectGPU/cuda_plane.cu",
+  "output": "CMakeFiles/mon_projet.dir/src/renderingGPU/objectGPU/cuda_plane.cu.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/local/cuda-12.4/bin/nvcc -forward-unknown-to-host-compiler  --options-file CMakeFiles/mon_projet.dir/includes_CUDA.rsp -g -std=c++17 \"--generate-code=arch=compute_86,code=[compute_86,sm_86]\" -x cu -rdc=true -c /home/elisee/Raytracer/src/renderingGPU/objectGPU/cuda_sphere.cu -o CMakeFiles/mon_projet.dir/src/renderingGPU/objectGPU/cuda_sphere.cu.o",
+  "file": "/home/elisee/Raytracer/src/renderingGPU/objectGPU/cuda_sphere.cu",
+  "output": "CMakeFiles/mon_projet.dir/src/renderingGPU/objectGPU/cuda_sphere.cu.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/local/cuda-12.4/bin/nvcc -forward-unknown-to-host-compiler  --options-file CMakeFiles/mon_projet.dir/includes_CUDA.rsp -g -std=c++17 \"--generate-code=arch=compute_86,code=[compute_86,sm_86]\" -x cu -rdc=true -c /home/elisee/Raytracer/src/renderingGPU/objectGPU/cuda_triangle_mesh.cu -o CMakeFiles/mon_projet.dir/src/renderingGPU/objectGPU/cuda_triangle_mesh.cu.o",
+  "file": "/home/elisee/Raytracer/src/renderingGPU/objectGPU/cuda_triangle_mesh.cu",
+  "output": "CMakeFiles/mon_projet.dir/src/renderingGPU/objectGPU/cuda_triangle_mesh.cu.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/local/cuda-12.4/bin/nvcc -forward-unknown-to-host-compiler  --options-file CMakeFiles/mon_projet.dir/includes_CUDA.rsp -g -std=c++17 \"--generate-code=arch=compute_86,code=[compute_86,sm_86]\" -x cu -rdc=true -c /home/elisee/Raytracer/src/renderingGPU/objectGPU/cuda_triangle_mesh_geometry.cu -o CMakeFiles/mon_projet.dir/src/renderingGPU/objectGPU/cuda_triangle_mesh_geometry.cu.o",
+  "file": "/home/elisee/Raytracer/src/renderingGPU/objectGPU/cuda_triangle_mesh_geometry.cu",
+  "output": "CMakeFiles/mon_projet.dir/src/renderingGPU/objectGPU/cuda_triangle_mesh_geometry.cu.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/scene.cpp.o -c /home/elisee/Raytracer/src/scene.cpp",
+  "file": "/home/elisee/Raytracer/src/scene.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/scene.cpp.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/texture.cpp.o -c /home/elisee/Raytracer/src/texture.cpp",
+  "file": "/home/elisee/Raytracer/src/texture.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/texture.cpp.o"
+},
+{
+  "directory": "/home/elisee/Raytracer/build",
+  "command": "/usr/bin/g++  -I/home/elisee/Raytracer/src -I/home/elisee/Raytracer/lib -g -std=gnu++17 -o CMakeFiles/mon_projet.dir/src/utils/console_progress_bar.cpp.o -c /home/elisee/Raytracer/src/utils/console_progress_bar.cpp",
+  "file": "/home/elisee/Raytracer/src/utils/console_progress_bar.cpp",
+  "output": "CMakeFiles/mon_projet.dir/src/utils/console_progress_bar.cpp.o"
+}
+]
