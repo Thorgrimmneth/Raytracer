@@ -26,9 +26,9 @@ namespace RT
 
 		inline const Vec3f & getFlatColor() const override { return BLACK; }
 
-		const bool isTransparent() const override { return true; }
+		bool isTransparent() const override { return true; }
 
-		const float getIOR() const override { return _ior; }
+		float getIOR() const override { return _ior; }
 
 		MaterialType getType() const override { return MaterialType::TRANSPARENT;}
 

@@ -29,7 +29,7 @@ namespace RT
 
 		const Vec3f computeSmoothNormal( const Vec2f & p_uv ) const;
 
-		inline const float getArea() const { return _area; };
+		inline float getArea() const { return _area; };
 
 		const Vec3f samplePoint() const;
 		inline unsigned int getV0() const { return _v0; }

@@ -21,7 +21,7 @@ namespace RT
 			_invdir = 1.f / p_direction;
 		}
 		
-		inline const double	 getTime() const { return _time; }
+		inline double	 getTime() const { return _time; }
 		inline const Vec3f & getOrigin() const { return _origin; }
 		inline const Vec3f & getDirection() const { return _direction; }
 		inline const Vec3f & getInvDirection() const { return _invdir; }

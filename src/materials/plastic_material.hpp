@@ -30,7 +30,7 @@ namespace RT
 		}
 
 		inline const Vec3f & getFlatColor() const override { return _brdf.getKd(); }
-		inline const float getShininess() const { return _s;}
+		inline float getShininess() const { return _s;}
 
 		MaterialType getType() const override { return MaterialType::PLASTIC;}
 

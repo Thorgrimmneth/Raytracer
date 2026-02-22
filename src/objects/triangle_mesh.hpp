@@ -18,8 +18,8 @@ namespace RT
 		MeshTriangle( const std::string & p_name ) : BaseObject( p_name ) {}
 		virtual ~MeshTriangle() = default;
 
-		const size_t getNbTriangles() const { return _triangles.size(); }
-		const size_t getNbVertices() const { return _vertices.size(); }
+		size_t getNbTriangles() const { return _triangles.size(); }
+		size_t getNbVertices() const { return _vertices.size(); }
 
 		inline void addTriangle( const unsigned int p_v0, const unsigned int p_v1, const unsigned int p_v2 )
 		{
@@ -38,11 +38,11 @@ namespace RT
 
 		inline const AABB & getAABB() const { return _aabb; }
 
-		inline const std::vector<TriangleMeshGeometry> getTriangles() const { return _triangles; }
+		inline const std::vector<TriangleMeshGeometry>& getTriangles() const { return _triangles; }
 
 		inline void buildBVH() { _bvh.build( &_triangles ); }
 
-		inline BVH getBVH() const{return _bvh;}
+		inline const BVH& getBVH() const { return _bvh; }
 		inline std::vector<Vec3f>	 getVertices() const{return _vertices;}
 		inline std::vector<Vec3f> getNormals() const{return _normals;}
 		inline std::vector<Vec2f>	 getUVS() const{return _uvs;}

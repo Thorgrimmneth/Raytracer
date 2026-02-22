@@ -78,7 +78,6 @@ void renderKernel(
         float time = curand_uniform(&localState);
 
         Ray ray(camPos, direction, time);
-        HitRecord hit;
         float3 color = integrator.Li(gpuScene, ray, 0, 1e20f, &localState);
 
         finalColor += color;

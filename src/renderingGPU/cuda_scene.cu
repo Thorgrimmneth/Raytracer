@@ -20,6 +20,7 @@
 #include "../lights/cylinder_light.hpp"
 #include "../lights/directionnal_light.hpp"
 
+__device__
 bool CudaScene::intersect(const Ray &p_ray, const float p_tMin, const float p_tMax, HitRecord &p_hitRecord) const
 {
 	float tMax = p_tMax;
@@ -51,6 +52,8 @@ bool CudaScene::intersect(const Ray &p_ray, const float p_tMin, const float p_tM
 	}
 	return hit;
 }
+
+__device__
 bool CudaScene::intersectAny(const Ray &p_ray, const float p_tMin, const float p_tMax) const
 {
 	for (int i = 0; i < nbSpheres; i++)

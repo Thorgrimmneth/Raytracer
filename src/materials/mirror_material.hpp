@@ -26,7 +26,7 @@ namespace RT
 
 		inline const Vec3f & getFlatColor() const override { return BLACK; }
 
-		const bool isMirror() const override { return true; }
+		bool isMirror() const override { return true; }
 
 		MaterialType getType() const override { return MaterialType::MIRROR;}
 

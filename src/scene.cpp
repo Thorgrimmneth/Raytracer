@@ -343,7 +343,7 @@ namespace RT
 		_addMaterial( new MirrorMaterial( "Mirror" ) );
 		_addMaterial( new EmissiveMaterial( "RedEmissive", RED, 10.f ) );
 
-		loadFileTriangleMesh( "bunny", "data/bunny/Bunny.obj" );
+		loadFileTriangleMesh( "bunny", "../data/bunny/Bunny.obj" );
 		_attachMaterialToObject( "GoldenMetal", "bunny_defaultobject" );
 
 		OrientationMode modetorus = OrientationMode::LookAtThenEuler;
