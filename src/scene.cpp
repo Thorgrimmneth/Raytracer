@@ -44,7 +44,7 @@ namespace RT
 		}
 	}
 
-	void Scene::init() { _spheres(); }
+	void Scene::init() { _killTheBunny(); }
 
 	void Scene::loadFileTriangleMesh( const std::string & p_name, const std::string & p_path )
 	{
@@ -170,7 +170,7 @@ namespace RT
 		}
 		else
 		{
-			std::cout << "Material \'" << name << "\' added." << std::endl;
+			//std::cout << "Material \'" << name << "\' added." << std::endl;
 			_materialMap[ name ] = p_material;
 		}
 	}

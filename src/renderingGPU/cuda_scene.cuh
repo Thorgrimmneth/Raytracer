@@ -4,12 +4,12 @@ namespace RT {
     class Scene;
 }
 
-#include "objectGPU/cuda_sphere.cuh"
-#include "objectGPU/cuda_plane.cuh"
-#include "objectGPU/cuda_triangle_mesh.cuh"
-#include "cuda_material.cuh"
-#include "cuda_light.cuh"
-#include "objectGPU/cuda_aabb.cuh"
+#include "objects/cuda_sphere.cuh"
+#include "objects/cuda_plane.cuh"
+#include "objects/cuda_triangle_mesh.cuh"
+#include "materials/cuda_material.cuh"
+#include "lights/cuda_light.cuh"
+#include "objectsUtils/cuda_aabb.cuh"
 
 struct BVHNodeGPU
 {
@@ -27,7 +27,7 @@ struct CudaScene
     TriangleMesh* triangleMeshes;
     Material* materials;
     Light* lights;
-    float4* vertices;
+    float3* vertices;
 
     int nbSpheres;
     int nbPlanes;

@@ -3,16 +3,16 @@
 __device__
 float3 AABB::centroid()
 {
-	float3 minT = toFloat3(min);
-	float3 maxT = toFloat3(max);
+	float3 minT = min;
+	float3 maxT = max;
 	return (minT + maxT) * 0.5f;
 }
 
 __device__ 
 float AABB::area()
 {
-	float3 minT = toFloat3(min);
-	float3 maxT = toFloat3(max);
+	float3 minT = min;
+	float3 maxT = max;
 	float3 size = maxT - minT;
 	return 2.0f * (size.x * size.y + size.x * size.z + size.y * size.z);
 }

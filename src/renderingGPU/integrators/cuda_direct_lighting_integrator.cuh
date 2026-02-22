@@ -1,8 +1,8 @@
 #pragma once
 
-#include "cuda_scene.cuh"
-#include "objectGPU/cuda_ray.cuh"
-#include "objectGPU/cuda_hitrecord.cuh"
+#include "../cuda_scene.cuh"
+#include "../raytracingUtils/cuda_ray.cuh"
+#include "../raytracingUtils/cuda_hitrecord.cuh"
 
 struct DirectLightingIntegrator
 {

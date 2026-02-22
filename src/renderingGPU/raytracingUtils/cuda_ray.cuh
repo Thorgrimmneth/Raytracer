@@ -1,6 +1,6 @@
 #pragma once
 
-#include "cuda_op.cuh"
+#include "../utils/cuda_op.cuh"
 
 struct Ray{
     double time = 0;

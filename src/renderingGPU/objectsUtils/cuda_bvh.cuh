@@ -1,7 +1,7 @@
 #pragma once
 
 #include "cuda_aabb.cuh"
-#include "cuda_hitrecord.cuh"
+#include "../raytracingUtils/cuda_hitrecord.cuh"
 
 struct BVH{
     AABB bbox;

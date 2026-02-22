@@ -1,8 +1,8 @@
 #pragma once
 
-#include "objectGPU/cuda_lightsample.cuh"
-#include "cuda_defines.cuh"
-#include "objectGPU/cuda_op.cuh"
+#include "cuda_lightsample.cuh"
+#include "../utils/cuda_defines.cuh"
+#include "../utils/cuda_op.cuh"
 
 #ifdef __CUDACC__
 #include <curand_kernel.h>

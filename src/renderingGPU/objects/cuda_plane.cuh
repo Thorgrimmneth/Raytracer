@@ -1,12 +1,12 @@
 #pragma once
 
-#include "cuda_op.cuh"
-#include "cuda_ray.cuh"
-#include "cuda_hitrecord.cuh"
+#include "../utils/cuda_op.cuh"
+#include "../raytracingUtils/cuda_ray.cuh"
+#include "../raytracingUtils/cuda_hitrecord.cuh"
 
 struct Plane
 {
-	float4 normal;
+	float3 normal;
     float delta;
     int materialIndex;
 

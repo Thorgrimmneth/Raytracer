@@ -3,8 +3,8 @@
 #include <fstream>
 #include "cuda_scene.cuh"
 #include "../scene.hpp"
-#include "renderingGPU/cuda_whitted_integrator.cuh"
-#include "renderingGPU/cuda_direct_lighting_integrator.cuh"
+#include "integrators/cuda_direct_lighting_integrator.cuh"
+#include "integrators/cuda_whitted_integrator.cuh"
 #include <curand_kernel.h>
 
 __global__
@@ -109,8 +109,9 @@ unsigned char* launchHelloCUDA(const RT::Scene& scene,
                                const int height)
 {
     // ===== Upload scene =====
+    printf("Start uploading the scene to the GPU\n");
     CudaScene gpuScene = uploadSceneToGPU(scene);
-
+    printf("Done uploading the scene to the GPU\n");
     size_t bufferSize = width * height * 3 * sizeof(unsigned char);
 
     unsigned char* d_framebuffer;
@@ -151,8 +152,9 @@ unsigned char* launchHelloCUDA(const RT::Scene& scene,
 
     float milliseconds = 0.f;
     cudaEventElapsedTime(&milliseconds, start, stop);
-
-    printf("Render time: %.3f ms\n", milliseconds/1000.f);
+    float seconds = milliseconds/1000.f;
+    printf("Render time: %.3f ms\n", seconds);
+    printf("Render time: %i minutes and %i s\n", (int)seconds/60, (int)seconds%60);
 
     cudaEventDestroy(start);
     cudaEventDestroy(stop);

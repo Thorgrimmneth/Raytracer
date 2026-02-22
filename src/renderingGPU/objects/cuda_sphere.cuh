@@ -1,11 +1,11 @@
 #pragma once
 
-#include "cuda_ray.cuh"
-#include "cuda_hitrecord.cuh"
+#include "../raytracingUtils/cuda_ray.cuh"
+#include "../raytracingUtils/cuda_hitrecord.cuh"
 
 struct Sphere{
-    float4 center1;
-    float4 center2;
+    float3 center1;
+    float3 center2;
     float radius;
 
     int materialIndex;

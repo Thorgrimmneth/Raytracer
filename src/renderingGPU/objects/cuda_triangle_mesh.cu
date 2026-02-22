@@ -4,8 +4,7 @@ __device__
 bool TriangleMesh::intersect(const Ray &p_ray,
                              const float p_tMin,
                              const float p_tMax,
-                             HitRecord &p_hitRecord,
-                             float4* vertices) const
+                             HitRecord &p_hitRecord) const
 {
     int stack[64];
     int stackPtr = 0;
@@ -62,8 +61,7 @@ bool TriangleMesh::intersect(const Ray &p_ray,
 __device__ 
 bool TriangleMesh::intersectAny(const Ray &p_ray,
                                 const float p_tMin,
-                                const float p_tMax,
-                                float4* vertices) const
+                                const float p_tMax) const
 {
     int stack[64];
     int stackPtr = 0;

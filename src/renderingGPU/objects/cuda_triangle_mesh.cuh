@@ -1,7 +1,7 @@
 #pragma once
 
-#include "cuda_bvh.cuh"
-#include "cuda_hitrecord.cuh"
+#include "../objectsUtils/cuda_bvh.cuh"
+#include "../raytracingUtils/cuda_hitrecord.cuh"
 #include "cuda_triangle_mesh_geometry.cuh"
 
 //pas besoin de triangle_mesh_geometry parce qu'on parcourt le bvh pour l'intersection
@@ -12,8 +12,8 @@ struct TriangleMesh{
     TriangleMeshGeometry* triangles;
     int triangleCount;
 
-    float4* vertices;
-    float4* normals;
+    float3* vertices;
+    float3* normals;
     float2* uvs;
 
     int vertexCount;
@@ -23,12 +23,10 @@ struct TriangleMesh{
     bool intersect( const Ray & p_ray,
 					const float p_tMin,
 					const float p_tMax,
-					HitRecord & p_hitRecord,
-                    float4* vertices) const;
+					HitRecord & p_hitRecord) const;
 
     __device__
     bool intersectAny( const Ray & p_ray,
 					   const float p_tMin,
-					   const float p_tMax,
-                       float4* vertices) const;
+					   const float p_tMax) const;
 };

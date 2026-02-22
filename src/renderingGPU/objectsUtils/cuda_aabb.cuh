@@ -1,11 +1,11 @@
 #pragma once
 
-#include "cuda_op.cuh"
-#include "cuda_ray.cuh"
+#include "../utils/cuda_op.cuh"
+#include "../raytracingUtils/cuda_ray.cuh"
 
 struct AABB{
-    float4 min;
-    float4 max;
+    float3 min;
+    float3 max;
 
     __device__
     inline float3 centroid();
