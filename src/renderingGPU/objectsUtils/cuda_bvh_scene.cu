@@ -198,21 +198,22 @@ bool BVHScene::intersect(const Ray &p_ray,
                          const float p_tMax,
                          HitRecord &p_hitRecord) const
 {
-    int stack[64];
+    Current stack[40];
     int stackPtr = 0;
     bool hit = false;
 
     float tMax = p_tMax;
 
-    stack[stackPtr++] = 0;
+    float distTemp;
+    if(!d_nodes[0].bbox.intersectCheck(p_ray, p_tMin, p_tMax, distTemp)) return false;
+    if(distTemp > tMax) return false;
+    stack[stackPtr++] = {0,distTemp};
 
     while (stackPtr > 0)
     {
-        int nodeIndex = stack[--stackPtr];
-        const BVHSceneNode& node = d_nodes[nodeIndex];
-
-        if (!node.bbox.intersect(p_ray, p_tMin, tMax))
-            continue;
+        Current currentNode = stack[--stackPtr];
+        if(currentNode.distance > tMax) continue;
+        const BVHSceneNode& node = d_nodes[currentNode.index];
 
         if (node.isLeaf())
         {
@@ -229,8 +230,29 @@ bool BVHScene::intersect(const Ray &p_ray,
         }
         else
         {
-            stack[stackPtr++] = node.left;
-            stack[stackPtr++] = node.right;
+            float tempLeft;
+            bool hitLeft;
+            hitLeft = d_nodes[node.left].bbox.intersectCheck(p_ray, p_tMin, tMax, tempLeft);
+
+            float tempRight;
+            bool hitRight;
+            hitRight = d_nodes[node.right].bbox.intersectCheck(p_ray, p_tMin, tMax, tempRight);
+
+            if(!hitLeft && !hitRight) continue;
+            if(hitLeft && hitRight){
+                if(tempLeft < tempRight){
+                    stack[stackPtr++] = Current{node.right, tempRight};
+                    stack[stackPtr++] = Current{node.left, tempLeft};
+                }
+                else{
+                    stack[stackPtr++] = Current{node.left, tempLeft};
+                    stack[stackPtr++] = Current{node.right, tempRight};
+                }
+            }
+            else{
+                if(hitLeft)stack[stackPtr++] = Current{node.left, tempLeft};
+                else stack[stackPtr++] = Current{node.right, tempRight};
+            }
         }
     }
 

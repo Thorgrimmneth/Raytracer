@@ -4,6 +4,11 @@
 #include "../raytracingUtils/cuda_hitrecord.cuh"    
 #include "../objects/cuda_sphere.cuh"
 
+struct Current{
+    int index;
+    float distance;
+};
+
 struct BuildTask {
     int nodeIndex;
     int first;

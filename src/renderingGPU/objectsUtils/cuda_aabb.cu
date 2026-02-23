@@ -73,6 +73,7 @@ bool AABB::intersectCheck( const Ray & ray, const float p_tMin, const float p_tM
     tmax = fminf(tmax, fmaxf(tz1, tz2));
 
     if(tmax >= tmin) tMin = tmin;
+    return tmax >= tmin;
 }
     
 
