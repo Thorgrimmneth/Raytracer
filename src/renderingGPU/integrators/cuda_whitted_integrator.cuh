@@ -4,47 +4,26 @@
 #include "../raytracingUtils/cuda_ray.cuh"
 #include "../raytracingUtils/cuda_hitrecord.cuh"
 #include "cuda_direct_lighting_integrator.cuh"
+#include "../utils/cuda_defines.cuh"
 
-struct CurrentLight{
+struct CurrentLight
+{
     Ray ray;
     float3 weight;
     bool inside;
     int depth;
 };
 
-struct WhittedIntegrator{
-    int nbBounces = 5;
-    const float earthRadius = 6360e3f;
-    float3		sunDirection				  = sunDirectionFromAngles(50.f, 20.f);
-	int			skyColorSamples			  = 32;
-    const float hr = 7994.f;
-	const float hm			 = 1200.f;
-	const float3 betaR		 = make_float3( 3.8e-6f, 13.5e-6f, 33.1e-6f );
-	const float3 betaM		 = float3f( 21e-6f );
-	const float	exposure					  = 20.f;
-
-    __device__
-    float3 sunDirectionFromAngles( float elevation, float azimuth );
-
-    __device__
-    float3 lighting(
-        const CudaScene& scene,
-        const Ray& primaryRay,
+struct WhittedIntegrator
+{
+    __device__ static float3 lighting(
+        const CudaScene &scene,
+        const Ray &primaryRay,
         const float tMin,
         const float tMax,
-        curandState* rng
-    ) const;
+        curandState *rng);
 
-    __device__
-    float3 toneMap( const float3 & c ) const;
+    __device__ static float3 toneMap(const float3 &c);
 
-    __device__
-    float3 getSkyColor( const Ray & p_ray ) const;
-
-    __device__
-    float3 Li( const CudaScene & p_scene,
-								 const Ray &   p_ray,
-								 const float   p_tMin,
-								 const float   p_tMax,
-                                 curandState* rng ) const;
+    __device__ static float3 getSkyColor(const Ray &p_ray);
 };

@@ -1,14 +1,6 @@
 #include "cuda_whitted_integrator.cuh"
 
-    __device__
-    float3 WhittedIntegrator::sunDirectionFromAngles( float elevation, float azimuth )
-		{
-			elevation  = elevation * GPUPIf / 180.f;
-			azimuth	   = azimuth * GPUPIf / 180.f;
-			float cosE = cos( elevation );
-
-			return normalize( make_float3( -cosE * cos( azimuth ), sin( elevation ), -cosE * sin( azimuth ) ) );
-		}
+    
 
     __device__
     float3 WhittedIntegrator::lighting(
@@ -17,7 +9,7 @@
         const float tMin,
         const float tMax,
         curandState* rng
-    ) const
+    )
     {
         const int MAX_STACK = 32;
 
@@ -180,12 +172,12 @@
     }
 
     __device__
-    float3 WhittedIntegrator::toneMap( const float3 & c ) const{
+    float3 WhittedIntegrator::toneMap( const float3 & c ){
 		return (c * exposure) / ( float3f( 1.f ) + c );
 	}
 
     __device__
-    float3 WhittedIntegrator::getSkyColor( const Ray & p_ray ) const
+    float3 WhittedIntegrator::getSkyColor( const Ray & p_ray )
 	{
 		float3 rayDir = normalize( p_ray.direction );
 		float3 sunDir = normalize( sunDirection );
@@ -254,14 +246,4 @@
 		}
 
 		return ( sumR * betaR * phaseR + sumM * betaM * phaseM );
-	}
-
-    __device__
-    float3 WhittedIntegrator::Li( const CudaScene & p_scene,
-								 const Ray &   p_ray,
-								 const float   p_tMin,
-								 const float   p_tMax,
-                                 curandState* rng ) const
-	{
-		return lighting( p_scene, p_ray, p_tMin, p_tMax, rng );
 	}

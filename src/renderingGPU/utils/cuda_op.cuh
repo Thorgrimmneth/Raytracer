@@ -53,6 +53,17 @@ inline float3 operator-(const float3& a, const float3& b)
 }
 
 __host__ __device__
+inline float4 operator-(const float4& a, const float4& b)
+{
+    return make_float4(
+        a.x - b.x,
+        a.y - b.y,
+        a.z - b.z,
+        0.f
+    );
+}
+
+__host__ __device__
 inline float3 operator*(const float3& a, float3& b)
 {
     return make_float3(
@@ -94,12 +105,23 @@ inline float3 operator*(const float3& a, const float3& b)
 }
 
 __host__ __device__
-inline float3 operator*(const float a, float3 b)
+inline float3 operator*(const float a, const float3& b)
 {
     return make_float3(
         a * b.x,
         a * b.y,
         a * b.z
+    );
+}
+
+__host__ __device__
+inline float4 operator*(const float a, const float4& b)
+{
+    return make_float4(
+        a * b.x,
+        a * b.y,
+        a * b.z,
+        0.f
     );
 }
 
