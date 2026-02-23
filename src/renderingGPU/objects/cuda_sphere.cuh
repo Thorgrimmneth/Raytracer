@@ -6,9 +6,8 @@
 struct Sphere{
     BaseObject base;
     float3 center1;
-    float3 center2;
     float radius;
-
+    float3 center2;
     int materialIndex;
 
     __device__

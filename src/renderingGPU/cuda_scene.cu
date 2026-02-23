@@ -25,14 +25,12 @@ bool CudaScene::intersect(const Ray &p_ray, const float p_tMin, const float p_tM
 {
 	float tMax = p_tMax;
 	bool hit = false;
-	for (int i = 0; i < nbSpheres; i++)
+	if (bvhScene.intersect(p_ray, p_tMin, tMax, p_hitRecord))
 	{
-		if (spheres[i].intersect(p_ray, p_tMin, tMax, p_hitRecord))
-		{
-			tMax = p_hitRecord.distance; // update tMax to conserve the nearest hit
-			hit = true;
-		}
+		tMax = p_hitRecord.distance; // update tMax to conserve the nearest hit
+		hit = true;
 	}
+	
 	for (int i = 0; i < nbPlanes; i++)
 	{
 		//printf("x %f, y %f, z%f ",p_ray.direction.x,p_ray.direction.y,p_ray.direction.z);
@@ -56,13 +54,12 @@ bool CudaScene::intersect(const Ray &p_ray, const float p_tMin, const float p_tM
 __device__
 bool CudaScene::intersectAny(const Ray &p_ray, const float p_tMin, const float p_tMax) const
 {
-	for (int i = 0; i < nbSpheres; i++)
+
+	if (bvhScene.intersectAny(p_ray, p_tMin, p_tMax))
 	{
-		if (spheres[i].intersectAny(p_ray, p_tMin, p_tMax))
-		{
-			return true;
-		}
+		return true;
 	}
+	
 	for (int i = 0; i < nbPlanes; i++)
 	{
 		if (planes[i].intersectAny(p_ray, p_tMin, p_tMax))
@@ -83,8 +80,8 @@ bool CudaScene::intersectAny(const Ray &p_ray, const float p_tMin, const float p
 AABB convertBBOX(RT::AABB bbox)
 {
 	AABB nbbox;
-	nbbox.min = make_float3(bbox.getMin().x, bbox.getMin().y, bbox.getMin().z);
-	nbbox.max = make_float3(bbox.getMax().x, bbox.getMax().y, bbox.getMax().z);
+	nbbox.min = make_float4(bbox.getMin().x, bbox.getMin().y, bbox.getMin().z, 0.f);
+	nbbox.max = make_float4(bbox.getMax().x, bbox.getMax().y, bbox.getMax().z, 0.f);
 	return nbbox;
 }
 
@@ -203,9 +200,18 @@ CudaScene uploadSceneToGPU(const RT::Scene &scene)
 			s.center2 = make_float3(center.pointAtT(1.f).x, center.pointAtT(1.f).y, center.pointAtT(1.f).z); // center2
 			s.radius = sphere.getRadius();
 			s.base.type = ObjectType::SPHERE;
-			float3 r = float3f(s.radius);
-			s.base.min = toFloat4(s.center1 - r);
-			s.base.max = toFloat4(s.center1 + r);
+			float3 r = make_float3(s.radius, s.radius, s.radius);
+
+			AABB box1;
+			box1.min = toFloat4(s.center1 - r);
+			box1.max = toFloat4(s.center1 + r);
+
+			AABB box2;
+			box2.min = toFloat4(s.center2 - r);
+			box2.max = toFloat4(s.center2 + r);
+
+			s.base.bbox.min = getMin(box1.min, box2.min);
+			s.base.bbox.max = getMax(box1.max, box2.max);
 			materials.push_back(convertMaterial(obj->getMaterial()));
 			s.materialIndex = materials.size() - 1;
 			spheresGPU.push_back(s);
@@ -304,16 +310,10 @@ CudaScene uploadSceneToGPU(const RT::Scene &scene)
 			triangleMeshesGPU.push_back(tm);
 		}
 	}
+	
+	gpuScene.bvhScene = BVHScene::buildBVHScene(&spheresGPU);
 
 	gpuScene.nbSpheres = spheresGPU.size();
-
-	cudaMalloc(&gpuScene.spheres,
-			   spheresGPU.size() * sizeof(Sphere));
-
-	cudaMemcpy(gpuScene.spheres,
-			   spheresGPU.data(),
-			   spheresGPU.size() * sizeof(Sphere),
-			   cudaMemcpyHostToDevice);
 
 	gpuScene.nbPlanes = planesGPU.size();
 
@@ -413,5 +413,7 @@ CudaScene uploadSceneToGPU(const RT::Scene &scene)
 		gpuScene.materials = nullptr;
 	}
 
+	//printf("nb objects bvh %i\n", gpuScene.bvhScene.nbObjects);
+	//printf("nb nodes bvh %i\n", gpuScene.bvhScene.nbNodes);
 	return gpuScene;
 }

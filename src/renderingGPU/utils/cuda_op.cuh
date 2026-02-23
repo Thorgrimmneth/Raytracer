@@ -7,12 +7,29 @@ inline float3 float3f(const float a)
 }
 
 __host__ __device__
+inline float4 float4f(const float a)
+{
+    return make_float4(a, a, a,0.f);
+}
+
+__host__ __device__
 inline float3 operator+(const float3& a, const float3& b)
 {
     return make_float3(
         a.x + b.x,
         a.y + b.y,
         a.z + b.z
+    );
+}
+
+__host__ __device__
+inline float4 operator+(const float4& a, const float4& b)
+{
+    return make_float4(
+        a.x + b.x,
+        a.y + b.y,
+        a.z + b.z,
+        0.f
     );
 }
 
@@ -52,6 +69,17 @@ inline float3 operator*(const float3& a, float b)
         a.x * b,
         a.y * b,
         a.z * b
+    );
+}
+
+__host__ __device__
+inline float4 operator*(const float4& a, float b)
+{
+    return make_float4(
+        a.x * b,
+        a.y * b,
+        a.z * b,
+        0.f
     );
 }
 
@@ -205,4 +233,22 @@ inline bool refract(const float3& a, const float3& b, const float c, float3& out
 
     out = c * a + (c * cosi - sqrtf(k)) * b;
     return true;
+}
+
+__host__
+inline float4 getMin(const float4& a, const float4& b){
+    return make_float4(min(a.x, b.x), min(a.y, b.y), min(a.z, b.z), 0.f);
+}
+
+__host__
+inline float4 getMax(const float4& a, const float4& b){
+    return make_float4(max(a.x, b.x), max(a.y, b.y), max(a.z, b.z), 0.f);
+}
+
+__host__ __device__
+inline float getAxis(const float4& v, int axis)
+{
+    return axis == 0 ? v.x :
+           axis == 1 ? v.y :
+                       v.z;
 }

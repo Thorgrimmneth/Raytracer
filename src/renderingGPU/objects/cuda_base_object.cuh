@@ -8,7 +8,6 @@ enum ObjectType{
 };
 
 struct BaseObject{
-    float4 min;
-    float4 max;
+    AABB bbox;
     ObjectType type;
 };

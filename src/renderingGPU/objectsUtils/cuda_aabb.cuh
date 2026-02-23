@@ -4,15 +4,24 @@
 #include "../raytracingUtils/cuda_ray.cuh"
 
 struct AABB{
-    float3 min;
-    float3 max;
+    float4 min = float4f(+INFINITY);
+    float4 max = float4f(-INFINITY);
 
-    __device__
-    inline float3 centroid();
+    __host__ __device__
+    float4 centroid() const;
 
-    __device__
+    __host__ __device__
     float area();
 
     __device__
     bool intersect( const Ray & ray, const float p_tMin, const float p_tMax ) const;
+
+    __host__
+    void extend(const AABB& a);
+
+    __host__
+    void extend(const float3& a);
+
+    __host__
+    void extend(const float4& a);
 };

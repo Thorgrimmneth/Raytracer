@@ -10,19 +10,11 @@ namespace RT {
 #include "materials/cuda_material.cuh"
 #include "lights/cuda_light.cuh"
 #include "objectsUtils/cuda_aabb.cuh"
-
-struct BVHNodeGPU
-{
-	AABB bbox;
-	int left;
-	int right;
-	int firstTriangle;
-	int lastTriangle;
-};
+#include "objectsUtils/cuda_bvh_scene.cuh"
 
 struct CudaScene
 {
-    Sphere* spheres;
+    BVHScene bvhScene;
     Plane* planes;
     TriangleMesh* triangleMeshes;
     Material* materials;
