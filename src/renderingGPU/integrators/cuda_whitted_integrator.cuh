@@ -5,14 +5,22 @@
 #include "../raytracingUtils/cuda_hitrecord.cuh"
 #include "cuda_direct_lighting_integrator.cuh"
 
+struct CurrentLight{
+    Ray ray;
+    float3 weight;
+    bool inside;
+    int depth;
+};
+
 struct WhittedIntegrator{
     int nbBounces = 5;
+    const float earthRadius = 6360e3f;
     float3		sunDirection				  = sunDirectionFromAngles(50.f, 20.f);
 	int			skyColorSamples			  = 32;
-    const float hr = 8.0f;
-	const float hm			 = 1.2f;
-	const float3 betaR		 = make_float3( 3.8e-6f, 13.5e-6f, 33.1e-6f ) * 1000.f;
-	const float3 betaM		 = float3f( 21e-6f ) * 1000.f;
+    const float hr = 7994.f;
+	const float hm			 = 1200.f;
+	const float3 betaR		 = make_float3( 3.8e-6f, 13.5e-6f, 33.1e-6f );
+	const float3 betaM		 = float3f( 21e-6f );
 	const float	exposure					  = 20.f;
 
     __device__

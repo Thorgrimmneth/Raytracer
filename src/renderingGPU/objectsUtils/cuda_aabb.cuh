@@ -16,6 +16,8 @@ struct AABB{
     __device__
     bool intersect( const Ray & ray, const float p_tMin, const float p_tMax ) const;
 
+    __device__
+    bool intersectCheck( const Ray & ray, const float p_tMin, const float p_tMax, float& tMin ) const;
     __host__
     void extend(const AABB& a);
 

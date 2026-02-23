@@ -167,7 +167,6 @@
             // ---- DIFFUSE ----
             else
             {
-                //verified
                 DirectLightingIntegrator integrator;
                 float3 direct = integrator.directLighting(
                     scene, ray, hit, tMin, tMax, rng
@@ -191,7 +190,7 @@
 		float3 rayDir = normalize( p_ray.direction );
 		float3 sunDir = normalize( sunDirection );
 
-		float tMax = 100.f;
+		float tMax = 60000.f;
 		float dt   = tMax / skyColorSamples;
 
 		float3 sumR = float3f(0.f);
@@ -215,7 +214,9 @@
 			float t = ( i + 0.5f ) * dt;
 			float3 p = p_ray.pointAtT( t );
 
-			float height = max( 0.f, p.y );
+			float3 planetCenter = make_float3(0.f, -earthRadius, 0.f);
+            float height = length(p - planetCenter) - earthRadius;
+            height = max(0.f, height);
 
 			float altitudeFade = exp( -height / 5.f );
 			float horizonFade  = exp( -sunBelow * 20.f * altitudeFade );
@@ -237,10 +238,11 @@
 				float ts = ( j + 0.5f ) * sunDt;
 				float3 ps = p + sunDir * ts;
 
-				float h = max( 0.f, ps.y );
+				float h = length(ps - planetCenter) - earthRadius;
+                h = max(0.f, h);
 
-				sunOpticalDepthR += exp( -h / nhr ) * sunDt;
-				sunOpticalDepthM += exp( -h / nhm ) * sunDt;
+				sunOpticalDepthR += exp( -h / hr ) * sunDt;
+				sunOpticalDepthM += exp( -h / hm ) * sunDt;
 			}
 
 			float3 tau = betaR * ( opticalDepthR + sunOpticalDepthR ) + betaM * ( opticalDepthM + sunOpticalDepthM );
