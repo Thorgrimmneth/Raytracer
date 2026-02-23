@@ -2,8 +2,9 @@
 
 #include "../raytracingUtils/cuda_ray.cuh"
 #include "../raytracingUtils/cuda_hitrecord.cuh"
-
+#include "cuda_base_object.cuh"
 struct Sphere{
+    BaseObject base;
     float3 center1;
     float3 center2;
     float radius;

@@ -202,6 +202,10 @@ CudaScene uploadSceneToGPU(const RT::Scene &scene)
 			s.center1 = make_float3(center.getOrigin().x, center.getOrigin().y, center.getOrigin().z);
 			s.center2 = make_float3(center.pointAtT(1.f).x, center.pointAtT(1.f).y, center.pointAtT(1.f).z); // center2
 			s.radius = sphere.getRadius();
+			s.base.type = ObjectType::SPHERE;
+			float3 r = float3f(s.radius);
+			s.base.min = toFloat4(s.center1 - r);
+			s.base.max = toFloat4(s.center1 + r);
 			materials.push_back(convertMaterial(obj->getMaterial()));
 			s.materialIndex = materials.size() - 1;
 			spheresGPU.push_back(s);

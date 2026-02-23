@@ -165,6 +165,12 @@ inline float3 toFloat3(const float4& a)
 }
 
 __host__ __device__
+inline float4 toFloat4(const float3& a)
+{
+    return make_float4(a.x, a.y, a.z, 0.f);
+}
+
+__host__ __device__
 inline bool operator==(const float3& a, const float3& b)
 {
     return a.x == b.x && a.y == b.y && a.z == b.z;

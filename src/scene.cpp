@@ -44,7 +44,7 @@ namespace RT
 		}
 	}
 
-	void Scene::init() { _killTheBunny(); }
+	void Scene::init() { _spheres(); }
 
 	void Scene::loadFileTriangleMesh( const std::string & p_name, const std::string & p_path )
 	{

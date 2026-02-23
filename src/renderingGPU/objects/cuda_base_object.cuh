@@ -1,3 +1,5 @@
+#include "../objectsUtils/cuda_aabb.cuh"
+
 enum ObjectType{
     SPHERE,
     TRIANGLE,
@@ -6,6 +8,7 @@ enum ObjectType{
 };
 
 struct BaseObject{
-    float3 position;
+    float4 min;
+    float4 max;
     ObjectType type;
 };

@@ -261,6 +261,5 @@
 								 const float   p_tMax,
                                  curandState* rng ) const
 	{
-		HitRecord hitRecord;
 		return lighting( p_scene, p_ray, p_tMin, p_tMax, rng );
 	}

@@ -7,7 +7,7 @@
 
 struct WhittedIntegrator{
     int nbBounces = 5;
-    float3		sunDirection				  = sunDirectionFromAngles(-15.f, 20.f);
+    float3		sunDirection				  = sunDirectionFromAngles(50.f, 20.f);
 	int			skyColorSamples			  = 32;
     const float hr = 8.0f;
 	const float hm			 = 1.2f;
