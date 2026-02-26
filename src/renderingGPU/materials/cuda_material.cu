@@ -58,7 +58,7 @@ __device__
 float3 Material::getColor(
         const Ray &ray,
         const HitRecord &hit,
-        const LightSample &light)
+        const LightSample &light) const
 {
     float3 normal = normalize(hit.normal);
     float3 wo = normalize(-ray.direction);

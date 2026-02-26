@@ -260,7 +260,7 @@ bool BVHScene::intersect(const Ray &p_ray,
 }
 
 __device__ 
-bool BVHScene::intersectAny(const Ray &p_ray, const float p_tMin, const float p_tMax) const{
+bool BVHScene::intersectAny(const Ray &p_ray, const float p_tMin, const float p_tMax, const Material* materials) const{
     int stack[64];
     int stackPtr = 0;
     stack[stackPtr++] = 0; // root index
@@ -279,7 +279,9 @@ bool BVHScene::intersectAny(const Ray &p_ray, const float p_tMin, const float p_
                 i < node.lastObjectIndex;
                 ++i)
             {
-                if(d_objects[i].intersectAny(p_ray, p_tMin, p_tMax)) return true;
+                if(!(materials[d_objects[i].materialIndex].type == MaterialType::TRANSPARENT)){
+                    if(d_objects[i].intersectAny(p_ray, p_tMin, p_tMax)) return true;
+                }
             }
         }
         else

@@ -18,6 +18,7 @@ __constant__ float3 betaR;
 __constant__ float3 betaM;
 __constant__ float exposure;
 __constant__ Camera camera;
+__constant__ float sizeAtmosphere;
 
 __host__
 float3 sunDirectionFromAngles(float elevation, float azimuth)
@@ -67,13 +68,14 @@ void initConstant(int width, int height){
     int c_nbBounces = 5;
     float c_earthRadius = 6360e3f;
     float3 c_sunDirection = sunDirectionFromAngles(50.f, 20.f);
-    int c_skyColorSamples = 32;
+    int c_skyColorSamples = 8;
     float c_hr = 7994.f;
     float c_hm = 1200.f;
     float3 c_betaR = make_float3(3.8e-6f, 13.5e-6f, 33.1e-6f);
     float3 c_betaM = float3f(21e-6f);
     float c_exposure = 20.f;
     Camera c_camera = initCamera(width, height);
+    float c_sizeAtmosphere = 60000.f;
     cudaMemcpyToSymbol(nbBounces, &c_nbBounces, sizeof(int));
     cudaMemcpyToSymbol(earthRadius,&c_earthRadius,  sizeof(float));
     cudaMemcpyToSymbol(sunDirection,&c_sunDirection,  sizeof(float3));
@@ -84,6 +86,7 @@ void initConstant(int width, int height){
     cudaMemcpyToSymbol(betaM,&c_betaM,  sizeof(float3));
     cudaMemcpyToSymbol(exposure,&c_exposure,  sizeof(float));
     cudaMemcpyToSymbol(camera,&c_camera,  sizeof(Camera));
+    cudaMemcpyToSymbol(sizeAtmosphere, &c_sizeAtmosphere, sizeof(float));
 }
 
 __global__

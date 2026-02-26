@@ -3,7 +3,7 @@
 #include "../objectsUtils/cuda_bvh.cuh"
 #include "../raytracingUtils/cuda_hitrecord.cuh"
 #include "cuda_triangle_mesh_geometry.cuh"
-
+#include "../materials/cuda_material.cuh"
 //pas besoin de triangle_mesh_geometry parce qu'on parcourt le bvh pour l'intersection
 struct TriangleMesh{
     BVH* bvhNodes;
@@ -28,5 +28,6 @@ struct TriangleMesh{
     __device__
     bool intersectAny( const Ray & p_ray,
 					   const float p_tMin,
-					   const float p_tMax) const;
+					   const float p_tMax,
+                    const Material* materials) const;
 };

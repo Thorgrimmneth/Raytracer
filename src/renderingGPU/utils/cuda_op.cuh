@@ -274,3 +274,8 @@ inline float getAxis(const float4& v, int axis)
            axis == 1 ? v.y :
                        v.z;
 }
+
+__host__ __device__
+inline float4 make_float4(const float3& a, const float& b){
+    return make_float4(a.x, a.y, a.z, b);
+}

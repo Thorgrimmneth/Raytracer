@@ -16,6 +16,7 @@ struct CurrentLight
 
 struct WhittedIntegrator
 {
+
     __device__ static float3 lighting(
         const CudaScene &scene,
         const Ray &primaryRay,

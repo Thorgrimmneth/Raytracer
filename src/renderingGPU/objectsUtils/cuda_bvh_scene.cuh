@@ -3,6 +3,7 @@
 #include "cuda_aabb.cuh"
 #include "../raytracingUtils/cuda_hitrecord.cuh"    
 #include "../objects/cuda_sphere.cuh"
+#include "../materials/cuda_material.cuh"
 
 struct Current{
     int index;
@@ -48,6 +49,7 @@ struct BVHScene {
     __device__
     bool intersectAny(const Ray& ray,
                       float tMin,
-                      float tMax) const;
+                      float tMax, 
+                      const Material* materials) const;
 };
 

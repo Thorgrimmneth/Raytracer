@@ -1,5 +1,6 @@
 #include "cuda_triangle_mesh.cuh"
 
+
 __device__ 
 bool TriangleMesh::intersect(const Ray &p_ray,
                              const float p_tMin,
@@ -61,8 +62,10 @@ bool TriangleMesh::intersect(const Ray &p_ray,
 __device__ 
 bool TriangleMesh::intersectAny(const Ray &p_ray,
                                 const float p_tMin,
-                                const float p_tMax) const
+                                const float p_tMax,
+                            const Material* materials) const
 {
+    if(materials[materialIndex].type == MaterialType::TRANSPARENT) return false;
     int stack[64];
     int stackPtr = 0;
 

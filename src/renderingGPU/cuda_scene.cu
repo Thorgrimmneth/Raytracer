@@ -55,21 +55,21 @@ __device__
 bool CudaScene::intersectAny(const Ray &p_ray, const float p_tMin, const float p_tMax) const
 {
 
-	if (bvhScene.intersectAny(p_ray, p_tMin, p_tMax))
+	if (bvhScene.intersectAny(p_ray, p_tMin, p_tMax, materials))
 	{
 		return true;
 	}
 	
 	for (int i = 0; i < nbPlanes; i++)
 	{
-		if (planes[i].intersectAny(p_ray, p_tMin, p_tMax))
+		if (planes[i].intersectAny(p_ray, p_tMin, p_tMax, materials))
 		{
 			return true;
 		}
 	}
 	for (int i = 0; i < nbTriangleMeshes; i++)
 	{
-		if (triangleMeshes[i].intersectAny(p_ray, p_tMin, p_tMax))
+		if (triangleMeshes[i].intersectAny(p_ray, p_tMin, p_tMax, materials))
 		{
 			return true;
 		}

@@ -11,7 +11,7 @@
         curandState* rng
     )
     {
-        const int MAX_STACK = 32;
+        const int MAX_STACK = 8;
 
         Ray rayStack[MAX_STACK];
         float3 weightStack[MAX_STACK];
@@ -159,8 +159,7 @@
             // ---- DIFFUSE ----
             else
             {
-                DirectLightingIntegrator integrator;
-                float3 direct = integrator.directLighting(
+                float3 direct = DirectLightingIntegrator::directLighting(
                     scene, ray, hit, tMin, tMax, rng
                 );
 
@@ -171,19 +170,20 @@
         return finalColor;
     }
 
-    __device__
+    __device__ __forceinline__
     float3 WhittedIntegrator::toneMap( const float3 & c ){
 		return (c * exposure) / ( float3f( 1.f ) + c );
 	}
 
-    __device__
+    __device__ __noinline__
     float3 WhittedIntegrator::getSkyColor( const Ray & p_ray )
 	{
+        const float invHr = 1.f / hr;
+        const float invHm = 1.f / hm;
 		float3 rayDir = normalize( p_ray.direction );
 		float3 sunDir = normalize( sunDirection );
 
-		float tMax = 60000.f;
-		float dt   = tMax / skyColorSamples;
+		float dt   = sizeAtmosphere / skyColorSamples;
 
 		float3 sumR = float3f(0.f);
 		float3 sumM = float3f(0.f);
@@ -192,29 +192,25 @@
 		float opticalDepthM = 0.f;
 
 		float mu = dot( rayDir, sunDir );
-
-		float phaseR = ( 3.f / ( 16.f * GPUPIf ) ) * ( 1.f + mu * mu );
-
-		float g		 = 0.76f;
+		//float phaseR = ( 3.f / ( 16.f * GPUPIf ) ) * ( 1.f + mu * mu );
+        float phaseR = 0.05968310365f * (1.f + mu * mu);
+		/*float g		 = 0.76f;
+        float temp = 1.f + g * g - 2.f * g * mu;
 		float phaseM = ( 3.f / ( 8.f * GPUPIf ) ) * ( ( 1.f - g * g ) * ( 1.f + mu * mu ) )
-					   / ( ( 2.f + g * g ) * pow( 1.f + g * g - 2.f * g * mu, 1.5f ) );
-
-		float sunBelow = max( 0.f, -sunDir.y );
+					   / ( ( 2.f + g * g ) * temp * sqrt(temp) );*/
+        float temp = 1.5776f - 1.56f * mu;
+        float phaseM =  0.01956094267f * (1 + mu * mu) / (temp * sqrt(temp));
 
 		for ( int i = 0; i < skyColorSamples; ++i )
 		{
 			float t = ( i + 0.5f ) * dt;
 			float3 p = p_ray.pointAtT( t );
 
-			float3 planetCenter = make_float3(0.f, -earthRadius, 0.f);
-            float height = length(p - planetCenter) - earthRadius;
+            float height = p.y;
             height = max(0.f, height);
 
-			float altitudeFade = exp( -height / 5.f );
-			float horizonFade  = exp( -sunBelow * 20.f * altitudeFade );
-
-			float nhr = exp( -height / hr ) * dt * horizonFade;
-			float nhm = exp( -height / hm ) * dt * horizonFade;
+			float nhr = exp( -height * invHr ) * dt;
+			float nhm = exp( -height * invHm ) * dt;
 
 			opticalDepthR += nhr;
 			opticalDepthM += nhm;
@@ -222,15 +218,15 @@
 			float sunOpticalDepthR = 0.f;
 			float sunOpticalDepthM = 0.f;
 
-			int	  sunSamples = 8;
+			int	  sunSamples = 2;
 			float sunDt		 = 100.f / sunSamples;
-
+            
 			for ( int j = 0; j < sunSamples; ++j )
 			{
 				float ts = ( j + 0.5f ) * sunDt;
 				float3 ps = p + sunDir * ts;
 
-				float h = length(ps - planetCenter) - earthRadius;
+				float h = ps.y;
                 h = max(0.f, h);
 
 				sunOpticalDepthR += exp( -h / hr ) * sunDt;

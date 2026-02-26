@@ -6,11 +6,11 @@
 													 const HitRecord & p_hitRecord,
 													 const float	   p_tMin,
 													 const float	   p_tMax,
-                                                     curandState* rng ) const
+                                                     curandState* rng )
 	{
 		float3 Li = float3f(0.0f);
 
-		Material mtl = p_scene.materials[p_hitRecord.materialIndex];
+		const Material& mtl = p_scene.materials[p_hitRecord.materialIndex];
 
 		for (int i = 0; i < p_scene.nbLights; i++ )
 		{
@@ -53,16 +53,3 @@
 
 		return Li;
 	}
-
-
-    __device__
-    float3 DirectLightingIntegrator::LI(const CudaScene & p_scene, const Ray & p_ray, const float p_tMin, const float p_tMax, curandState* rng){
-        HitRecord hitRecord;
-		if ( p_scene.intersect( p_ray, p_tMin, p_tMax, hitRecord ) )
-		{
-			return directLighting( p_scene, p_ray, hitRecord, p_tMin, p_tMax, rng );
-		}
-		else {
-			return backgroundColor;
-		}
-    }

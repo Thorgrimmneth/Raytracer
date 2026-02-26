@@ -12,3 +12,4 @@ extern __constant__ float hm;
 extern __constant__ float3 betaR;
 extern __constant__ float3 betaM;
 extern __constant__ float exposure;
+extern __constant__ float sizeAtmosphere;

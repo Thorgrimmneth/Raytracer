@@ -3,6 +3,7 @@
 #include "../utils/cuda_op.cuh"
 #include "../raytracingUtils/cuda_ray.cuh"
 #include "../raytracingUtils/cuda_hitrecord.cuh"
+#include "../materials/cuda_material.cuh"
 
 struct Plane
 {
@@ -17,5 +18,5 @@ struct Plane
 	bool intersect( const Ray & p_ray, const float p_tMin, const float p_tMax, HitRecord & p_hitRecord ) const;
 
 	__device__
-	bool intersectAny( const Ray & p_ray, const float p_tMin, const float p_tMax ) const;
+	bool intersectAny( const Ray & p_ray, const float p_tMin, const float p_tMax, const Material* materials ) const;
 };

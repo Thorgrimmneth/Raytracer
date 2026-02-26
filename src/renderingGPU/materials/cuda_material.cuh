@@ -46,5 +46,5 @@ struct Material
     float3 getColor(
         const Ray &ray,
         const HitRecord &hit,
-        const LightSample &light);
+        const LightSample &light) const;
 };
