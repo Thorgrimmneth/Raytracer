@@ -168,7 +168,7 @@ unsigned char* launchHelloCUDA(const RT::Scene& scene,
     size_t bufferSize = width * height * 3 * sizeof(unsigned char);
     unsigned char* d_framebuffer;
     cudaMalloc(&d_framebuffer, bufferSize);
-
+    printf("%i\n", gpuScene.bvhScene.nbNodes);
     // ===== Launch config =====
     dim3 blockSize(16, 16);
     dim3 gridSize(
