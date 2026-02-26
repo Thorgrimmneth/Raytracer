@@ -19,13 +19,13 @@ struct TriangleMesh{
     int vertexCount;
     int materialIndex;
 
-    __device__
+    __device__ __noinline__
     bool intersect( const Ray & p_ray,
 					const float p_tMin,
 					const float p_tMax,
 					HitRecord & p_hitRecord) const;
 
-    __device__
+    __device__ __noinline__
     bool intersectAny( const Ray & p_ray,
 					   const float p_tMin,
 					   const float p_tMax,

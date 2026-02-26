@@ -55,7 +55,7 @@ struct BVHScene {
                   float tMin,
                   float tMax,
                   const Material* materials) const{
-    int stack[128];
+    int stack[32];
     int stackPtr = 0;
     stack[stackPtr++] = 0; // root index
 

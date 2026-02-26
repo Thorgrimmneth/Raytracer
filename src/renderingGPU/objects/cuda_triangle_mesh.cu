@@ -1,7 +1,7 @@
 #include "cuda_triangle_mesh.cuh"
 
 
-__device__ 
+__device__ __noinline__
 bool TriangleMesh::intersect(const Ray &p_ray,
                              const float p_tMin,
                              const float p_tMax,
@@ -59,7 +59,7 @@ bool TriangleMesh::intersect(const Ray &p_ray,
 }
 
 
-__device__ 
+__device__ __noinline__
 bool TriangleMesh::intersectAny(const Ray &p_ray,
                                 const float p_tMin,
                                 const float p_tMax,

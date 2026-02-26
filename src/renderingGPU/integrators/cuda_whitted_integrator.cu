@@ -1,5 +1,60 @@
 #include "cuda_whitted_integrator.cuh"
 
+
+__device__ __noinline__
+static Ray getTransparent(const Material &mtl, float3 point, float3 normal, bool &isInside, float3 direction, curandState *rng)
+{
+    float n1 = isInside ? mtl.ior : 1.f;
+    float n2 = isInside ? 1.f : mtl.ior;
+
+    float3 dir = direction;
+
+    float cosI = clamp(dot(normal, -dir), -1.f, 1.f);
+    float eta = n1 / n2;
+
+    float k = 1.f - eta * eta * (1.f - cosI * cosI);
+
+    // Total internal reflection
+    if (k < 0.f)
+    {
+        Ray ray = Ray(point, reflect(dir, normal));
+        ray.offset(normal);
+        return ray;
+    }
+
+    float cosT = sqrtf(k);
+
+    float rs = ((n1 * cosI) - (n2 * cosT)) /
+               ((n1 * cosI) + (n2 * cosT));
+    rs *= rs;
+
+    float rp = ((n1 * cosT) - (n2 * cosI)) /
+               ((n1 * cosT) + (n2 * cosI));
+    rp *= rp;
+
+    float reff = 0.5f * (rs + rp);
+
+    float xi = curand_uniform(rng);
+
+    if (xi < reff)
+    {
+        // reflect
+        Ray ray = Ray(point, reflect(dir, normal));
+        ray.offset(normal);
+        return ray;
+    }
+    else
+    {
+        // refract
+        float3 refrDir = eta * dir + (eta * cosI - cosT) * normal;
+        Ray ray = Ray(point, refrDir);
+        ray.offset(-normal);
+
+        isInside = !isInside;
+        return ray;
+    }
+}
+
 __device__
 float3 WhittedIntegrator::lighting(
     const CudaScene& scene,
@@ -37,55 +92,7 @@ float3 WhittedIntegrator::lighting(
         // ---------------- TRANSPARENT ----------------
         else if (mtl.type == TRANSPARENT)
         {
-            float n1 = isInside ? mtl.ior : 1.f;
-            float n2 = isInside ? 1.f : mtl.ior;
-
-            float3 normal = hit.normal;
-            float3 dir = ray.direction;
-
-            float cosI = clamp(dot(normal, -dir), -1.f, 1.f);
-            float eta = n1 / n2;
-
-            float k = 1.f - eta * eta * (1.f - cosI * cosI);
-
-            // Total internal reflection
-            if (k < 0.f)
-            {
-                ray = Ray(hit.point, reflect(dir, normal));
-                ray.offset(normal);
-                continue;
-            }
-
-            float cosT = sqrtf(k);
-
-            float rs = ((n1 * cosI) - (n2 * cosT)) /
-                    ((n1 * cosI) + (n2 * cosT));
-            rs *= rs;
-
-            float rp = ((n1 * cosT) - (n2 * cosI)) /
-                    ((n1 * cosT) + (n2 * cosI));
-            rp *= rp;
-
-            float reff = 0.5f * (rs + rp);
-
-            float xi = curand_uniform(rng);
-
-            if (xi < reff)
-            {
-                // reflect
-                ray = Ray(hit.point, reflect(dir, normal));
-                ray.offset(normal);
-
-            }
-            else
-            {
-                // refract
-                float3 refrDir = eta * dir + (eta * cosI - cosT) * normal;
-                ray = Ray(hit.point, refrDir);
-                ray.offset(-normal);
-
-                isInside = !isInside;
-            }
+            ray = getTransparent(mtl, hit.point, hit.normal, isInside, ray.direction, rng);
 
             continue;
         }

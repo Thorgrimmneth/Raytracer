@@ -13,8 +13,8 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
     if (!primitives || primitives->empty())
         return scene;
 
-    const int maxObjectsPerLeaf = 8;
-    const int maxDepth = 32;
+    const int maxObjectsPerLeaf = 1;
+    const int maxDepth = 16;
     const int BIN_COUNT = 16;
 
     std::vector<BVHSceneNode> nodes;
@@ -223,7 +223,7 @@ bool BVHScene::intersect(const Ray &p_ray,
                          const float p_tMax,
                          HitRecord &p_hitRecord) const
 {
-    Current stack[256];
+    Current stack[32];
     int stackPtr = 0;
     bool hit = false;
 

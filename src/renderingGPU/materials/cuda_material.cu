@@ -104,7 +104,9 @@ float3 Material::getColor(
         float3 F0 = float3f(0.04f);
 
         float HdotV = max(dot(h, wo), 0.f);
-        float3 F = F0 + (float3f(1.f) - F0) * powf(1.f - HdotV, 5.f);
+        float x = 1.f - HdotV;
+        float x2 = x * x;
+        float3 F = F0 + (float3f(1.f) - F0) * x2 * x2 * x;
 
         // -------- Blinn-Phong specular --------
         float NdotH = max(dot(n, h), 0.f);
