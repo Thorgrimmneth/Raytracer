@@ -16,7 +16,7 @@ target_include_directories(mon_projet PRIVATE
     src
     lib
 )
-
+target_compile_options(mon_projet PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--maxrregcount=64>)
 find_package(assimp REQUIRED)
 find_package(CUDAToolkit REQUIRED)
 
