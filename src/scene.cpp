@@ -519,9 +519,7 @@ namespace RT
 	}
 	
 	void Scene::_spheres() 
-	{
-		_addLight( new DirectionnalLight( "light1", Vec3f( 0.f, -1.f, 0.f ), WHITE, 1.f ) );
-		
+	{		
 		_addMaterial( new ColorMaterial( "Ground", Vec3f( 0.5f, 0.5f, 0.5f ) ) );
 		_addMaterial( new MirrorMaterial( "Mirror" ) );
 		_addMaterial( new TransparentMaterial( "Transparent" ) );

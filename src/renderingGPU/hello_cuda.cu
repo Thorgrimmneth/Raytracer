@@ -159,11 +159,15 @@ void renderKernel(
 unsigned char* launchHelloCUDA(const RT::Scene& scene,
                                const int nbSample,
                                const int width,
-                               const int height)
+                               const int height,
+                                float elevation,
+                                float azimuth)
 {
     // ===== Upload scene =====
     printf("Start uploading the scene to the GPU\n");
-    CudaScene gpuScene = uploadSceneToGPU(scene);
+    float3 sunDir = -sunDirectionFromAngles(elevation, azimuth);
+    printf("%f, %f, %f\n", sunDir.x, sunDir.y, sunDir.z);
+    CudaScene gpuScene = uploadSceneToGPU(scene, sunDir);
     printf("Done uploading the scene to the GPU\n");
     size_t bufferSize = width * height * 3 * sizeof(unsigned char);
     unsigned char* d_framebuffer;

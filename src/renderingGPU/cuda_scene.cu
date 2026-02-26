@@ -132,7 +132,7 @@ Material convertMaterial(RT::BaseMaterial *bm)
 	return m;
 }
 
-CudaScene uploadSceneToGPU(const RT::Scene &scene)
+CudaScene uploadSceneToGPU(const RT::Scene &scene, float3 sunDir)
 {
 	CudaScene gpuScene;
 
@@ -375,6 +375,12 @@ CudaScene uploadSceneToGPU(const RT::Scene &scene)
 			lightsGPU.push_back(l);
 		}
 	}
+	Light l;
+	l.color = float3f(1.f);
+	l.power = 1.f;
+	l.direction = sunDir;
+	l.type = LightType::DIRECTIONNAL;
+	lightsGPU.push_back(l);
 	gpuScene.nbLights = lightsGPU.size();
 
 	cudaMalloc(&gpuScene.lights,

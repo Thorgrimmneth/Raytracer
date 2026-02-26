@@ -77,18 +77,21 @@ struct BVHScene {
                 switch(prim.type)
                 {
                     case ObjectType::SPHERE:
+                    if(materials[d_spheres[prim.index].materialIndex].type == MaterialType::TRANSPARENT) continue;
                         if (d_spheres[prim.index].intersectAny(ray, tMin, tMax))
                         {
                             return true;
                         }
                         break;
                     case ObjectType::PLANE:
+                    if(materials[d_planes[prim.index].materialIndex].type == MaterialType::TRANSPARENT) continue;
                         if(d_planes[prim.index].intersectAny(ray, tMin, tMax, materials))
                         {
                             return true;
                         }
                         break;
                     case ObjectType::TRIANGLE:
+                    if(materials[d_meshes[prim.index].materialIndex].type == MaterialType::TRANSPARENT) continue;
                         if(d_meshes[prim.index].intersectAny(ray, tMin, tMax, materials))
                         {
                             return true;

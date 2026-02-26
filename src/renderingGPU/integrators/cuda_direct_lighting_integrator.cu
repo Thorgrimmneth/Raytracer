@@ -45,8 +45,11 @@
 				shadowRay.offset( p_hitRecord.normal);
 				if ( !p_scene.intersectAny( shadowRay, 0.f, lightSample.distance ) )
 				{
+					if (length(lightSample.direction) < 1e-6f ) { Li += float3f(0.0f); }
+					else{
 					float angle = max( dot( p_hitRecord.normal, lightSample.direction ), 0.f );
 					Li += mtl.getColor( p_ray, p_hitRecord, lightSample ) * lightSample.radiance * angle;
+					}
 				}
 			}
 		}
