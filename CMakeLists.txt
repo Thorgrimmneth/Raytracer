@@ -26,5 +26,5 @@ target_link_libraries(mon_projet PRIVATE
 
 set_target_properties(mon_projet PROPERTIES
     CUDA_SEPARABLE_COMPILATION ON
-    CUDA_ARCHITECTURES 86   # adapte
+    CUDA_ARCHITECTURES 86
 )

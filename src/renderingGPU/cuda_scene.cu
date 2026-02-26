@@ -20,7 +20,7 @@
 #include "../lights/cylinder_light.hpp"
 #include "../lights/directionnal_light.hpp"
 
-__device__
+__device__ 
 bool CudaScene::intersect(const Ray &p_ray, const float p_tMin, const float p_tMax, HitRecord &p_hitRecord) const
 {
 	float tMax = p_tMax;
@@ -30,42 +30,22 @@ bool CudaScene::intersect(const Ray &p_ray, const float p_tMin, const float p_tM
 		tMax = p_hitRecord.distance; // update tMax to conserve the nearest hit
 		hit = true;
 	}
-	
-	for (int i = 0; i < nbPlanes; i++)
-	{
-		//printf("x %f, y %f, z%f ",p_ray.direction.x,p_ray.direction.y,p_ray.direction.z);
-		if (planes[i].intersect(p_ray, p_tMin, tMax, p_hitRecord))
-		{
-			tMax = p_hitRecord.distance;
-			hit = true;
-		}
-	}
-	for (int i = 0; i < nbTriangleMeshes; i++)
-	{
-		if (triangleMeshes[i].intersect(p_ray, p_tMin, tMax, p_hitRecord))
-		{
-			tMax = p_hitRecord.distance;
-			hit = true;
-		}
-	}
 	return hit;
 }
 
 __device__
 bool CudaScene::intersectAny(const Ray &p_ray, const float p_tMin, const float p_tMax) const
 {
-
-	if (bvhScene.intersectAny(p_ray, p_tMin, p_tMax, materials))
-	{
-		return true;
-	}
-	
 	for (int i = 0; i < nbPlanes; i++)
 	{
 		if (planes[i].intersectAny(p_ray, p_tMin, p_tMax, materials))
 		{
 			return true;
 		}
+	}
+	if (bvhScene.intersectAny(p_ray, p_tMin, p_tMax, materials))
+	{
+		return true;
 	}
 	for (int i = 0; i < nbTriangleMeshes; i++)
 	{
@@ -177,6 +157,7 @@ CudaScene uploadSceneToGPU(const RT::Scene &scene)
 	std::vector<Plane> planesGPU;
 	std::vector<TriangleMesh> triangleMeshesGPU;
 	std::vector<float3> verticesGPU;
+	std::vector<BaseObject> primitivesGPU;
 	std::vector<Material> materials;
 	std::vector<Light> lightsGPU;
 
@@ -199,7 +180,7 @@ CudaScene uploadSceneToGPU(const RT::Scene &scene)
 			s.center1 = make_float3(center.getOrigin().x, center.getOrigin().y, center.getOrigin().z);
 			s.center2 = make_float3(center.pointAtT(1.f).x, center.pointAtT(1.f).y, center.pointAtT(1.f).z); // center2
 			s.radius = sphere.getRadius();
-			s.base.type = ObjectType::SPHERE;
+
 			float3 r = make_float3(s.radius, s.radius, s.radius);
 
 			AABB box1;
@@ -210,8 +191,10 @@ CudaScene uploadSceneToGPU(const RT::Scene &scene)
 			box2.min = toFloat4(s.center2 - r);
 			box2.max = toFloat4(s.center2 + r);
 
-			s.base.bbox.min = getMin(box1.min, box2.min);
-			s.base.bbox.max = getMax(box1.max, box2.max);
+			box1.min = getMin(box1.min, box2.min);
+			box1.max = getMax(box1.max, box2.max);
+			primitivesGPU.push_back(BaseObject{box1,ObjectType::SPHERE, (int)spheresGPU.size() });
+
 			materials.push_back(convertMaterial(obj->getMaterial()));
 			s.materialIndex = materials.size() - 1;
 			spheresGPU.push_back(s);
@@ -231,6 +214,10 @@ CudaScene uploadSceneToGPU(const RT::Scene &scene)
 			p.normal = make_float3(plane.getNormal().x, plane.getNormal().y, plane.getNormal().z);
 			materials.push_back(convertMaterial(obj->getMaterial()));
 			p.materialIndex = materials.size() - 1;
+			AABB bbox;
+			bbox.min = make_float4(-1e3f, plane.getPosition().y, -1e3f, 0.f);
+			bbox.max = make_float4(1e3f, plane.getPosition().y, 1e3f, 0.f);
+			primitivesGPU.push_back(BaseObject{bbox, ObjectType::PLANE, (int)planesGPU.size()});
 			planesGPU.push_back(p);
 		}
 		else if (obj->getType() == RT::ObjectType::TriangleMesh)
@@ -306,16 +293,31 @@ CudaScene uploadSceneToGPU(const RT::Scene &scene)
 
 			materials.push_back(convertMaterial(obj->getMaterial()));
 			tm.materialIndex = materials.size() - 1;
-
+			primitivesGPU.push_back(BaseObject{linearBVH[0].bbox, ObjectType::TRIANGLE, (int)triangleMeshesGPU.size()});
 			triangleMeshesGPU.push_back(tm);
 		}
 	}
-	
-	gpuScene.bvhScene = BVHScene::buildBVHScene(&spheresGPU);
+	cudaMalloc(&gpuScene.primitives,
+			   primitivesGPU.size() * sizeof(BaseObject));
+
+	cudaMemcpy(gpuScene.primitives,
+			   primitivesGPU.data(),
+			   primitivesGPU.size() * sizeof(BaseObject),
+			   cudaMemcpyHostToDevice);
+
+	gpuScene.bvhScene = BVHScene::buildBVHScene(&primitivesGPU, &spheresGPU, &planesGPU, &triangleMeshesGPU);
 
 	gpuScene.nbSpheres = spheresGPU.size();
 
 	gpuScene.nbPlanes = planesGPU.size();
+	
+	cudaMalloc(&gpuScene.spheres,
+			   spheresGPU.size() * sizeof(Sphere));
+
+	cudaMemcpy(gpuScene.spheres,
+			   spheresGPU.data(),
+			   spheresGPU.size() * sizeof(Sphere),
+			   cudaMemcpyHostToDevice);
 
 	cudaMalloc(&gpuScene.planes,
 			   planesGPU.size() * sizeof(Plane));
@@ -334,6 +336,10 @@ CudaScene uploadSceneToGPU(const RT::Scene &scene)
 			   triangleMeshesGPU.data(),
 			   triangleMeshesGPU.size() * sizeof(TriangleMesh),
 			   cudaMemcpyHostToDevice);
+	
+	gpuScene.bvhScene.d_spheres = gpuScene.spheres;
+	gpuScene.bvhScene.d_planes = gpuScene.planes;
+	gpuScene.bvhScene.d_meshes = gpuScene.triangleMeshes;
 
 	for (const auto &light : scene.getLights())
 	{

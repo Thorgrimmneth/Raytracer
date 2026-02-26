@@ -1,174 +1,106 @@
 #include "cuda_whitted_integrator.cuh"
 
-    
+__device__
+float3 WhittedIntegrator::lighting(
+    const CudaScene& scene,
+    const Ray& primaryRay,
+    const float tMin,
+    const float tMax,
+    curandState* rng)
+{
+    float3 finalColor = float3f(0.f);
 
-    __device__
-    float3 WhittedIntegrator::lighting(
-        const CudaScene& scene,
-        const Ray& primaryRay,
-        const float tMin,
-        const float tMax,
-        curandState* rng
-    )
+    Ray ray = primaryRay;
+    float3 throughput = float3f(1.f);
+    bool isInside = false;
+
+    for (int depth = 0; depth < nbBounces; depth++)
     {
-        const int MAX_STACK = 8;
+        HitRecord hit;
 
-        Ray rayStack[MAX_STACK];
-        float3 weightStack[MAX_STACK];
-        bool insideStack[MAX_STACK];
-        int depthStack[MAX_STACK];
-
-        int stackPtr = 0;
-
-        // push primary ray
-        rayStack[stackPtr] = primaryRay;
-        weightStack[stackPtr] = float3f(1.f);
-        insideStack[stackPtr] = false;
-        depthStack[stackPtr] = 0;
-        stackPtr++;
-
-        float3 finalColor = float3f(0.f);
-
-        while (stackPtr > 0)
+        if (!scene.intersect(ray, tMin, tMax, hit))
         {
-            stackPtr--;
-
-            Ray ray = rayStack[stackPtr];
-            float3 throughput = weightStack[stackPtr];
-            bool isInside = insideStack[stackPtr];
-            int depth = depthStack[stackPtr];
-
-            HitRecord hit;
-
-            if (!scene.intersect(ray, tMin, tMax, hit))
-            {
-                if(hit.distance <0){
-                    finalColor += make_float3(1.f, 0.f, 0.f);
-                }
-                else{
-                //verified
-                float3 sky = toneMap(getSkyColor(ray));
-                finalColor += throughput * sky;
-                //finalColor += make_float3(1.f, 0.f, 0.f);
-                }
-                continue;
-            }
-            if (hit.materialIndex < 0 || hit.materialIndex >= scene.nbMaterials)
-            {
-                continue;
-            }
-            const Material& mtl = scene.materials[hit.materialIndex];
-            
-
-            // ---- MIRROR ----
-            if (mtl.type == MIRROR)
-            {
-                if (stackPtr >= MAX_STACK - 1 || depth >= nbBounces - 1) continue;
-
-                float3 reflDir = reflect(ray.direction, hit.normal);
-                Ray reflRay(hit.point, reflDir);
-                reflRay.offset(hit.normal);
-
-                rayStack[stackPtr] = reflRay;
-                weightStack[stackPtr] = throughput;
-                insideStack[stackPtr] = isInside;
-                depthStack[stackPtr] = depth + 1;
-                stackPtr++;
-            }
-
-            // ---- TRANSPARENT ----
-            else if (mtl.type == TRANSPARENT)
-            {
-                if (depth >= nbBounces - 1)
-                    continue;
-
-                float n1 = 1.f;
-                float n2 = mtl.ior;
-                float3 normal = hit.normal;
-
-                if (isInside)
-                {
-                    float tmp = n1;
-                    n1 = n2;
-                    n2 = tmp;
-                }
-
-                float3 rayDir = ray.direction;
-
-                float cosI = dot(normal, -rayDir);
-                cosI = clamp(cosI, -1.f, 1.f);
-
-                float sinT = (n1 / n2) * sqrtf(max(0.f, 1.f - cosI * cosI));
-
-                // ---- TOTAL INTERNAL REFLECTION ----
-                if (sinT > 1.f)
-                {
-                    float3 reflectedDir = reflect(rayDir, normal);
-                    Ray reflectedRay(hit.point, reflectedDir);
-                    reflectedRay.offset(normal);
-
-                    rayStack[stackPtr] = reflectedRay;
-                    weightStack[stackPtr] = throughput;
-                    insideStack[stackPtr] = isInside;
-                    depthStack[stackPtr] = depth + 1;
-                    stackPtr++;
-                    continue;
-                }
-
-                // Clamp for safety
-                sinT = clamp(sinT, -1.f, 1.f);
-                float cosT = sqrtf(max(0.f, 1.f - sinT * sinT));
-                cosT = clamp(cosT, -1.f, 1.f);
-
-                // Fresnel exact (like CPU)
-                float rs = ((n1 * cosI) - (n2 * cosT)) /
-                        ((n1 * cosI) + (n2 * cosT));
-                rs = rs * rs;
-
-                float rp = ((n1 * cosT) - (n2 * cosI)) /
-                        ((n1 * cosT) + (n2 * cosI));
-                rp = rp * rp;
-
-                float reff = (rs + rp) * 0.5f;
-
-                // ---- REFLECTION ----
-                float3 reflectedDir = reflect(rayDir, normal);
-                Ray reflectedRay(hit.point, reflectedDir);
-                reflectedRay.offset(normal);
-
-                // ---- REFRACTION ----
-                float3 refractedDir = refract(rayDir, normal, n1 / n2);
-                Ray refractedRay(hit.point, refractedDir);
-                refractedRay.offset(-normal);
-
-                // Push reflection
-                rayStack[stackPtr] = reflectedRay;
-                weightStack[stackPtr] = throughput * reff;
-                insideStack[stackPtr] = isInside;
-                depthStack[stackPtr] = depth + 1;
-                stackPtr++;
-
-                // Push refraction
-                rayStack[stackPtr] = refractedRay;
-                weightStack[stackPtr] = throughput * (1.f - reff);
-                insideStack[stackPtr] = !isInside;
-                depthStack[stackPtr] = depth + 1;
-                stackPtr++;
-            }
-
-            // ---- DIFFUSE ----
-            else
-            {
-                float3 direct = DirectLightingIntegrator::directLighting(
-                    scene, ray, hit, tMin, tMax, rng
-                );
-
-                finalColor += throughput * direct;
-            }
+            finalColor += throughput * toneMap(getSkyColor(ray));
+            break;
         }
 
-        return finalColor;
+        const Material& mtl = scene.materials[hit.materialIndex];
+
+        // ---------------- MIRROR ----------------
+        if (mtl.type == MIRROR)
+        {
+            ray = Ray(hit.point, reflect(ray.direction, hit.normal));
+            ray.offset(hit.normal);
+            continue;
+        }
+
+        // ---------------- TRANSPARENT ----------------
+        else if (mtl.type == TRANSPARENT)
+        {
+            float n1 = isInside ? mtl.ior : 1.f;
+            float n2 = isInside ? 1.f : mtl.ior;
+
+            float3 normal = hit.normal;
+            float3 dir = ray.direction;
+
+            float cosI = clamp(dot(normal, -dir), -1.f, 1.f);
+            float eta = n1 / n2;
+
+            float k = 1.f - eta * eta * (1.f - cosI * cosI);
+
+            // Total internal reflection
+            if (k < 0.f)
+            {
+                ray = Ray(hit.point, reflect(dir, normal));
+                ray.offset(normal);
+                continue;
+            }
+
+            float cosT = sqrtf(k);
+
+            float rs = ((n1 * cosI) - (n2 * cosT)) /
+                    ((n1 * cosI) + (n2 * cosT));
+            rs *= rs;
+
+            float rp = ((n1 * cosT) - (n2 * cosI)) /
+                    ((n1 * cosT) + (n2 * cosI));
+            rp *= rp;
+
+            float reff = 0.5f * (rs + rp);
+
+            float xi = curand_uniform(rng);
+
+            if (xi < reff)
+            {
+                // reflect
+                ray = Ray(hit.point, reflect(dir, normal));
+                ray.offset(normal);
+
+            }
+            else
+            {
+                // refract
+                float3 refrDir = eta * dir + (eta * cosI - cosT) * normal;
+                ray = Ray(hit.point, refrDir);
+                ray.offset(-normal);
+
+                isInside = !isInside;
+            }
+
+            continue;
+        }
+
+        // ---------------- DIFFUSE ----------------
+        float3 direct =
+            DirectLightingIntegrator::directLighting(
+                scene, ray, hit, tMin, tMax, rng);
+
+        finalColor += throughput * direct;
+        break;
     }
+
+    return finalColor;
+}
 
     __device__ __forceinline__
     float3 WhittedIntegrator::toneMap( const float3 & c ){

@@ -15,9 +15,11 @@ namespace RT {
 struct CudaScene
 {
     BVHScene bvhScene;
+    Sphere* spheres;
     Plane* planes;
     TriangleMesh* triangleMeshes;
     Material* materials;
+    BaseObject* primitives;
     Light* lights;
     float3* vertices;
 

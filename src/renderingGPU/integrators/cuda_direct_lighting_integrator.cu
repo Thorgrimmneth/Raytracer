@@ -1,6 +1,6 @@
 #include "cuda_direct_lighting_integrator.cuh"
 
-    __device__
+    __device__ __noinline__
     float3 DirectLightingIntegrator::directLighting( const CudaScene &	   p_scene,
 													 const Ray &	   p_ray,
 													 const HitRecord & p_hitRecord,

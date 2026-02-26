@@ -10,4 +10,5 @@ enum ObjectType{
 struct BaseObject{
     AABB bbox;
     ObjectType type;
+    int index;
 };

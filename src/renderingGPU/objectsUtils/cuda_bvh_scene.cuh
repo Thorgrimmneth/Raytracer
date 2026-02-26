@@ -3,7 +3,9 @@
 #include "cuda_aabb.cuh"
 #include "../raytracingUtils/cuda_hitrecord.cuh"    
 #include "../objects/cuda_sphere.cuh"
+#include "../objects/cuda_plane.cuh"
 #include "../materials/cuda_material.cuh"
+#include "../objects/cuda_triangle_mesh.cuh"
 
 struct Current{
     int index;
@@ -31,25 +33,59 @@ struct BVHSceneNode{
 struct BVHScene {
 
     BVHSceneNode* d_nodes;
-    Sphere* d_objects;
-
+    BaseObject* d_primitives;
+    Sphere* d_spheres;
+    Plane* d_planes;
+    TriangleMesh* d_meshes;
     int nbNodes;
     int nbObjects;
 
     
     __host__
-    static BVHScene buildBVHScene(std::vector<Sphere>* objects);
+    static BVHScene buildBVHScene(std::vector<BaseObject>* primitives,std::vector<Sphere>* spheres,std::vector<Plane>* planes,std::vector<TriangleMesh>* meshes);
 
-    __device__
+    __device__ 
     bool intersect(const Ray& ray,
                    float tMin,
                    float tMax,
                    HitRecord& hit) const;
 
-    __device__
+    __device__ __forceinline__
     bool intersectAny(const Ray& ray,
-                      float tMin,
-                      float tMax, 
-                      const Material* materials) const;
+                  float tMin,
+                  float tMax,
+                  const Material* materials) const{
+    int stack[128];
+    int stackPtr = 0;
+    stack[stackPtr++] = 0; // root index
+
+    while(stackPtr > 0)
+    {
+        int nodeIndex = stack[--stackPtr];
+        const BVHSceneNode& node = d_nodes[nodeIndex];
+
+        if (!node.bbox.intersect(ray, tMin, tMax))
+            continue;
+
+        if (node.isLeaf())
+        {
+            for(int i = node.firstObjectIndex;
+                i < node.lastObjectIndex;
+                ++i)
+            {
+                if(!(materials[d_spheres[i].materialIndex].type == MaterialType::TRANSPARENT)){
+                    if(d_spheres[i].intersectAny(ray, tMin, tMax)) return true;
+                }
+            }
+        }
+        else
+        {
+            stack[stackPtr++] = node.left;
+            stack[stackPtr++] = node.right;
+        }
+    }
+
+    return false;
+                  }
 };
 

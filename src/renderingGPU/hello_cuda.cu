@@ -166,7 +166,6 @@ unsigned char* launchHelloCUDA(const RT::Scene& scene,
     CudaScene gpuScene = uploadSceneToGPU(scene);
     printf("Done uploading the scene to the GPU\n");
     size_t bufferSize = width * height * 3 * sizeof(unsigned char);
-
     unsigned char* d_framebuffer;
     cudaMalloc(&d_framebuffer, bufferSize);
 
