@@ -23,7 +23,7 @@ namespace RT
 		virtual ~BaseLight() = default;
 
 		inline const Vec3f & getFlatColor() const { return _color; }
-		inline const float getPower() const {return _power;}
+		inline float getPower() const {return _power;}
 		virtual LightSample sample( const Vec3f & p_point ) const = 0;
 		inline bool			isSurface() const { return _isSurface; }
 		virtual LightType getType() const = 0;

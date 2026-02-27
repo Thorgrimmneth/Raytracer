@@ -4,30 +4,24 @@ namespace RT {
     class Scene;
 }
 
-#include "objectGPU/cuda_sphere.cuh"
-#include "objectGPU/cuda_plane.cuh"
-#include "objectGPU/cuda_triangle_mesh.cuh"
-#include "cuda_material.cuh"
-#include "cuda_light.cuh"
-#include "objectGPU/cuda_aabb.cuh"
-
-struct BVHNodeGPU
-{
-	AABB bbox;
-	int left;
-	int right;
-	int firstTriangle;
-	int lastTriangle;
-};
+#include "objects/cuda_sphere.cuh"
+#include "objects/cuda_plane.cuh"
+#include "objects/cuda_triangle_mesh.cuh"
+#include "materials/cuda_material.cuh"
+#include "lights/cuda_light.cuh"
+#include "objectsUtils/cuda_aabb.cuh"
+#include "objectsUtils/cuda_bvh_scene.cuh"
 
 struct CudaScene
 {
+    BVHScene bvhScene;
     Sphere* spheres;
     Plane* planes;
     TriangleMesh* triangleMeshes;
     Material* materials;
+    BaseObject* primitives;
     Light* lights;
-    float4* vertices;
+    float3* vertices;
 
     int nbSpheres;
     int nbPlanes;
@@ -42,4 +36,4 @@ struct CudaScene
     bool intersectAny(const Ray&, float, float) const;
 };
 
-CudaScene uploadSceneToGPU(const RT::Scene& scene);
+CudaScene uploadSceneToGPU(const RT::Scene& scene, float3 sunDir);

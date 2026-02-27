@@ -16,7 +16,7 @@ target_include_directories(mon_projet PRIVATE
     src
     lib
 )
-
+target_compile_options(mon_projet PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--maxrregcount=64>)
 find_package(assimp REQUIRED)
 find_package(CUDAToolkit REQUIRED)
 
@@ -26,5 +26,5 @@ target_link_libraries(mon_projet PRIVATE
 
 set_target_properties(mon_projet PROPERTIES
     CUDA_SEPARABLE_COMPILATION ON
-    CUDA_ARCHITECTURES 86   # adapte
+    CUDA_ARCHITECTURES 86
 )

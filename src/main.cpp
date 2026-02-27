@@ -15,8 +15,10 @@ namespace RT
 		Texture imgCuda =  Texture(img_width, img_height);
 		RT::Scene scene;
 		scene.init();
-		int nbSample = argc < 3 ? 32 : glm::max(2048,std::atoi(argv[2]));
-		unsigned char* img_cuda_raw = launchHelloCUDA(scene, nbSample, img_width, img_height);
+		int nbSample = argc < 3 ? 32 : glm::max(1,std::atoi(argv[2]));
+		float elevation = 50.f;
+		float azimuth = 20.f;
+		unsigned char* img_cuda_raw = launchHelloCUDA(scene, nbSample, img_width, img_height, elevation, azimuth);
 		imgCuda.createFromRaw(img_cuda_raw, img_width, img_height);
 		const std::string imgCudaName = "imageCuda.jpg";
 		imgCuda.saveJPG(RESULTS_PATH + imgCudaName);

@@ -48,7 +48,7 @@ namespace RT
 		}
 
 		inline const Vec3f & getKs() const { return _ks; }
-		inline const float getR() const {return _ruggedness;}
+		inline float getR() const {return _ruggedness;}
 
 	  private:
 		Vec3f _ks		  = BLACK;

@@ -1,9 +1,9 @@
 #pragma once
 
-#include "objectGPU/cuda_ray.cuh"
-#include "objectGPU/cuda_hitrecord.cuh"
-#include "objectGPU/cuda_lightsample.cuh"
-#include "cuda_defines.cuh"
+#include "../raytracingUtils/cuda_ray.cuh"
+#include "../raytracingUtils/cuda_hitrecord.cuh"
+#include "../lights/cuda_lightsample.cuh"
+#include "../utils/cuda_defines.cuh"
 
 enum MaterialType
 {
@@ -46,5 +46,5 @@ struct Material
     float3 getColor(
         const Ray &ray,
         const HitRecord &hit,
-        const LightSample &light);
+        const LightSample &light) const;
 };

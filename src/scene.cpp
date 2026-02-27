@@ -170,7 +170,7 @@ namespace RT
 		}
 		else
 		{
-			std::cout << "Material \'" << name << "\' added." << std::endl;
+			//std::cout << "Material \'" << name << "\' added." << std::endl;
 			_materialMap[ name ] = p_material;
 		}
 	}
@@ -343,7 +343,7 @@ namespace RT
 		_addMaterial( new MirrorMaterial( "Mirror" ) );
 		_addMaterial( new EmissiveMaterial( "RedEmissive", RED, 10.f ) );
 
-		loadFileTriangleMesh( "bunny", "data/bunny/Bunny.obj" );
+		loadFileTriangleMesh( "bunny", "../data/bunny/Bunny.obj" );
 		_attachMaterialToObject( "GoldenMetal", "bunny_defaultobject" );
 
 		OrientationMode modetorus = OrientationMode::LookAtThenEuler;
@@ -519,9 +519,7 @@ namespace RT
 	}
 	
 	void Scene::_spheres() 
-	{
-		_addLight( new DirectionnalLight( "light1", Vec3f( 0.f, -1.f, 0.f ), WHITE, 1.f ) );
-		
+	{		
 		_addMaterial( new ColorMaterial( "Ground", Vec3f( 0.5f, 0.5f, 0.5f ) ) );
 		_addMaterial( new MirrorMaterial( "Mirror" ) );
 		_addMaterial( new TransparentMaterial( "Transparent" ) );

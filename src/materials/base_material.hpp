@@ -32,13 +32,13 @@ namespace RT
 
 		virtual const std::string & getName() const final { return _name; }
 
-		virtual const bool isMirror() const { return false; }
+		virtual bool isMirror() const { return false; }
 
-		virtual const bool isTransparent() const { return false; }
+		virtual bool isTransparent() const { return false; }
 
-		virtual const float getIOR() const { return 1.f; }
+		virtual float getIOR() const { return 1.f; }
 
-		virtual const float getOpacity() const { return 1.f; }
+		virtual float getOpacity() const { return 1.f; }
 
 		virtual MaterialType getType() const = 0;
 

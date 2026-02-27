@@ -4,7 +4,7 @@
 __device__
 bool Plane::intersectGeometry(const Ray &ray, float &t) const
 {
-    float3 n = toFloat3(normal);
+    float3 n = normal;
 
     float ND = dot(n, ray.direction);
 	
@@ -31,7 +31,7 @@ bool Plane::intersect(const Ray &p_ray, const float p_tMin, const float p_tMax, 
 
 		// Intersection found, fill p_hitRecord.
 		p_hitRecord.point = p_ray.pointAtT(t1);
-		p_hitRecord.normal = toFloat3(normal);
+		p_hitRecord.normal = normal;
 		p_hitRecord.faceNormal(p_ray.direction);
 		p_hitRecord.distance = t1;
 		p_hitRecord.materialIndex = materialIndex;
@@ -42,8 +42,11 @@ bool Plane::intersect(const Ray &p_ray, const float p_tMin, const float p_tMax, 
 }
 
 __device__
-bool Plane::intersectAny(const Ray &p_ray, const float p_tMin, const float p_tMax) const
+bool Plane::intersectAny(const Ray &p_ray, const float p_tMin, const float p_tMax, const Material* materials) const
 {
+	if(materials[materialIndex].type == MaterialType::TRANSPARENT){
+		return false;
+	}
 	float t1;
 	if (intersectGeometry(p_ray, t1))
 	{

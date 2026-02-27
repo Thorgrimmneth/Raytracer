@@ -1,11 +1,11 @@
 #include "cuda_triangle_mesh.cuh"
 
-__device__ 
+
+__device__ __noinline__
 bool TriangleMesh::intersect(const Ray &p_ray,
                              const float p_tMin,
                              const float p_tMax,
-                             HitRecord &p_hitRecord,
-                             float4* vertices) const
+                             HitRecord &p_hitRecord) const
 {
     int stack[64];
     int stackPtr = 0;
@@ -59,12 +59,13 @@ bool TriangleMesh::intersect(const Ray &p_ray,
 }
 
 
-__device__ 
+__device__ __noinline__
 bool TriangleMesh::intersectAny(const Ray &p_ray,
                                 const float p_tMin,
                                 const float p_tMax,
-                                float4* vertices) const
+                            const Material* materials) const
 {
+    if(materials[materialIndex].type == MaterialType::TRANSPARENT) return false;
     int stack[64];
     int stackPtr = 0;
 

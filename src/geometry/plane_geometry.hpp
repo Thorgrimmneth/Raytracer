@@ -19,7 +19,7 @@ namespace RT
 
 		inline const Vec3f getNormal() const { return normalize( _normal ); }
 		inline const Vec3f & getPosition() const { return _position; }
-		inline const float getDelta() const {return _delta;}
+		inline float getDelta() const {return _delta;}
 
 		bool intersect( const Ray & p_ray, float & p_t1 ) const;
 

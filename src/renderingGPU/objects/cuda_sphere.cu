@@ -3,8 +3,8 @@
 __device__
 bool Sphere::intersectGeometry(const Ray &ray, float& t1, float& t2) const
 {
-    float3 c0 = toFloat3(center1);
-    float3 c1 = toFloat3(center2);
+    float3 c0 = center1;
+    float3 c1 = center2;
 
     float3 current_center = c0 + ray.time * (c1 - c0);
 
@@ -85,8 +85,8 @@ __device__
     float3
     Sphere::computeNormal(const float3 &point, const double time) const
 {
-  float3 c0 = toFloat3(center1);
-  float3 c1 = toFloat3(center2);
+  float3 c0 = center1;
+  float3 c1 = center2;
 
   float3 center = c0 + time * (c1 - c0);
 

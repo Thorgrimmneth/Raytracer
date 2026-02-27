@@ -29,7 +29,7 @@ namespace RT
 
 		inline const Vec3f getEmissionColor() const { return _color * _intensity; }
 
-		inline const bool isEmissive() const { return true; }
+		inline bool isEmissive() const { return true; }
 
 		inline const float & getIntensity() const { return _intensity; }
 

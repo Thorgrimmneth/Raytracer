@@ -55,7 +55,7 @@ LightSample Light::sampleDirectionnal(const float3 &p_point) const
 	rep.pdf = 1.f;
 	rep.power = power;
 	rep.distance = 1e20f;
-	rep.direction = -direction;
+	rep.direction = normalize(-direction);
 
 	return rep;
 }

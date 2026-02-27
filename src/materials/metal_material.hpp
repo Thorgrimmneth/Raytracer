@@ -41,8 +41,8 @@ namespace RT
 		}
 
 		inline const Vec3f & getFlatColor() const override { return _brdf.getKd(); }
-		inline const float getMetalness() const { return _metalness;}
-		inline const float getRuggedness() const {return _cookTorranceBrdf.getR();}
+		inline float getMetalness() const { return _metalness;}
+		inline float getRuggedness() const {return _cookTorranceBrdf.getR();}
 		MaterialType getType() const override { return MaterialType::METAL;}
 
 	  protected:

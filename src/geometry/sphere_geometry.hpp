@@ -22,7 +22,7 @@ namespace RT
 		}
 
 		inline const Vec3f getCenter(const double time = 0) const { return _center.pointAtT(time); }
-		inline const float	 getRadius() const { return _radius; }
+		inline float	 getRadius() const { return _radius; }
 		inline const Ray getCenters() const {
 			return _center;
 		}
