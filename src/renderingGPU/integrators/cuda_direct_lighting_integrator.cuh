@@ -6,7 +6,7 @@
 
 struct DirectLightingIntegrator
 {
-	static const int nbSample = 128;
+	static const int nbSample = 4;
 
 	__device__ __noinline__
 	static float3 directLighting(const CudaScene &p_scene,

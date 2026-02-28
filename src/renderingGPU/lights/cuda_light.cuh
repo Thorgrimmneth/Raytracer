@@ -13,7 +13,8 @@ enum LightType
     POINT,
     CYLINDER,
     DIRECTIONNAL,
-    QUAD
+    QUAD,
+    SUN
 };
 
 struct Light
@@ -23,7 +24,7 @@ struct Light
     float3 color;
     float radius;
     float3 direction;
-    float area;
+    float area = 0.f;
     float3 u;
     float power;
     float3 v;
@@ -33,6 +34,7 @@ struct Light
     __device__ LightSample sampleCylinder(const float3&, curandState*) const;
     __device__ LightSample sampleDirectionnal(const float3&) const;
     __device__ LightSample samplePoint(const float3&) const;
+    __device__ LightSample sampleCone(const float3& p_point, curandState *rng) const;
     __device__ LightSample sampleQuad(const float3&, curandState*) const;
     __device__ LightSample sample(const float3&, curandState*) const;
     __device__ LightSample sample(const float3&) const;

@@ -36,4 +36,4 @@ struct CudaScene
     bool intersectAny(const Ray&, float, float) const;
 };
 
-CudaScene uploadSceneToGPU(const RT::Scene& scene, float3 sunDir);
+CudaScene uploadSceneToGPU(const RT::Scene& scene, float4 sunDir);

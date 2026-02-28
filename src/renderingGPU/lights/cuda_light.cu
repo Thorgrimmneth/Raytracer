@@ -102,6 +102,39 @@ LightSample Light::sampleQuad(const float3 &p_point, curandState *rng) const
 }
 
 __device__
+LightSample Light::sampleCone(const float3& p_point, curandState *rng) const
+{
+	float sunAngularRadius = 3.f * GPUPIf / 180.f;
+
+    float u1 = curand_uniform(rng);
+    float u2 = curand_uniform(rng);
+
+    float cosTheta = 1.0f - u1 * (1.0f - cosf(sunAngularRadius));
+    float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
+    float phi = 2.0f * GPUPIf * u2;
+
+    float3 w = normalize(direction);
+    float3 up = fabs(w.y) < 0.99f ? make_float3(0,1,0) : make_float3(1,0,0);
+    float3 u = normalize(cross(up, w));
+    float3 v = cross(w, u);
+
+    float3 sampledDir =
+        normalize(u * cosf(phi) * sinTheta +
+                  v * sinf(phi) * sinTheta +
+                  w * cosTheta);
+	float cosMax = cosf(sunAngularRadius);
+    LightSample rep;
+    rep.direction = sampledDir;
+    rep.distance  = 1e20f;
+    rep.radiance  = color * power;
+    //rep.pdf       = 1.0f / (2.0f * GPUPIf * (1.0f - cosMax));
+	rep.pdf = 1.f;
+    rep.power     = power;
+
+    return rep;
+}
+
+__device__
 LightSample Light::sample(const float3 &p_point, curandState *rng) const
 {
 	switch (type)
@@ -110,6 +143,8 @@ LightSample Light::sample(const float3 &p_point, curandState *rng) const
 		return sampleQuad(p_point, rng);
 	case CYLINDER:
 		return sampleCylinder(p_point, rng);
+	case SUN:
+		return sampleCone(p_point, rng);
 	default:
 		return samplePoint(p_point);
 	}

@@ -279,3 +279,11 @@ __host__ __device__
 inline float4 make_float4(const float3& a, const float& b){
     return make_float4(a.x, a.y, a.z, b);
 }
+
+__device__ __forceinline__
+float smoothstep(float edge0, float edge1, float x)
+{
+    float t = (x - edge0) / (edge1 - edge0);
+    t = fminf(fmaxf(t, 0.0f), 1.0f);   // clamp 0–1
+    return t * t * (3.0f - 2.0f * t);
+}

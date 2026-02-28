@@ -114,71 +114,93 @@ float3 WhittedIntegrator::lighting(
 		return (c * exposure) / ( float3f( 1.f ) + c );
 	}
 
-    __device__ __noinline__
-    float3 WhittedIntegrator::getSkyColor( const Ray & p_ray )
-	{
-        const float invHr = 1.f / hr;
-        const float invHm = 1.f / hm;
-		float3 rayDir = normalize( p_ray.direction );
-		float3 sunDir = normalize( sunDirection );
+__device__ __noinline__
+float3 WhittedIntegrator::getSkyColor(const Ray& ray)
+{
+    float3 rayDir = normalize(ray.direction);
+    float3 sunDir = normalize(sunDirection);
 
-		float dt   = sizeAtmosphere / skyColorSamples;
+    float segmentLength = sizeAtmosphere / skyColorSamples;
+    float tCurrent = 0.0f;
 
-		float3 sumR = float3f(0.f);
-		float3 sumM = float3f(0.f);
+    float3 sumR = float3f(0.f);
+    float3 sumM = float3f(0.f);
 
-		float opticalDepthR = 0.f;
-		float opticalDepthM = 0.f;
+    float opticalDepthR = 0.0f;
+    float opticalDepthM = 0.0f;
 
-		float mu = dot( rayDir, sunDir );
-		//float phaseR = ( 3.f / ( 16.f * GPUPIf ) ) * ( 1.f + mu * mu );
-        float phaseR = 0.05968310365f * (1.f + mu * mu);
-		/*float g		 = 0.76f;
-        float temp = 1.f + g * g - 2.f * g * mu;
-		float phaseM = ( 3.f / ( 8.f * GPUPIf ) ) * ( ( 1.f - g * g ) * ( 1.f + mu * mu ) )
-					   / ( ( 2.f + g * g ) * temp * sqrt(temp) );*/
-        float temp = 1.5776f - 1.56f * mu;
-        float phaseM =  0.01956094267f * (1 + mu * mu) / (temp * sqrt(temp));
+    float mu = dot(rayDir, sunDir);
 
-		for ( int i = 0; i < skyColorSamples; ++i )
-		{
-			float t = ( i + 0.5f ) * dt;
-			float3 p = p_ray.pointAtT( t );
+    float g = 0.95f;
 
-            float height = p.y;
-            height = max(0.f, height);
+    float phaseR = (3.0f / (16.0f * GPUPIf)) * (1.0f + mu * mu);
 
-			float nhr = exp( -height * invHr ) * dt;
-			float nhm = exp( -height * invHm ) * dt;
+    float temp = 1.0f + g * g - 2.0f * g * mu;
+    float phaseM = (3.0f / (8.0f * GPUPIf)) *
+                   ((1.0f - g * g) * (1.0f + mu * mu)) /
+                   ((2.0f + g * g) * temp * sqrtf(temp));
 
-			opticalDepthR += nhr;
-			opticalDepthM += nhm;
+    for (int i = 0; i < skyColorSamples; ++i)
+    {
+        float3 samplePosition = ray.origin + rayDir * (tCurrent + segmentLength * 0.5f);
 
-			float sunOpticalDepthR = 0.f;
-			float sunOpticalDepthM = 0.f;
+        float height = max(samplePosition.y, 0.0f);
 
-			int	  sunSamples = 2;
-			float sunDt		 = 100.f / sunSamples;
-            
-			for ( int j = 0; j < sunSamples; ++j )
-			{
-				float ts = ( j + 0.5f ) * sunDt;
-				float3 ps = p + sunDir * ts;
+        float hrLocal = expf(-height / hr);
+        float hmLocal = expf(-height / hm);
 
-				float h = ps.y;
-                h = max(0.f, h);
+        opticalDepthR += hrLocal * segmentLength;
+        opticalDepthM += hmLocal * segmentLength;
 
-				sunOpticalDepthR += exp( -h / hr ) * sunDt;
-				sunOpticalDepthM += exp( -h / hm ) * sunDt;
-			}
+        float3 sunSamplePosition = samplePosition;
 
-			float3 tau = betaR * ( opticalDepthR + sunOpticalDepthR ) + betaM * ( opticalDepthM + sunOpticalDepthM );
+        float opticalDepthLightR = 0.0f;
+        float opticalDepthLightM = 0.0f;
 
-			float3 attenuation = make_float3( expf( -tau.x ), expf( -tau.y ), expf( -tau.z ) );
+        const int sunSamples = 8;
+        float sunSegmentLength = sizeAtmosphere / sunSamples;
 
-			sumR += attenuation * nhr;
-			sumM += attenuation * nhm;
-		}
+        for (int j = 0; j < sunSamples; ++j)
+        {
+            sunSamplePosition += sunDir * sunSegmentLength;
 
-		return ( sumR * betaR * phaseR + sumM * betaM * phaseM );
-	}
+            float heightLight = max(sunSamplePosition.y, 0.0f);
+
+            opticalDepthLightR += expf(-heightLight / hr) * sunSegmentLength;
+            opticalDepthLightM += expf(-heightLight / hm) * sunSegmentLength;
+        }
+
+        float3 tau =
+            betaR * (opticalDepthR + opticalDepthLightR) +
+            betaM * (opticalDepthM + opticalDepthLightM);
+
+        float3 attenuation =
+            make_float3(expf(-tau.x), expf(-tau.y), expf(-tau.z));
+
+        sumR += attenuation * hrLocal * segmentLength;
+        sumM += attenuation * hmLocal * segmentLength;
+
+        tCurrent += segmentLength;
+    }
+
+    float3 sky = sumR * betaR * phaseR +
+                 sumM * betaM * phaseM * 0.3f;
+
+    // ------------------------------
+    // DISQUE SOLAIRE EXPLICITE
+    // ------------------------------
+
+    float sunAngularRadius = 0.00465f; // ~0.53° en radians
+    float cosTheta = dot(rayDir, sunDir);
+
+    float sunDisk =
+        smoothstep(cos(sunAngularRadius),
+                   cos(sunAngularRadius * 0.5f),
+                   cosTheta);
+
+    float3 sunColor = make_float3(30.f, 27.f, 24.f); // HDR
+
+    sky += sunColor * sunDisk;
+
+    return sky;
+}

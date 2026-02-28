@@ -523,6 +523,7 @@ namespace RT
 		_addMaterial( new ColorMaterial( "Ground", Vec3f( 0.5f, 0.5f, 0.5f ) ) );
 		_addMaterial( new MirrorMaterial( "Mirror" ) );
 		_addMaterial( new TransparentMaterial( "Transparent" ) );
+		_addMaterial(new EmissiveMaterial("Emissive", RED, 11.f));
 
 		_addObject( new Plane( "Ground", Vec3f( 0.f, 0.f, 0.f ), Vec3f( 0.f, 1.f, 0.f ) ) );
 		_attachMaterialToObject( "Ground", "Ground" );
@@ -569,7 +570,7 @@ namespace RT
 		_addObject( new Sphere( "Sphere1", Vec3f(0,1,0), 1.f ) );
 		_attachMaterialToObject( "Transparent", "Sphere1" );
 		_addObject( new Sphere( "Sphere2", Vec3f( -4, 1, 0 ), 1.f ) );
-		_attachMaterialToObject( "Ground", "Sphere2" );
+		_attachMaterialToObject( "Emissive", "Sphere2" );
 		_addObject( new Sphere( "Sphere3", Vec3f( 4, 1, 0 ), 1.f ) );
 		_attachMaterialToObject( "Mirror", "Sphere3" );
 

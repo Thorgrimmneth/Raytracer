@@ -16,13 +16,37 @@ namespace RT
 		RT::Scene scene;
 		scene.init();
 		int nbSample = argc < 3 ? 32 : glm::max(1,std::atoi(argv[2]));
-		float elevation = 50.f;
-		float azimuth = 20.f;
-		unsigned char* img_cuda_raw = launchHelloCUDA(scene, nbSample, img_width, img_height, elevation, azimuth);
-		imgCuda.createFromRaw(img_cuda_raw, img_width, img_height);
-		const std::string imgCudaName = "imageCuda.jpg";
-		imgCuda.saveJPG(RESULTS_PATH + imgCudaName);
-		std::cout << "saved" << std::endl;
+		float maxElevation = 90.0f;
+		int nbImage = argc < 4 ? 10 : std::atoi(argv[3]);
+		Chrono			   chrono;
+		chrono.start();
+		for(int i = 0; i <= nbImage; i++){
+			float t = i / float(nbImage - 1);
+			float theta = 2.0f * PIf * t; 
+			float az = 20.f * PIf / 180.f;
+
+				Vec3f base = Vec3f(
+					cos(theta),
+					sin(theta),
+					0.0f
+				);
+
+				Vec3f sunDir = normalize(Vec3f(
+					base.x * cos(az) - base.z * sin(az),
+					base.y,
+					base.x * sin(az) + base.z * cos(az)
+				));
+			unsigned char* img_cuda_raw = launchHelloCUDA(scene, nbSample, img_width, img_height, sunDir.x, sunDir.y, sunDir.z);
+			imgCuda.createFromRaw(img_cuda_raw, img_width, img_height);
+			const std::string imgCudaName = "imageCuda"+std::to_string(i)+".jpg";
+			imgCuda.saveJPG(RESULTS_PATH + imgCudaName);
+			std::cout << "saved" +std::to_string(i)<< std::endl;
+		}
+		chrono.stop();
+		float time = chrono.elapsedTime()/1000.f;
+		float minutes = time / 60.f;
+		int seconds = (int)time % 60;
+		std::cout << "Done in " << time << "s (" << minutes << "m and " << seconds << "s)" << std::endl;
 
 		/*
 		// Create and setup the renderer.

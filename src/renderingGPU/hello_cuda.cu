@@ -21,16 +21,6 @@ __constant__ Camera camera;
 __constant__ float sizeAtmosphere;
 
 __host__
-float3 sunDirectionFromAngles(float elevation, float azimuth)
-{
-    elevation = elevation * GPUPIf / 180.f;
-    azimuth = azimuth * GPUPIf / 180.f;
-    float cosE = cos(elevation);
-
-    return normalize(make_float3(-cosE * cos(azimuth), sin(elevation), -cosE * sin(azimuth)));
-}
-
-__host__
 Camera initCamera(int width, int height){
     // ===== Camera =====
     float3 camPos    = make_float3(8.f, 2.f, 3.f);
@@ -64,10 +54,10 @@ Camera initCamera(int width, int height){
 }
 
 __host__
-void initConstant(int width, int height){
+void initConstant(int width, int height, float4 sunDir){
     int c_nbBounces = 5;
     float c_earthRadius = 6360e3f;
-    float3 c_sunDirection = sunDirectionFromAngles(50.f, 20.f);
+    float3 c_sunDirection = toFloat3(sunDir);
     int c_skyColorSamples = 8;
     float c_hr = 7994.f;
     float c_hm = 1200.f;
@@ -105,7 +95,7 @@ void initRNG(curandState* states, int width, int height)
 __global__
 void renderKernel(
     CudaScene gpuScene,
-    unsigned char* d_framebuffer,
+    float3* d_hdrBuffer,
     curandState* rngStates,
     int nbSample,
     int width,
@@ -119,7 +109,7 @@ void renderKernel(
     int pixelIndex = y * width + x;
     curandState localState = rngStates[pixelIndex];
 
-    float3 finalColor = make_float3(0.f, 0.f, 0.f);
+    float3 finalColor = float3f(0.f);
 
     for (int s = 0; s < nbSample; s++)
     {
@@ -129,92 +119,333 @@ void renderKernel(
         float3 rayTarget = toFloat3(camera.topLeft + sx * camera.viewPortU - sy * camera.viewPortV);
         float3 direction = normalize(rayTarget - toFloat3(camera.cameraPos));
 
-        float time = curand_uniform(&localState);
-
-        Ray ray(toFloat3(camera.cameraPos), direction, time);
-        float3 color = WhittedIntegrator::lighting(gpuScene, ray, 0, 1e20f, &localState);
-
-        finalColor += color;
+        Ray ray(toFloat3(camera.cameraPos), direction);
+        finalColor += WhittedIntegrator::lighting(gpuScene, ray, 0, 1e20f, &localState);
     }
 
     finalColor /= (float)nbSample;
 
-    // ===== Gamma correction =====
-    finalColor = make_float3(
-        sqrtf(finalColor.x),
-        sqrtf(finalColor.y),
-        sqrtf(finalColor.z)
-    );
-
-    int fbIndex = pixelIndex * 3;
-
-    d_framebuffer[fbIndex + 0] = (unsigned char)(255.f * clamp(finalColor.x,0.f,1.f));
-    d_framebuffer[fbIndex + 1] = (unsigned char)(255.f * clamp(finalColor.y,0.f,1.f));
-    d_framebuffer[fbIndex + 2] = (unsigned char)(255.f * clamp(finalColor.z,0.f,1.f));
+    d_hdrBuffer[pixelIndex] = finalColor;
 
     rngStates[pixelIndex] = localState;
 }
 
+__global__
+void extractBright(float3* hdr,
+                   float3* bright,
+                   int width,
+                   int height,
+                   float threshold)
+{
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x >= width || y >= height) return;
+
+    int idx = y * width + x;
+
+    float3 c = hdr[idx];
+    float maxChannel = fmaxf(c.x, fmaxf(c.y, c.z));
+    bright[idx] = (maxChannel > threshold) ? c : float3f(0.f);
+}
+
+__global__
+void downsample(float3* input,
+                float3* output,
+                int width,
+                int height)
+{
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    int newWidth  = width / 2;
+    int newHeight = height / 2;
+
+    if (x >= newWidth || y >= newHeight) return;
+
+    int baseX = x * 2;
+    int baseY = y * 2;
+
+    int idx00 = baseY * width + baseX;
+    int idx10 = baseY * width + baseX + 1;
+    int idx01 = (baseY + 1) * width + baseX;
+    int idx11 = (baseY + 1) * width + baseX + 1;
+
+    output[y * newWidth + x] =
+        (input[idx00] +
+         input[idx10] +
+         input[idx01] +
+         input[idx11]) * 0.25f;
+}
+
+__global__
+void blurHorizontal(float3* input,
+                    float3* output,
+                    int width,
+                    int height)
+{
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x >= width || y >= height) return;
+
+    const float weights[5] = {0.227027f, 0.1945946f, 0.1216216f, 0.054054f, 0.016216f};
+
+    int idx = y * width + x;
+    float3 result = input[idx] * weights[0];
+
+    for (int i = 1; i < 5; i++)
+    {
+        int left  = y * width + max(x - i, 0);
+        int right = y * width + min(x + i, width - 1);
+
+        result += input[left]  * weights[i];
+        result += input[right] * weights[i];
+    }
+
+    output[idx] = result;
+}
+
+__global__
+void blurVertical(float3* input,
+                  float3* output,
+                  int width,
+                  int height)
+{
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x >= width || y >= height) return;
+
+    const float weights[5] = {0.227027f, 0.1945946f, 0.1216216f, 0.054054f, 0.016216f};
+
+    int idx = y * width + x;
+    float3 result = input[idx] * weights[0];
+
+    for (int i = 1; i < 5; i++)
+    {
+        int down = max(y - i, 0) * width + x;
+        int up   = min(y + i, height - 1) * width + x;
+
+        result += input[down] * weights[i];
+        result += input[up]   * weights[i];
+    }
+
+    output[idx] = result;
+}
+
+__global__
+void upsampleAdd(float3* lowRes,
+                 float3* highRes,
+                 int lowWidth,
+                 int lowHeight,
+                 int highWidth,
+                 float strength)
+{
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x >= highWidth || y >= lowHeight * 2) return;
+
+    int lx = x / 2;
+    int ly = y / 2;
+
+    highRes[y * highWidth + x] +=
+        lowRes[ly * lowWidth + lx] * strength;
+}
+
+void applyMultiScaleBloom(float3* d_bright,
+                          float3* d_temp,
+                          int width,
+                          int height)
+{
+    dim3 block(16,16);
+
+    int w1 = width / 2;
+    int h1 = height / 2;
+
+    float3* d_lvl1;
+    cudaMalloc(&d_lvl1, w1 * h1 * sizeof(float3));
+
+    dim3 grid1((w1+15)/16,(h1+15)/16);
+
+    downsample<<<grid1,block>>>(d_bright,d_lvl1,width,height);
+    cudaDeviceSynchronize();
+
+    blurHorizontal<<<grid1,block>>>(d_lvl1,d_temp,w1,h1);
+    blurVertical<<<grid1,block>>>(d_temp,d_lvl1,w1,h1);
+    cudaDeviceSynchronize();
+
+    int w2 = w1 / 2;
+    int h2 = h1 / 2;
+
+    float3* d_lvl2;
+    cudaMalloc(&d_lvl2, w2 * h2 * sizeof(float3));
+
+    dim3 grid2((w2+15)/16,(h2+15)/16);
+
+    downsample<<<grid2,block>>>(d_lvl1,d_lvl2,w1,h1);
+    cudaDeviceSynchronize();
+
+    blurHorizontal<<<grid2,block>>>(d_lvl2,d_temp,w2,h2);
+    blurVertical<<<grid2,block>>>(d_temp,d_lvl2,w2,h2);
+    cudaDeviceSynchronize();
+
+    upsampleAdd<<<grid1,block>>>(d_lvl2,d_lvl1,w2,h2,w1,1.0f);
+    cudaDeviceSynchronize();
+
+    upsampleAdd<<<dim3((width+15)/16,(height+15)/16),block>>>(
+        d_lvl1,d_bright,w1,h1,width,1.0f);
+    cudaDeviceSynchronize();
+
+    cudaFree(d_lvl1);
+    cudaFree(d_lvl2);
+}
+
+__global__
+void addBloom(float3* hdr,
+              float3* bloom,
+              float3* out,
+              int width,
+              int height,
+              float strength)
+{
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x >= width || y >= height) return;
+
+    int idx = y * width + x;
+
+    out[idx] = hdr[idx] + bloom[idx] * strength;
+}
+
+__global__
+void finalizeImage(float3* hdr,
+                   unsigned char* out,
+                   int width,
+                   int height,
+                   float exposure)
+{
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x >= width || y >= height) return;
+
+    int idx = y * width + x;
+    int fb  = idx * 3;
+
+    float3 c = hdr[idx];
+
+    c = (c * exposure) / (float3f(1.f) + c * exposure);
+
+    // gamma
+    c = make_float3(
+        sqrtf(fmaxf(c.x, 0.f)),
+        sqrtf(fmaxf(c.y, 0.f)),
+        sqrtf(fmaxf(c.z, 0.f))
+    );
+
+    out[fb + 0] = (unsigned char)(255.f * fminf(c.x, 1.f));
+    out[fb + 1] = (unsigned char)(255.f * fminf(c.y, 1.f));
+    out[fb + 2] = (unsigned char)(255.f * fminf(c.z, 1.f));
+}
 
 unsigned char* launchHelloCUDA(const RT::Scene& scene,
                                const int nbSample,
                                const int width,
                                const int height,
-                                float elevation,
-                                float azimuth)
+                               float sunDirx,
+                                float sunDiry,
+                            float sunDirz)
 {
-    // ===== Upload scene =====
-    printf("Start uploading the scene to the GPU\n");
-    float3 sunDir = -sunDirectionFromAngles(elevation, azimuth);
-    printf("%f, %f, %f\n", sunDir.x, sunDir.y, sunDir.z);
+    float threshold = 10.0f;
+    float bloomStrength = 0.25f;
+    float exposure = 1.0f;
+    float4 sunDir = make_float4(sunDirx, sunDiry, sunDirz, 0.f);
     CudaScene gpuScene = uploadSceneToGPU(scene, sunDir);
-    printf("Done uploading the scene to the GPU\n");
-    size_t bufferSize = width * height * 3 * sizeof(unsigned char);
-    unsigned char* d_framebuffer;
-    cudaMalloc(&d_framebuffer, bufferSize);
-    printf("%i\n", gpuScene.bvhScene.nbNodes);
-    // ===== Launch config =====
+
+    size_t hdrBufferSize = width * height * sizeof(float3);
+    size_t finalBufferSize = width * height * 3 * sizeof(unsigned char);
+
+    float3* d_hdrBuffer;
+    float3* d_brightBuffer;
+    float3* d_outBuffer;
+    unsigned char* d_finalBuffer;
+
+    cudaMalloc(&d_hdrBuffer, hdrBufferSize);
+    cudaMalloc(&d_brightBuffer, hdrBufferSize);
+    cudaMalloc(&d_outBuffer, hdrBufferSize);
+    cudaMalloc(&d_finalBuffer, finalBufferSize);
+
+    curandState* d_rngStates;
+    cudaMalloc(&d_rngStates, width * height * sizeof(curandState));
+
     dim3 blockSize(16, 16);
     dim3 gridSize(
         (width + blockSize.x - 1) / blockSize.x,
         (height + blockSize.y - 1) / blockSize.y
     );
 
-    curandState* d_rngStates;
-    cudaMalloc(&d_rngStates, width * height * sizeof(curandState));
-
     initRNG<<<gridSize, blockSize>>>(d_rngStates, width, height);
-    cudaDeviceSynchronize(); // important avant benchmark
-    // ===== Benchmark setup =====
+    cudaDeviceSynchronize();
+
+    initConstant(width, height, sunDir);
+
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
-    initConstant(width, height);
+
     cudaEventRecord(start);
 
-    // ===== Render =====
     renderKernel<<<gridSize, blockSize>>>(
         gpuScene,
-        d_framebuffer,
+        d_hdrBuffer,
         d_rngStates,
         nbSample,
         width,
         height
     );
+    cudaDeviceSynchronize();
+    
+    extractBright<<<gridSize, blockSize>>>(
+        d_hdrBuffer,
+        d_brightBuffer,
+        width,
+        height,
+        threshold
+    );
+    cudaDeviceSynchronize();
+    applyMultiScaleBloom(d_brightBuffer, d_outBuffer, width, height);
+    addBloom<<<gridSize, blockSize>>>(
+        d_hdrBuffer,
+        d_brightBuffer,
+        d_outBuffer,
+        width,
+        height,
+        bloomStrength
+    );
+    cudaDeviceSynchronize();
+    
+    finalizeImage<<<gridSize, blockSize>>>(
+        d_outBuffer,
+        d_finalBuffer,
+        width,
+        height,
+        exposure
+    );
+    cudaDeviceSynchronize();
 
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
 
     float milliseconds = 0.f;
     cudaEventElapsedTime(&milliseconds, start, stop);
-    float seconds = milliseconds/1000.f;
-    printf("Render time: %.3f ms\n", seconds);
-    printf("Render time: %i minutes and %i s\n", (int)seconds/60, (int)seconds%60);
+    printf("Render time: %.3f s\n", milliseconds / 1000.f);
 
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
 
-    // ===== Error check =====
     cudaError_t errSync = cudaDeviceSynchronize();
     cudaError_t errAsync = cudaGetLastError();
 
@@ -224,15 +455,17 @@ unsigned char* launchHelloCUDA(const RT::Scene& scene,
     if (errAsync != cudaSuccess)
         printf("Async error: %s\n", cudaGetErrorString(errAsync));
 
-    // ===== Copy back =====
     unsigned char* h_framebuffer = new unsigned char[width * height * 3];
 
     cudaMemcpy(h_framebuffer,
-               d_framebuffer,
-               bufferSize,
+               d_finalBuffer,
+               finalBufferSize,
                cudaMemcpyDeviceToHost);
 
-    cudaFree(d_framebuffer);
+    cudaFree(d_hdrBuffer);
+    cudaFree(d_brightBuffer);
+    cudaFree(d_outBuffer);
+    cudaFree(d_finalBuffer);
     cudaFree(d_rngStates);
 
     return h_framebuffer;

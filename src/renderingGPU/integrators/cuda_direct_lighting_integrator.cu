@@ -11,32 +11,38 @@
 		float3 Li = float3f(0.0f);
 
 		const Material& mtl = p_scene.materials[p_hitRecord.materialIndex];
-
+		if(mtl.type == MaterialType::EMISSIVE)
+		{
+			return mtl.color * mtl.intensity;
+		} 
 		for (int i = 0; i < p_scene.nbLights; i++ )
 		{
             const Light& light = p_scene.lights[i];
 			if ( light.area>1e-6f )
 			{
-				float3 LiTemp = float3f(0.0f);
-				for ( int rayNumber = 0; rayNumber < nbSample; rayNumber++ )
-				{
-					LightSample lightSample = light.sample( p_hitRecord.point, rng);
-                    if(lightSample.pdf <=0.f) continue;
-					Ray			shadowRay	= Ray( p_hitRecord.point, lightSample.direction );
-					shadowRay.offset( p_hitRecord.normal);
-					if ( !p_scene.intersectAny( shadowRay, 1.e-4f, lightSample.distance ) )
+				
+					float3 LiTemp = float3f(0.0f);
+					for ( int rayNumber = 0; rayNumber < nbSample; rayNumber++ )
 					{
-						float angle = max( dot( p_hitRecord.normal, lightSample.direction ), 0.f );
-						float3 shade = mtl.getColor( p_ray, p_hitRecord, lightSample );
-						// if the lightSample is invalid we add black (caused by cylinder light)
-						if (length(lightSample.direction) < 1e-6f ) { LiTemp += float3f(0.0f); }
-						else {
-							LiTemp += shade * lightSample.radiance * angle / lightSample.pdf; 
+						LightSample lightSample = light.sample( p_hitRecord.point, rng);
+						float angle = dot(p_hitRecord.normal, lightSample.direction);
+						if(angle <= 0.f || lightSample.pdf <=0.f) continue;
+						Ray			shadowRay	= Ray( p_hitRecord.point, lightSample.direction );
+						shadowRay.offset( p_hitRecord.normal);
+						if ( !p_scene.intersectAny( shadowRay, 1.e-4f, lightSample.distance ) )
+						{
+							float angle = max( dot( p_hitRecord.normal, lightSample.direction ), 0.f );
+							float3 shade = mtl.getColor( p_ray, p_hitRecord, lightSample );
+							// if the lightSample is invalid we add black (caused by cylinder light)
+							if (length(lightSample.direction) < 1e-6f ) { LiTemp += float3f(0.0f); }
+							else {
+								LiTemp += shade * lightSample.radiance * angle / lightSample.pdf; 
+							}
 						}
 					}
-				}
-				LiTemp /= nbSample;
-				Li += LiTemp;
+					LiTemp /= nbSample;
+					Li += LiTemp;
+				
 			}
 			else
 			{
@@ -53,6 +59,5 @@
 				}
 			}
 		}
-
 		return Li;
 	}
