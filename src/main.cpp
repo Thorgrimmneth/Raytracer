@@ -43,8 +43,8 @@ namespace RT
 			std::cout << "saved" +std::to_string(i)<< std::endl;
 		}
 		chrono.stop();
-		float time = chrono.elapsedTime()/1000.f;
-		float minutes = time / 60.f;
+		float time = chrono.elapsedTime();
+		int minutes = (int)time / 60.f;
 		int seconds = (int)time % 60;
 		std::cout << "Done in " << time << "s (" << minutes << "m and " << seconds << "s)" << std::endl;
 

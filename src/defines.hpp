@@ -66,7 +66,7 @@ namespace RT
 	};
 
 	// Paths.
-	const std::string RESULTS_PATH = "../results/";
+	const std::string RESULTS_PATH = "../results/images/";
 
 	// Utils.
 	static inline float intAsFloat( const int p_i )

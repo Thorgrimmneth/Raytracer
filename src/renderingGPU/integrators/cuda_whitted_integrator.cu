@@ -188,7 +188,7 @@ float3 WhittedIntegrator::getSkyColor(const Ray &ray)
     float3 sky = sumR * betaR * phaseR +
                  sumM * betaM * phaseM * 0.3f;
 
-    float sunAngularRadius = 0.00465f; // ~0.53° en radians
+    float sunAngularRadius = 0.00465f;
     float cosTheta = dot(rayDir, sunDir);
 
     float sunDisk =
@@ -196,7 +196,7 @@ float3 WhittedIntegrator::getSkyColor(const Ray &ray)
                    cos(sunAngularRadius * 0.5f),
                    cosTheta);
 
-    float3 sunColor = make_float3(30.f, 27.f, 24.f); // HDR
+    float3 sunColor = make_float3(30.f, 27.f, 24.f);
 
     sky += sunColor * sunDisk;
 
