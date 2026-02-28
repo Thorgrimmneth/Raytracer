@@ -63,7 +63,7 @@ void initConstant(int width, int height, float4 sunDir){
     float c_hm = 1200.f;
     float3 c_betaR = make_float3(3.8e-6f, 13.5e-6f, 33.1e-6f);
     float3 c_betaM = make_float3(21e-6f);
-    float c_exposure = 20.f;
+    float c_exposure = 1.f;
     Camera c_camera = initCamera(width, height);
     float c_sizeAtmosphere = 60000.f;
     cudaMemcpyToSymbol(nbBounces, &c_nbBounces, sizeof(int));

@@ -1,7 +1,6 @@
 #include "cuda_whitted_integrator.cuh"
 
-
-__device__ __noinline__
+__device__ __noinline__ 
 static Ray getTransparent(const Material &mtl, float3 point, float3 normal, bool &isInside, float3 direction, curandState *rng)
 {
     float n1 = isInside ? mtl.ior : 1.f;
@@ -57,11 +56,11 @@ static Ray getTransparent(const Material &mtl, float3 point, float3 normal, bool
 
 __device__
 float3 WhittedIntegrator::lighting(
-    const CudaScene& scene,
-    const Ray& primaryRay,
-    const float tMin,
-    const float tMax,
-    curandState* rng)
+        const CudaScene &scene,
+        const Ray &primaryRay,
+        const float tMin,
+        const float tMax,
+        curandState *rng)
 {
     float3 finalColor = make_float3(0.f);
 
@@ -79,7 +78,7 @@ float3 WhittedIntegrator::lighting(
             break;
         }
 
-        const Material& mtl = scene.materials[hit.materialIndex];
+        const Material &mtl = scene.materials[hit.materialIndex];
 
         // ---------------- MIRROR ----------------
         if (mtl.type == MIRROR)
@@ -109,16 +108,19 @@ float3 WhittedIntegrator::lighting(
     return finalColor;
 }
 
-    __device__ __forceinline__
-    float3 WhittedIntegrator::toneMap( const float3 & c ){
-		return (c * exposure) / ( make_float3( 1.f ) + c );
-	}
+__device__ __forceinline__
+float3 WhittedIntegrator::toneMap(const float3 &c)
+{
+    float3 c1 = c * exposure;
+    return (c1 * exposure) / (make_float3(1.f) + c1);
+}
 
 __device__ __noinline__
-float3 WhittedIntegrator::getSkyColor(const Ray& ray)
+float3 WhittedIntegrator::getSkyColor(const Ray &ray)
 {
     float3 rayDir = normalize(ray.direction);
     float3 sunDir = normalize(sunDirection);
+    float mult = lerp(1.f, 20.f, (max(-0.4f,sunDir.y) + 0.4)/1.4f);
 
     float segmentLength = sizeAtmosphere / skyColorSamples;
     float tCurrent = 0.0f;
@@ -186,10 +188,6 @@ float3 WhittedIntegrator::getSkyColor(const Ray& ray)
     float3 sky = sumR * betaR * phaseR +
                  sumM * betaM * phaseM * 0.3f;
 
-    // ------------------------------
-    // DISQUE SOLAIRE EXPLICITE
-    // ------------------------------
-
     float sunAngularRadius = 0.00465f; // ~0.53° en radians
     float cosTheta = dot(rayDir, sunDir);
 
@@ -202,5 +200,5 @@ float3 WhittedIntegrator::getSkyColor(const Ray& ray)
 
     sky += sunColor * sunDisk;
 
-    return sky;
+    return sky * mult;
 }

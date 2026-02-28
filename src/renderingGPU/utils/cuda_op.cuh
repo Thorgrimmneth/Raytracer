@@ -197,6 +197,12 @@ inline float3 lerp(const float3& a, const float3& b, const float c)
 }
 
 __host__ __device__
+inline float lerp(const float a, const float b, const float c)
+{
+    return a * (1.f - c) + b * c;
+}
+
+__host__ __device__
 inline float length(const float3& a)
 {
     return sqrtf(a.x * a.x + a.y * a.y + a.z * a.z);
