@@ -62,7 +62,7 @@ void initConstant(int width, int height, float4 sunDir){
     float c_hr = 7994.f;
     float c_hm = 1200.f;
     float3 c_betaR = make_float3(3.8e-6f, 13.5e-6f, 33.1e-6f);
-    float3 c_betaM = float3f(21e-6f);
+    float3 c_betaM = make_float3(21e-6f);
     float c_exposure = 20.f;
     Camera c_camera = initCamera(width, height);
     float c_sizeAtmosphere = 60000.f;
@@ -109,7 +109,7 @@ void renderKernel(
     int pixelIndex = y * width + x;
     curandState localState = rngStates[pixelIndex];
 
-    float3 finalColor = float3f(0.f);
+    float3 finalColor = make_float3(0.f);
 
     for (int s = 0; s < nbSample; s++)
     {
@@ -146,7 +146,7 @@ void extractBright(float3* hdr,
 
     float3 c = hdr[idx];
     float maxChannel = fmaxf(c.x, fmaxf(c.y, c.z));
-    bright[idx] = (maxChannel > threshold) ? c : float3f(0.f);
+    bright[idx] = (maxChannel > threshold) ? c : make_float3(0.f);
 }
 
 __global__
@@ -337,7 +337,7 @@ void finalizeImage(float3* hdr,
 
     float3 c = hdr[idx];
 
-    c = (c * exposure) / (float3f(1.f) + c * exposure);
+    c = (c * exposure) / (make_float3(1.f) + c * exposure);
 
     // gamma
     c = make_float3(

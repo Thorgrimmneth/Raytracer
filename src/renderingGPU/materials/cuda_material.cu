@@ -18,7 +18,7 @@ __device__
 float3 Material::computeF(const float3 &wo, const float3 &h, const float3 &F0) const
 {
     float HdotV = clamp(dot(h, wo), 0.0f, 1.0f);
-    return F0 + (float3f(1.f) - F0) * pow(1.f - HdotV, 5.f);
+    return F0 + (make_float3(1.f) - F0) * pow(1.f - HdotV, 5.f);
 }
 
 __device__ float Material::computeG1(const float &x, const float &k) const 
@@ -41,7 +41,7 @@ inline float3 Material::evaluateCookTorranceBRDF(const float3 &wo, const float3 
     float NdotL = max(dot(normal, wi), 0.f);
 
     if (NdotV <= 0.f || NdotL <= 0.f)
-        return float3f(0.f);
+        return make_float3(0.f);
 
     float D = computeD(normal, h);
     float3 F = computeF(wo, h, F0);
@@ -50,7 +50,7 @@ inline float3 Material::evaluateCookTorranceBRDF(const float3 &wo, const float3 
     float denominator = 4.f * NdotV * NdotL;
 
     if (denominator < 1e-6f)
-        return float3f(0.f);
+        return make_float3(0.f);
 
     return (D * G / denominator) * F;
 }
@@ -77,14 +77,14 @@ float3 Material::getColor(
 
     case METAL:
     {
-        float3 F0 = lerp(float3f(0.04f), color, metalness);
+        float3 F0 = lerp(make_float3(0.04f), color, metalness);
 
         float3 h = normalize(wi + wo);
         float3 F = computeF(wo, h, F0);
 
         float3 spec = evaluateCookTorranceBRDF(wo, normal, wi, F0);
 
-        float3 kd = (float3f(1.f) - F) * (1.f - metalness);
+        float3 kd = (make_float3(1.f) - F) * (1.f - metalness);
         float3 diffuse = kd * color * GPUInvPIf;
 
         return diffuse + spec;
@@ -98,15 +98,15 @@ float3 Material::getColor(
         float NdotV = max(dot(n, wo), 0.f);
 
         if (NdotL <= 0.f || NdotV <= 0.f)
-            return float3f(0.0f);
+            return make_float3(0.0f);
 
         // -------- Fresnel approx diélectrique --------
-        float3 F0 = float3f(0.04f);
+        float3 F0 = make_float3(0.04f);
 
         float HdotV = max(dot(h, wo), 0.f);
         float x = 1.f - HdotV;
         float x2 = x * x;
-        float3 F = F0 + (float3f(1.f) - F0) * x2 * x2 * x;
+        float3 F = F0 + (make_float3(1.f) - F0) * x2 * x2 * x;
 
         // -------- Blinn-Phong specular --------
         float NdotH = max(dot(n, h), 0.f);
@@ -116,12 +116,12 @@ float3 Material::getColor(
         float3 spec = F * specNorm * powf(NdotH, shininess);
 
         // -------- Diffuse --------
-        float3 kd = float3f(1.f) - F;
+        float3 kd = make_float3(1.f) - F;
         float3 diffuse = kd * color * GPUInvPIf;
 
         return diffuse + spec;
     }
     default:
-        return float3f(0.0f);
+        return make_float3(0.0f);
     };
 };

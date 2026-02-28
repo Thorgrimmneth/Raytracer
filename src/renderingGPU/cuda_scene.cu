@@ -376,7 +376,7 @@ CudaScene uploadSceneToGPU(const RT::Scene &scene, float4 sunDir)
 		}
 	}
 	Light l;
-	l.color = float3f(1.f);
+	l.color = make_float3(1.f);
 	l.power = 1.f;
 	l.area = 1.f;
 	l.direction = toFloat3(sunDir);

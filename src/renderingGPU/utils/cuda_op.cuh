@@ -1,7 +1,7 @@
 #pragma once
 
 __host__ __device__
-inline float3 float3f(const float a)
+inline float3 make_float3(const float a)
 {
     return make_float3(a, a, a);
 }
@@ -175,7 +175,7 @@ __host__ __device__
 inline float3 normalize(const float3& a)
 {
     float len = sqrtf(dot(a,a));
-    return (len > 0.f) ? a * (1.f / len) : float3f(0.f);
+    return (len > 0.f) ? a * (1.f / len) : make_float3(0.f);
 }
 
 __host__ __device__
@@ -239,7 +239,7 @@ inline float3 refract(const float3& a, const float3& b, const float c)
     float k = 1.f - c * c * (1.f - cosi * cosi);
 
     if (k < 0.f)
-        return float3f(0.0f); // réflexion totale interne
+        return make_float3(0.0f); // réflexion totale interne
 
     return c * a + (c * cosi - sqrtf(k)) * b;
 }

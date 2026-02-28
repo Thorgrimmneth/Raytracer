@@ -63,10 +63,10 @@ float3 WhittedIntegrator::lighting(
     const float tMax,
     curandState* rng)
 {
-    float3 finalColor = float3f(0.f);
+    float3 finalColor = make_float3(0.f);
 
     Ray ray = primaryRay;
-    float3 throughput = float3f(1.f);
+    float3 throughput = make_float3(1.f);
     bool isInside = false;
 
     for (int depth = 0; depth < nbBounces; depth++)
@@ -111,7 +111,7 @@ float3 WhittedIntegrator::lighting(
 
     __device__ __forceinline__
     float3 WhittedIntegrator::toneMap( const float3 & c ){
-		return (c * exposure) / ( float3f( 1.f ) + c );
+		return (c * exposure) / ( make_float3( 1.f ) + c );
 	}
 
 __device__ __noinline__
@@ -123,8 +123,8 @@ float3 WhittedIntegrator::getSkyColor(const Ray& ray)
     float segmentLength = sizeAtmosphere / skyColorSamples;
     float tCurrent = 0.0f;
 
-    float3 sumR = float3f(0.f);
-    float3 sumM = float3f(0.f);
+    float3 sumR = make_float3(0.f);
+    float3 sumM = make_float3(0.f);
 
     float opticalDepthR = 0.0f;
     float opticalDepthM = 0.0f;

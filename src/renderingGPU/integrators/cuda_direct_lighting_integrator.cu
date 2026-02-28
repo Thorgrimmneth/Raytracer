@@ -8,7 +8,7 @@
 													 const float	   p_tMax,
                                                      curandState* rng )
 	{
-		float3 Li = float3f(0.0f);
+		float3 Li = make_float3(0.0f);
 
 		const Material& mtl = p_scene.materials[p_hitRecord.materialIndex];
 		if(mtl.type == MaterialType::EMISSIVE)
@@ -21,7 +21,7 @@
 			if ( light.area>1e-6f )
 			{
 				
-					float3 LiTemp = float3f(0.0f);
+					float3 LiTemp = make_float3(0.0f);
 					for ( int rayNumber = 0; rayNumber < nbSample; rayNumber++ )
 					{
 						LightSample lightSample = light.sample( p_hitRecord.point, rng);
@@ -34,7 +34,7 @@
 							float angle = max( dot( p_hitRecord.normal, lightSample.direction ), 0.f );
 							float3 shade = mtl.getColor( p_ray, p_hitRecord, lightSample );
 							// if the lightSample is invalid we add black (caused by cylinder light)
-							if (length(lightSample.direction) < 1e-6f ) { LiTemp += float3f(0.0f); }
+							if (length(lightSample.direction) < 1e-6f ) { LiTemp += make_float3(0.0f); }
 							else {
 								LiTemp += shade * lightSample.radiance * angle / lightSample.pdf; 
 							}
@@ -51,7 +51,7 @@
 				shadowRay.offset( p_hitRecord.normal);
 				if ( !p_scene.intersectAny( shadowRay, 0.f, lightSample.distance ) )
 				{
-					if (length(lightSample.direction) < 1e-6f ) { Li += float3f(0.0f); }
+					if (length(lightSample.direction) < 1e-6f ) { Li += make_float3(0.0f); }
 					else{
 					float angle = max( dot( p_hitRecord.normal, lightSample.direction ), 0.f );
 					Li += mtl.getColor( p_ray, p_hitRecord, lightSample ) * lightSample.radiance * angle;
