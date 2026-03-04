@@ -18,7 +18,7 @@ namespace RT
 		int nbSample = argc < 3 ? 32 : glm::max(1,std::atoi(argv[2]));
 		float maxElevation = 90.0f;
 		int nbImage = argc < 4 ? 10 : std::atoi(argv[3]);
-		bool denoise = argc < 5 ? false : true;
+		int denoise = argc < 5 ? 0 : std::atoi(argv[4]);
 		Chrono			   chrono;
 		chrono.start();
 		for(int i = 0; i <= nbImage; i++){

@@ -467,6 +467,91 @@ void extractRadiance(PixelData* pixels, float3* out, int size)
     out[i] = pixels[i].radiance;
 }
 
+__device__ float luminance(float3 c)
+{
+    return 0.2126f * c.x +
+           0.7152f * c.y +
+           0.0722f * c.z;
+}
+
+__global__
+void removeOutliers(float3* image, float3* out, int w, int h)
+{
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if(x>=w || y>=h) return;
+
+    float3 mean = make_float3(0);
+    int count = 0;
+
+    for(int i=-1;i<=1;i++)
+    for(int j=-1;j<=1;j++)
+    {
+        int nx = x+i;
+        int ny = y+j;
+
+        if(nx<0||ny<0||nx>=w||ny>=h) continue;
+
+        mean += image[ny*w+nx];
+        count++;
+    }
+
+    mean /= (float)count;
+
+    float lum = luminance(image[y*w+x]);
+    float lumMean = luminance(mean);
+
+    if(fabs(lum - lumMean) > 3.0f * lumMean)
+        out[y*w+x] = mean;
+    else
+        out[y*w+x] = image[y*w+x];
+}
+
+__global__
+void fillHoles(float3* image, float3* out, int w, int h)
+{
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if(x >= w || y >= h) return;
+
+    float3 color = image[y*w + x];
+
+    float lum = luminance(color);
+
+    if(lum > 1e-4f)
+    {
+        out[y*w + x] = color;
+        return;
+    }
+
+    float3 sum = make_float3(0);
+    int count = 0;
+
+    for(int i=-1;i<=1;i++)
+    for(int j=-1;j<=1;j++)
+    {
+        int nx = x+i;
+        int ny = y+j;
+
+        if(nx<0||ny<0||nx>=w||ny>=h) continue;
+
+        float3 c = image[ny*w + nx];
+
+        if(luminance(c) > 1e-4f)
+        {
+            sum += c;
+            count++;
+        }
+    }
+
+    if(count > 0)
+        out[y*w + x] = sum / count;
+    else
+        out[y*w + x] = color;
+}
+
 unsigned char* launchHelloCUDA(const RT::Scene& scene,
                                const int nbSample,
                                const int width,
@@ -474,7 +559,7 @@ unsigned char* launchHelloCUDA(const RT::Scene& scene,
                                float sunDirx,
                                 float sunDiry,
                             float sunDirz,
-                        bool denoise)
+                        int denoise)
 {
     float threshold = 10.0f;
     float bloomStrength = 0.25f;
@@ -527,12 +612,58 @@ unsigned char* launchHelloCUDA(const RT::Scene& scene,
         height
     );
     cudaDeviceSynchronize();
-    if(denoise){
-        aTrou(d_pixelDataBuffer, d_hdrBuffer, width, height, 3);
+    if(denoise == 1)
+    {
+        aTrou(d_pixelDataBuffer, d_hdrBuffer, width, height, 2);
     }
-    else{
+    else
+    {
         int size = width * height;
-        extractRadiance<<<(size+255)/256,256>>>(d_pixelDataBuffer, d_hdrBuffer, size);
+
+        extractRadiance<<<(size+255)/256,256>>>(
+            d_pixelDataBuffer,
+            d_hdrBuffer,
+            size
+        );
+
+        cudaDeviceSynchronize();
+
+        if(denoise == 2)
+        {
+            // -------- Fill Holes --------
+            fillHoles<<<gridSize, blockSize>>>(
+                d_hdrBuffer,
+                d_outBuffer,
+                width,
+                height
+            );
+
+            cudaDeviceSynchronize();
+
+            cudaMemcpy(
+                d_hdrBuffer,
+                d_outBuffer,
+                brightBufferSize,
+                cudaMemcpyDeviceToDevice
+            );
+
+            // -------- Remove Outliers --------
+            removeOutliers<<<gridSize, blockSize>>>(
+                d_hdrBuffer,
+                d_outBuffer,
+                width,
+                height
+            );
+
+            cudaDeviceSynchronize();
+
+            cudaMemcpy(
+                d_hdrBuffer,
+                d_outBuffer,
+                brightBufferSize,
+                cudaMemcpyDeviceToDevice
+            );
+        }
     }
     extractBright<<<gridSize, blockSize>>>(
         d_hdrBuffer,
