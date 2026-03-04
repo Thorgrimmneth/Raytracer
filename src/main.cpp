@@ -18,6 +18,7 @@ namespace RT
 		int nbSample = argc < 3 ? 32 : glm::max(1,std::atoi(argv[2]));
 		float maxElevation = 90.0f;
 		int nbImage = argc < 4 ? 10 : std::atoi(argv[3]);
+		bool denoise = argc < 5 ? false : true;
 		Chrono			   chrono;
 		chrono.start();
 		for(int i = 0; i <= nbImage; i++){
@@ -36,7 +37,7 @@ namespace RT
 					base.y,
 					base.x * sin(az) + base.z * cos(az)
 				));
-			unsigned char* img_cuda_raw = launchHelloCUDA(scene, nbSample, img_width, img_height, sunDir.x, sunDir.y, sunDir.z);
+			unsigned char* img_cuda_raw = launchHelloCUDA(scene, nbSample, img_width, img_height, sunDir.x, sunDir.y, sunDir.z, denoise);
 			imgCuda.createFromRaw(img_cuda_raw, img_width, img_height);
 			const std::string imgCudaName = "imageCuda"+std::to_string(i)+".jpg";
 			imgCuda.saveJPG(RESULTS_PATH + imgCudaName);

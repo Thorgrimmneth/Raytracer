@@ -95,7 +95,7 @@ void initRNG(curandState* states, int width, int height)
 __global__
 void renderKernel(
     CudaScene gpuScene,
-    float3* d_hdrBuffer,
+    PixelData* d_pixelDataBuffer,
     curandState* rngStates,
     int nbSample,
     int width,
@@ -109,8 +109,11 @@ void renderKernel(
     int pixelIndex = y * width + x;
     curandState localState = rngStates[pixelIndex];
 
-    float3 finalColor = make_float3(0.f);
-
+    PixelData pixelData;
+    pixelData.albedo   = make_float3(0.f);
+    pixelData.radiance = make_float3(0.f);
+    pixelData.normal   = make_float3(0.f);
+    pixelData.depth    = 0.f;
     for (int s = 0; s < nbSample; s++)
     {
         float sx = (x + curand_uniform(&localState)) / (float)(width  - 1);
@@ -120,14 +123,118 @@ void renderKernel(
         float3 direction = normalize(rayTarget - toFloat3(camera.cameraPos));
 
         Ray ray(toFloat3(camera.cameraPos), direction);
-        finalColor += WhittedIntegrator::lighting(gpuScene, ray, 0, 1e20f, &localState);
+        PixelData temp = WhittedIntegrator::lighting(gpuScene, ray, 0, 1e20f, &localState);
+        pixelData.albedo += temp.albedo;
+        pixelData.radiance += temp.radiance;
+        pixelData.normal += temp.normal;
+        pixelData.depth += temp.depth;
     }
 
-    finalColor /= (float)nbSample;
-
-    d_hdrBuffer[pixelIndex] = finalColor;
+    pixelData.albedo /= (float)nbSample;
+    pixelData.radiance /= (float)nbSample;
+    pixelData.normal = normalize(pixelData.normal / (float)nbSample);
+    pixelData.depth /= (float)nbSample;
 
     rngStates[pixelIndex] = localState;
+    d_pixelDataBuffer[pixelIndex] = pixelData;
+}
+
+__global__
+void filter(PixelData* pixelDataBuffer,
+            float3* out,
+            int width,
+            int height,
+            int stride)
+{
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x >= width || y >= height) return;
+
+    float kernel[5] = {1.f, 4.f, 6.f, 4.f, 1.f};
+
+    float sigmaNormal = 0.05f;
+    float sigmaDepth  = 1.0f;
+    float sigmaAlbedo = 0.2f;
+
+    int index = y * width + x;
+
+    PixelData center = pixelDataBuffer[index];
+
+    float3 sum = make_float3(0.f);
+    float weightSum = 0.f;
+
+    for(int i = -2; i <= 2; i++)
+    {
+        for(int j = -2; j <= 2; j++)
+        {
+            int nx = x + i * stride;
+            int ny = y + j * stride;
+
+            if (nx < 0 || nx >= width || ny < 0 || ny >= height)
+                continue;
+
+            PixelData temp = pixelDataBuffer[ny * width + nx];
+
+            float kernelWeight = kernel[i + 2] * kernel[j + 2];
+
+            float normalWeight =
+                exp(-(1.f - dot(center.normal, temp.normal)) / sigmaNormal);
+
+            float depthWeight =
+                exp(-fabs(center.depth - temp.depth) /
+                    (sigmaDepth * center.depth + 1e-4f));
+
+            float3 diff = center.albedo - temp.albedo;
+
+            float albedoWeight =
+                exp(-dot(diff, diff) / (sigmaAlbedo * sigmaAlbedo));
+
+            float weight =
+                kernelWeight *
+                normalWeight *
+                depthWeight *
+                albedoWeight;
+
+            sum += weight * temp.radiance;
+            weightSum += weight;
+        }
+    }
+
+    if (weightSum > 0.f)
+        out[index] = sum / weightSum;
+    else
+        out[index] = center.radiance;
+}
+
+__global__
+void updateRadiance(PixelData* pixels, float3* color, int size)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if(i >= size) return;
+
+    pixels[i].radiance = color[i];
+}
+
+void aTrou(PixelData* pixelDataBuffer,
+           float3* out,
+           int width,
+           int height,
+           int numberPass)
+{
+    dim3 block(16,16);
+    dim3 grid((width+15)/16,(height+15)/16);
+
+    for(int pass = 0; pass < numberPass; pass++)
+    {
+        filter<<<grid,block>>>(pixelDataBuffer, out, width, height, 1 << pass);
+
+        cudaDeviceSynchronize();
+
+        int size = width * height;
+        updateRadiance<<<(size+255)/256,256>>>(pixelDataBuffer, out, size);
+        cudaDeviceSynchronize();
+    }
 }
 
 __global__
@@ -245,7 +352,7 @@ void upsampleAdd(float3* lowRes,
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
 
-    if (x >= highWidth || y >= lowHeight * 2) return;
+    if (x >= highWidth || y >= highWidth) return;
 
     int lx = x / 2;
     int ly = y / 2;
@@ -351,13 +458,23 @@ void finalizeImage(float3* hdr,
     out[fb + 2] = (unsigned char)(255.f * fminf(c.z, 1.f));
 }
 
+__global__
+void extractRadiance(PixelData* pixels, float3* out, int size)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if(i >= size) return;
+
+    out[i] = pixels[i].radiance;
+}
+
 unsigned char* launchHelloCUDA(const RT::Scene& scene,
                                const int nbSample,
                                const int width,
                                const int height,
                                float sunDirx,
                                 float sunDiry,
-                            float sunDirz)
+                            float sunDirz,
+                        bool denoise)
 {
     float threshold = 10.0f;
     float bloomStrength = 0.25f;
@@ -365,17 +482,20 @@ unsigned char* launchHelloCUDA(const RT::Scene& scene,
     float4 sunDir = make_float4(sunDirx, sunDiry, sunDirz, 0.f);
     CudaScene gpuScene = uploadSceneToGPU(scene, sunDir);
 
-    size_t hdrBufferSize = width * height * sizeof(float3);
+    size_t pixelDataBufferSize = width * height * sizeof(PixelData);
+    size_t brightBufferSize = width * height * sizeof(float3);
     size_t finalBufferSize = width * height * 3 * sizeof(unsigned char);
 
+    PixelData* d_pixelDataBuffer;
     float3* d_hdrBuffer;
     float3* d_brightBuffer;
     float3* d_outBuffer;
     unsigned char* d_finalBuffer;
 
-    cudaMalloc(&d_hdrBuffer, hdrBufferSize);
-    cudaMalloc(&d_brightBuffer, hdrBufferSize);
-    cudaMalloc(&d_outBuffer, hdrBufferSize);
+    cudaMalloc(&d_pixelDataBuffer, pixelDataBufferSize);
+    cudaMalloc(&d_hdrBuffer, brightBufferSize);
+    cudaMalloc(&d_brightBuffer, brightBufferSize);
+    cudaMalloc(&d_outBuffer, brightBufferSize);
     cudaMalloc(&d_finalBuffer, finalBufferSize);
 
     curandState* d_rngStates;
@@ -400,14 +520,20 @@ unsigned char* launchHelloCUDA(const RT::Scene& scene,
 
     renderKernel<<<gridSize, blockSize>>>(
         gpuScene,
-        d_hdrBuffer,
+        d_pixelDataBuffer,
         d_rngStates,
         nbSample,
         width,
         height
     );
     cudaDeviceSynchronize();
-    
+    if(denoise){
+        aTrou(d_pixelDataBuffer, d_hdrBuffer, width, height, 3);
+    }
+    else{
+        int size = width * height;
+        extractRadiance<<<(size+255)/256,256>>>(d_pixelDataBuffer, d_hdrBuffer, size);
+    }
     extractBright<<<gridSize, blockSize>>>(
         d_hdrBuffer,
         d_brightBuffer,

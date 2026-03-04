@@ -1,5 +1,7 @@
 #include "cuda_whitted_integrator.cuh"
 
+
+
 __device__ __noinline__ 
 static Ray getTransparent(const Material &mtl, float3 point, float3 normal, bool &isInside, float3 direction, curandState *rng)
 {
@@ -55,13 +57,15 @@ static Ray getTransparent(const Material &mtl, float3 point, float3 normal, bool
 }
 
 __device__
-float3 WhittedIntegrator::lighting(
+PixelData WhittedIntegrator::lighting(
         const CudaScene &scene,
         const Ray &primaryRay,
         const float tMin,
         const float tMax,
         curandState *rng)
 {
+    PixelData pixelData;
+
     float3 finalColor = make_float3(0.f);
 
     Ray ray = primaryRay;
@@ -74,7 +78,13 @@ float3 WhittedIntegrator::lighting(
 
         if (!scene.intersect(ray, tMin, tMax, hit))
         {
+            
             finalColor += throughput * toneMap(getSkyColor(ray));
+            if(depth == 0){
+                pixelData.albedo = finalColor;
+                pixelData.depth = tMax;
+                pixelData.normal = -ray.direction;
+            }
             break;
         }
 
@@ -85,6 +95,11 @@ float3 WhittedIntegrator::lighting(
         {
             ray = Ray(hit.point, reflect(ray.direction, hit.normal));
             ray.offset(hit.normal);
+            if(depth == 0){
+                pixelData.albedo = make_float3(0.f);
+                pixelData.depth = hit.distance;
+                pixelData.normal = hit.normal;
+            }
             continue;
         }
 
@@ -92,20 +107,28 @@ float3 WhittedIntegrator::lighting(
         else if (mtl.type == TRANSPARENT)
         {
             ray = getTransparent(mtl, hit.point, hit.normal, isInside, ray.direction, rng);
-
+            if(depth == 0){
+                pixelData.albedo = make_float3(0.f);
+                pixelData.depth = hit.distance;
+                pixelData.normal = hit.normal;
+            }
             continue;
         }
-
         // ---------------- DIFFUSE ----------------
         float3 direct =
             DirectLightingIntegrator::directLighting(
                 scene, ray, hit, tMin, tMax, rng);
-
+        if(depth == 0){
+                pixelData.albedo = mtl.color;
+                pixelData.depth = hit.distance;
+                pixelData.normal = hit.normal;
+            }
         finalColor += throughput * direct;
         break;
     }
-
-    return finalColor;
+    pixelData.radiance = finalColor;
+    pixelData.normal = normalize(pixelData.normal);
+    return pixelData;
 }
 
 __device__ __forceinline__

@@ -293,3 +293,9 @@ float smoothstep(float edge0, float edge1, float x)
     t = fminf(fmaxf(t, 0.0f), 1.0f);   // clamp 0–1
     return t * t * (3.0f - 2.0f * t);
 }
+
+__device__ __forceinline__
+float euclidianDistSquared(float3 a, float3 b)
+{
+    return a.x * b.x + a.y * b.y + a.z * b.z;
+}
