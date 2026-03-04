@@ -22,7 +22,7 @@ namespace RT
 		chrono.start();
 		for(int i = 0; i <= nbImage; i++){
 			float t = i / float(nbImage - 1);
-			float theta = 2.0f * PIf * t; 
+			float theta = 1.1 * PIf * t; 
 			float az = 20.f * PIf / 180.f;
 
 				Vec3f base = Vec3f(

@@ -112,7 +112,7 @@ __device__ __forceinline__
 float3 WhittedIntegrator::toneMap(const float3 &c)
 {
     float3 c1 = c * exposure;
-    return (c1 * exposure) / (make_float3(1.f) + c1);
+    return (c1) / (make_float3(1.f) + c1);
 }
 
 __device__ __noinline__
@@ -120,7 +120,15 @@ float3 WhittedIntegrator::getSkyColor(const Ray &ray)
 {
     float3 rayDir = normalize(ray.direction);
     float3 sunDir = normalize(sunDirection);
-    float mult = lerp(1.f, 20.f, (max(-0.4f,sunDir.y) + 0.4)/1.4f);
+    //float mult = lerp(1.f, 20.f, (max(-0.4f,sunDir.y) + 0.4)/1.4f);
+    float t = clamp((sunDir.y + 0.4f) / 1.4f, 0.0f, 1.0f);
+    float tM = 1 - t;
+    float B0 = pow(1.0f - t, 3.0f);
+    float B1 = 3.0f * tM * tM * t;
+    float B2 = 3.0f * tM * t * t;
+    float B3 = t * t * t;
+
+    float mult = B0 * 1.0f + B1 * 1.f + B2 * 1.f + B3 * 20.0f;
 
     float segmentLength = sizeAtmosphere / skyColorSamples;
     float tCurrent = 0.0f;
@@ -188,7 +196,7 @@ float3 WhittedIntegrator::getSkyColor(const Ray &ray)
     float3 sky = sumR * betaR * phaseR +
                  sumM * betaM * phaseM * 0.3f;
 
-    float sunAngularRadius = 0.00465f;
+    float sunAngularRadius = 2.1f * GPUPIf / 180.f;
     float cosTheta = dot(rayDir, sunDir);
 
     float sunDisk =
@@ -196,7 +204,11 @@ float3 WhittedIntegrator::getSkyColor(const Ray &ray)
                    cos(sunAngularRadius * 0.5f),
                    cosTheta);
 
-    float3 sunColor = make_float3(30.f, 27.f, 24.f);
+    float sunset = pow(1.0f - t, 2.0f);
+    float3 sunColor =
+        lerp(make_float3(30.f,27.f,24.f),
+            make_float3(60.f,25.f,10.f),
+            sunset);
 
     sky += sunColor * sunDisk;
 
