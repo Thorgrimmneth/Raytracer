@@ -9,18 +9,15 @@ bool Sphere::intersectGeometry(const Ray &ray, float& t1, float& t2) const
     float3 current_center = c0 + ray.time * (c1 - c0);
 
     float3 oc = ray.origin - current_center;
-
-    float a = dot(ray.direction, ray.direction);
-    float b = 2.f * dot(ray.direction, oc);
+    float half_b = dot(ray.direction, oc);
     float c = dot(oc, oc) - radius * radius;
 
-    float delta = b*b - 4.f*a*c;
-    if (delta < 0.f)
-        return false;
+    float delta = half_b*half_b - c;
+    if (delta < 0.f) return false;
 
     float sqrtDelta = sqrtf(delta);
-    t1 = (-b - sqrtDelta) / (2.f * a);
-    t2 = (-b + sqrtDelta) / (2.f * a);
+    t1 = -half_b - sqrtDelta;
+    t2 = -half_b + sqrtDelta;
 
     return true;
 }

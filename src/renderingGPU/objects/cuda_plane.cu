@@ -4,18 +4,12 @@
 __device__
 bool Plane::intersectGeometry(const Ray &ray, float &t) const
 {
-    float3 n = normal;
-
-    float ND = dot(n, ray.direction);
-	
-    if (fabsf(ND) <= 1e-6f)
+    float ND = dot(normal, ray.direction);
+    if (fabsf(ND) < 1e-6f)
         return false;
 
-    float numerator = -(delta + dot(n, ray.origin));
-
-    t = numerator / ND;
-
-    return true;
+    t = -(dot(normal, ray.origin) + delta) / ND;
+    return t >= 0.f;
 }
 
 __device__
