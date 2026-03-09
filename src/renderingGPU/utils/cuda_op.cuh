@@ -293,3 +293,8 @@ float smoothstep(float edge0, float edge1, float x)
     t = fminf(fmaxf(t, 0.0f), 1.0f);   // clamp 0–1
     return t * t * (3.0f - 2.0f * t);
 }
+
+__device__ float saturate(float x)
+{
+    return fminf(fmaxf(x, 0.f), 1.f);
+}

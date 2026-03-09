@@ -520,7 +520,7 @@ namespace RT
 	
 	void Scene::_spheres() 
 	{		
-		_addMaterial( new ColorMaterial( "Ground", Vec3f( 0.5f, 0.5f, 0.5f ) ) );
+		_addMaterial( new LambertMaterial( "Ground", Vec3f( 0.5f, 0.5f, 0.5f ) ) );
 		_addMaterial( new MirrorMaterial( "Mirror" ) );
 		_addMaterial( new TransparentMaterial( "Transparent" ) );
 		_addMaterial(new EmissiveMaterial("Emissive", RED, 11.f));
@@ -539,7 +539,7 @@ namespace RT
 					if ( choose_mat < 0.6 ) // diffuse
 					{
 						std::string nameTemp = std::to_string( i ) + "_" + std::to_string( j );
-						_addMaterial( new ColorMaterial( "Color" + nameTemp ) );
+						_addMaterial( new LambertMaterial( "Color" + nameTemp ) );
 						//_addObject( new Sphere( "Sphere" + nameTemp, center, center + Vec3f(0.0,0.3,0.0), 0.2 ) );
 						_addObject( new Sphere( "Sphere" + nameTemp, center, 0.2 ) );
 						_attachMaterialToObject( "Color" + nameTemp, "Sphere" + nameTemp );

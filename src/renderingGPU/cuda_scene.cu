@@ -81,13 +81,7 @@ int flattenBVH(const RT::BVHNode *node,
 Material convertMaterial(RT::BaseMaterial *bm)
 {
 	Material m;
-	if (bm->getType() == RT::MaterialType::COLOR)
-	{
-		RT::ColorMaterial *material = dynamic_cast<RT::ColorMaterial *>(bm);
-		m.color = make_float3(material->getFlatColor().x, material->getFlatColor().y, material->getFlatColor().z);
-		m.type = MaterialType::COLOR;
-	}
-	else if (bm->getType() == RT::MaterialType::EMISSIVE)
+	if (bm->getType() == RT::MaterialType::EMISSIVE)
 	{
 		RT::EmissiveMaterial *material = dynamic_cast<RT::EmissiveMaterial *>(bm);
 		m.color = make_float3(material->getFlatColor().x, material->getFlatColor().y, material->getFlatColor().z);

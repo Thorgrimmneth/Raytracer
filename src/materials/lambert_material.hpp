@@ -14,6 +14,11 @@ namespace RT
 		{
 		}
 
+		LambertMaterial( const std::string & p_name ) : BaseMaterial( p_name ), 
+			_brdf(Vec3f( randomFloat(), randomFloat(), randomFloat() ))
+		{
+		}
+
 		virtual ~LambertMaterial() = default;
 
 		Vec3f shade( const Ray &		 p_ray,
