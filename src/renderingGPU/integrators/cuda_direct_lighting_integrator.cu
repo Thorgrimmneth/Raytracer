@@ -32,7 +32,7 @@
 						if ( !p_scene.intersectAny( shadowRay, 1.e-4f, lightSample.distance ) )
 						{
 							float angle = max( dot( p_hitRecord.normal, lightSample.direction ), 0.f );
-							float3 shade = mtl.getColor( p_ray, p_hitRecord, lightSample );
+							float3 shade = mtl.getBSDF( p_ray, p_hitRecord, rng ).brdf;
 							// if the lightSample is invalid we add black (caused by cylinder light)
 							if (length(lightSample.direction) < 1e-6f ) { LiTemp += make_float3(0.0f); }
 							else {
@@ -54,7 +54,7 @@
 					if (length(lightSample.direction) < 1e-6f ) { Li += make_float3(0.0f); }
 					else{
 					float angle = max( dot( p_hitRecord.normal, lightSample.direction ), 0.f );
-					Li += mtl.getColor( p_ray, p_hitRecord, lightSample ) * lightSample.radiance * angle;
+					Li += mtl.getBSDF( p_ray, p_hitRecord, rng ).brdf * lightSample.radiance * angle;
 					}
 				}
 			}

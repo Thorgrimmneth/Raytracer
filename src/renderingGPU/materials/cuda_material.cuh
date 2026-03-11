@@ -55,7 +55,7 @@ struct Material
 
     __device__ inline float3 evaluateGGX(const float3 &wo, const float3 &normal, const float3 &wi, const float3 &F0) const;
     __device__ float3 samplingGGX(const float3 &wo, const float3 &normal, curandState* rngStates) const;
-    __device__ float Material::pdfGGX(const float3 normal, const float3 direction, const float3 wo) const;
+    __device__ float pdfGGX(const float3 normal, const float3 direction, const float3 wo) const;
 
     __device__ float3 toWorld(const float3& normal, const float3 direction) const;
     __device__ void createONB(const float3& n, float3& tangent, float3& bitangent) const;

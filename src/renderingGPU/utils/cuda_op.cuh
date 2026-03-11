@@ -294,7 +294,7 @@ float smoothstep(float edge0, float edge1, float x)
     return t * t * (3.0f - 2.0f * t);
 }
 
-__device__ float saturate(float x)
+static __device__ float saturate(float x)
 {
     return fminf(fmaxf(x, 0.f), 1.f);
 }
