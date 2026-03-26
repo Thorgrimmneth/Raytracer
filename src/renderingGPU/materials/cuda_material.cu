@@ -23,6 +23,8 @@ void Material::createONB(const float3& n, float3& tangent, float3& bitangent) co
         1.0f - n.y * n.y * a,
         -n.y
     );
+    tangent = normalize(tangent);
+    bitangent = normalize(bitangent);
 }
 
 __device__ 
@@ -48,12 +50,14 @@ float3 Material::samplingLambert(const float3 normal, curandState* rngStates) co
     float x = r * cos(phi);
     float y = r * sin(phi);
     float3 direction = toWorld(normal, make_float3(x, y, sqrt(1 - x *x - y* y)));
+    return direction;
 }
 
 __device__
 float Material::pdfLambert(const float3 normal, const float3 direction) const
 {
-    return dot(normal, direction) * GPUInvPIf;
+    float cosTheta = max(dot(normal, direction), 0.f);
+    return cosTheta * GPUInvPIf;
 }
 
 __device__ 
@@ -146,7 +150,7 @@ float3 Material::samplingGGX(const float3 &wo, const float3 &normal, curandState
 
     float3 wi = reflect(-wo, h);
 
-    if(dot(normal, wi) <= 0.f) return make_float3(0);
+    if(dot(normal, wi) <= 0.f) return normal;
 
     return wi;
 }
@@ -156,7 +160,8 @@ float Material::pdfGGX(const float3 normal, const float3 wi, const float3 wo) co
 {
     float3 h = normalize(wo + wi);
     float D = computeD(normal, h);
-    return (D * dot(normal, h)) / (4.f * dot(wo, h));
+    float denom = 4.f * max(dot(wo, h), 1e-6f);
+    return (D * max(dot(normal, h), 0.f)) / denom;
 }
 
 __device__
@@ -185,9 +190,6 @@ BSDFVal Material::getBSDF(
         bsdf.pdf = pdfLambert(normal, bsdf.direction);
         bsdf.brdf = evaluateLambert();
         break;
-    // EMISSIVE à traiter séparément dans l'intégrateur
-    /*case EMISSIVE:
-        return color * intensity;*/
 
     case METAL:
     {
@@ -204,7 +206,7 @@ BSDFVal Material::getBSDF(
         float3 F = fresnelSchlick(cosTheta, F0);
         float specWeight = (F.x + F.y + F.z) / 3.f;
         float probaReflect = curand_uniform(rngStates);
-        if(probaReflect < F.x){
+        if(probaReflect < specWeight){
             bsdf.direction = samplingGGX(wo, normal, rngStates);
             bsdf.brdf = evaluateGGX(wo, normal, bsdf.direction, F0);
         }
@@ -212,7 +214,77 @@ BSDFVal Material::getBSDF(
             bsdf.direction = samplingLambert(normal, rngStates);
             bsdf.brdf = evaluateLambert();
         }
-        bsdf.pdf = pdfGGX(normal, bsdf.direction, wo) + pdfLambert(normal, bsdf.direction);
+        bsdf.pdf = specWeight * pdfGGX(normal, bsdf.direction, wo) + (1.f - specWeight) * pdfLambert(normal, bsdf.direction);
+        break;
+    }
+    case MIRROR:
+    {
+        float3 normal = normalize(hit.normal);
+        float3 wo = normalize(-ray.direction);
+
+        float3 wi = reflect(-wo, normal);
+
+        bsdf.direction = wi;
+        bsdf.pdf = 1.0f;
+
+        bsdf.brdf = color / max(dot(normal, wi), 1e-6f);
+
+        break;
+    }
+    case TRANSPARENT:
+    {
+        float3 normal = normalize(hit.normal);
+        float3 wo = normalize(-ray.direction);
+
+        bool outside = dot(wo, normal) > 0.f;
+
+        float etaI = 1.0f;
+        float etaT = ior;
+
+        if (!outside)
+        {
+            normal = -normal;
+            etaI = ior;
+            etaT = 1.0f;
+        }
+
+        float eta = etaI / etaT;
+
+        float3 wi;
+
+        float cosTheta = clamp(dot(normal, wo), 0.f, 1.f);
+
+        float3 F0 = make_float3(pow((1.f - ior) / (1.f + ior), 2.f));
+        float3 F = fresnelSchlick(cosTheta, F0);
+
+        float reflectProb = (F.x + F.y + F.z) / 3.f;
+        
+        if (curand_uniform(rngStates) < reflectProb)
+        {
+            wi = reflect(-wo, normal);
+        }
+        else
+        {
+            float3 refracted;
+            bool ok = refract(-wo, normal, eta, refracted);
+
+            if (!ok)
+            {
+                // réflexion totale interne
+                wi = reflect(-wo, normal);
+            }
+            else
+            {
+                wi = refracted;
+            }
+        }
+
+        bsdf.direction = normalize(wi);
+        bsdf.pdf = 1.0f;
+
+        // transmission idéale → pas de BRDF classique
+        bsdf.brdf = make_float3(1.f);
+
         break;
     }
     };

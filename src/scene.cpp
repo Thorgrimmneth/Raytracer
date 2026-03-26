@@ -534,7 +534,7 @@ namespace RT
 
 				Vec3f center = Vec3f( i + 0.9 * randomDouble(), 0.2, j + 0.9 * randomDouble() );
 
-				if ( (center - Vec3f(4, 0.2, 0)).length() > 0.9 ) 
+				if ( (center - Vec3f(4, 1, 0)).length() > 1.2 && (center - Vec3f(0, 1, 0)).length() > 1.2 && (center - Vec3f(-4, 1, 0)).length() > 1.2 ) 
 				{
 					if ( choose_mat < 0.6 ) // diffuse
 					{

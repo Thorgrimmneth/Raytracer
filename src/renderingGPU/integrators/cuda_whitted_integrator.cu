@@ -1,59 +1,5 @@
 #include "cuda_whitted_integrator.cuh"
 
-__device__ __noinline__ 
-static Ray getTransparent(const Material &mtl, float3 point, float3 normal, bool &isInside, float3 direction, curandState *rng)
-{
-    float n1 = isInside ? mtl.ior : 1.f;
-    float n2 = isInside ? 1.f : mtl.ior;
-
-    float3 dir = direction;
-
-    float cosI = clamp(dot(normal, -dir), -1.f, 1.f);
-    float eta = n1 / n2;
-
-    float k = 1.f - eta * eta * (1.f - cosI * cosI);
-
-    // Total internal reflection
-    if (k < 0.f)
-    {
-        Ray ray = Ray(point, reflect(dir, normal));
-        ray.offset(normal);
-        return ray;
-    }
-
-    float cosT = sqrtf(k);
-
-    float rs = ((n1 * cosI) - (n2 * cosT)) /
-               ((n1 * cosI) + (n2 * cosT));
-    rs *= rs;
-
-    float rp = ((n1 * cosT) - (n2 * cosI)) /
-               ((n1 * cosT) + (n2 * cosI));
-    rp *= rp;
-
-    float reff = 0.5f * (rs + rp);
-
-    float xi = curand_uniform(rng);
-
-    if (xi < reff)
-    {
-        // reflect
-        Ray ray = Ray(point, reflect(dir, normal));
-        ray.offset(normal);
-        return ray;
-    }
-    else
-    {
-        // refract
-        float3 refrDir = eta * dir + (eta * cosI - cosT) * normal;
-        Ray ray = Ray(point, refrDir);
-        ray.offset(-normal);
-
-        isInside = !isInside;
-        return ray;
-    }
-}
-
 __device__
 float3 WhittedIntegrator::lighting(
         const CudaScene &scene,
@@ -74,35 +20,31 @@ float3 WhittedIntegrator::lighting(
 
         if (!scene.intersect(ray, tMin, tMax, hit))
         {
-            finalColor += throughput * toneMap(getSkyColor(ray));
+            finalColor += throughput * getSkyColor(ray);
             break;
         }
 
         const Material &mtl = scene.materials[hit.materialIndex];
+        if(mtl.type == MaterialType::EMISSIVE){
+            finalColor += throughput * mtl.color * mtl.intensity;
+            break;
+        }
+        BSDFVal bsdf = mtl.getBSDF(ray, hit, rng);
 
-        // ---------------- MIRROR ----------------
-        if (mtl.type == MIRROR)
-        {
-            ray = Ray(hit.point, reflect(ray.direction, hit.normal));
-            ray.offset(hit.normal);
-            continue;
+        if(mtl.type == MaterialType::MIRROR || mtl.type == MaterialType::TRANSPARENT){
+            throughput *= bsdf.brdf;
+        }
+        else{
+            float cosTheta = fabs(dot(hit.normal, bsdf.direction));
+
+            throughput = throughput * bsdf.brdf * cosTheta / bsdf.pdf;
         }
 
-        // ---------------- TRANSPARENT ----------------
-        else if (mtl.type == TRANSPARENT)
-        {
-            ray = getTransparent(mtl, hit.point, hit.normal, isInside, ray.direction, rng);
-
-            continue;
-        }
-
-        // ---------------- DIFFUSE ----------------
-        float3 direct =
-            DirectLightingIntegrator::directLighting(
-                scene, ray, hit, tMin, tMax, rng);
-
-        finalColor += throughput * direct;
-        break;
+        if (dot(bsdf.direction, hit.normal) < 0.f)
+            ray.origin = hit.point - hit.normal * 1e-3f;
+        else
+            ray.origin = hit.point + hit.normal * 1e-3f;
+        ray.direction = bsdf.direction;
     }
 
     return finalColor;
