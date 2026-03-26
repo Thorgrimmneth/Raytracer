@@ -1,5 +1,30 @@
 #include "cuda_material.cuh"
 
+__device__
+void Material::createONB(const float3& n, float3& tangent, float3& bitangent) const
+{
+    if (n.z < -0.9999999f) {
+        tangent = make_float3(0.0f, -1.0f, 0.0f);
+        bitangent = make_float3(-1.0f, 0.0f, 0.0f);
+        return;
+    }
+
+    float a = 1.0f / (1.0f + n.z);
+    float b = -n.x * n.y * a;
+
+    tangent = make_float3(
+        1.0f - n.x * n.x * a,
+        b,
+        -n.x
+    );
+
+    bitangent = make_float3(
+        b,
+        1.0f - n.y * n.y * a,
+        -n.y
+    );
+}
+
 __device__ 
 float3 Material::toWorld(const float3& normal, const float3 direction) const{
     float3 T, B;
@@ -78,31 +103,6 @@ inline float3 Material::evaluateGGX(const float3 &wo, const float3 &normal, cons
         return make_float3(0.f);
 
     return (D * G / denominator) * F;
-}
-
-__device__
-void Material::createONB(const float3& n, float3& tangent, float3& bitangent) const
-{
-    if (n.z < -0.9999999f) {
-        tangent = make_float3(0.0f, -1.0f, 0.0f);
-        bitangent = make_float3(-1.0f, 0.0f, 0.0f);
-        return;
-    }
-
-    float a = 1.0f / (1.0f + n.z);
-    float b = -n.x * n.y * a;
-
-    tangent = make_float3(
-        1.0f - n.x * n.x * a,
-        b,
-        -n.x
-    );
-
-    bitangent = make_float3(
-        b,
-        1.0f - n.y * n.y * a,
-        -n.y
-    );
 }
 
 __device__
