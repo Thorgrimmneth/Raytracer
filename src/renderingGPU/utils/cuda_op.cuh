@@ -245,7 +245,7 @@ inline bool operator==(const float3& a, const float3& b)
 __host__ __device__
 inline float3 reflect(const float3& a, const float3& b)
 {
-    return a - 2 * (dot(a, b)) * b;
+    return normalize(a - 2 * (dot(a, b)) * b);
 }
 
 __host__ __device__

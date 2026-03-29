@@ -178,7 +178,9 @@ __device__
 BSDFVal Material::getBSDF(
         const Ray &ray,
         const HitRecord &hit,
-    curandState* rngStates) const
+    curandState* rngStates,
+    bool &isInside,
+    bool &reflected) const
 {
     float3 normal = normalize(hit.normal);
     float3 wo = normalize(-ray.direction);
@@ -219,7 +221,6 @@ BSDFVal Material::getBSDF(
     }
     case MIRROR:
     {
-        float3 normal = normalize(hit.normal);
         float3 wo = normalize(-ray.direction);
 
         float3 wi = reflect(-wo, normal);
@@ -227,65 +228,61 @@ BSDFVal Material::getBSDF(
         bsdf.direction = wi;
         bsdf.pdf = 1.0f;
 
-        bsdf.brdf = color / max(dot(normal, wi), 1e-6f);
+        bsdf.brdf = make_float3(1.f);
 
         break;
     }
     case TRANSPARENT:
     {
-        float3 normal = normalize(hit.normal);
-        float3 wo = normalize(-ray.direction);
 
-        bool outside = dot(wo, normal) > 0.f;
+        float n1 = isInside ? ior : 1.f;
+        float n2 = isInside ? 1.f : ior;
 
-        float etaI = 1.0f;
-        float etaT = ior;
-
-        if (!outside)
-        {
-            normal = -normal;
-            etaI = ior;
-            etaT = 1.0f;
-        }
-
-        float eta = etaI / etaT;
-
+        float cosI = clamp(dot(normal, wo), -1.f, 1.f);
+        float eta = n1 / n2;
+        float k = 1.f - eta * eta * (1.f - cosI * cosI);
         float3 wi;
+        if(k < 0.f){
+            wi = reflect(-wo, normal);
+            bsdf.pdf = 1.f;
+            bsdf.brdf = make_float3(1.f);
+            reflected = true;
+            break;
+        }
+        float cosT = sqrtf(k);
+        float rs = ((n1 * cosI) - (n2 * cosT)) /
+               ((n1 * cosI) + (n2 * cosT));
+        rs *= rs;
 
-        float cosTheta = clamp(dot(normal, wo), 0.f, 1.f);
+        float rp = ((n1 * cosT) - (n2 * cosI)) /
+                ((n1 * cosT) + (n2 * cosI));
+        rp *= rp;
 
-        float3 F0 = make_float3(pow((1.f - ior) / (1.f + ior), 2.f));
-        float3 F = fresnelSchlick(cosTheta, F0);
-
-        float reflectProb = (F.x + F.y + F.z) / 3.f;
+        float reff = 0.5f * (rs + rp);
         
-        if (curand_uniform(rngStates) < reflectProb)
+        float xi = curand_uniform(rngStates);
+
+        float pdf;
+
+        if(xi < reff)
         {
             wi = reflect(-wo, normal);
+            pdf = reff;
+            reflected = true;
         }
-        else
-        {
-            float3 refracted;
-            bool ok = refract(-wo, normal, eta, refracted);
-
-            if (!ok)
-            {
-                // réflexion totale interne
-                wi = reflect(-wo, normal);
-            }
-            else
-            {
-                wi = refracted;
-            }
+        else{
+            wi = eta * -wo + (eta * cosI - cosT) * normal;
+            pdf = 1.f - reff;
+            isInside = !isInside;
+            reflected = false;
         }
 
-        bsdf.direction = normalize(wi);
-        bsdf.pdf = 1.0f;
+        bsdf.direction = wi;
+        bsdf.pdf = pdf;
 
-        // transmission idéale → pas de BRDF classique
-        bsdf.brdf = make_float3(1.f);
+        bsdf.brdf = make_float3(1.0f / pdf);
 
-        break;
+        return bsdf;
     }
     };
     return bsdf;

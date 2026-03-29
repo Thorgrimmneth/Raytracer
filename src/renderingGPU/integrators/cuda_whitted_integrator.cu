@@ -13,9 +13,10 @@ float3 WhittedIntegrator::lighting(
     Ray ray = primaryRay;
     float3 throughput = make_float3(1.f);
     bool isInside = false;
-
+    bool reflected;
     for (int depth = 0; depth < nbBounces; depth++)
     {
+        reflected = true;
         HitRecord hit;
 
         if (!scene.intersect(ray, tMin, tMax, hit))
@@ -29,22 +30,20 @@ float3 WhittedIntegrator::lighting(
             finalColor += throughput * mtl.color * mtl.intensity;
             break;
         }
-        BSDFVal bsdf = mtl.getBSDF(ray, hit, rng);
+        BSDFVal bsdf = mtl.getBSDF(ray, hit, rng, isInside, reflected);
 
         if(mtl.type == MaterialType::MIRROR || mtl.type == MaterialType::TRANSPARENT){
             throughput *= bsdf.brdf;
         }
         else{
-            float cosTheta = fabs(dot(hit.normal, bsdf.direction));
+            float cosTheta = fmaxf(dot(hit.normal, bsdf.direction), 0.0f);
 
             throughput = throughput * bsdf.brdf * cosTheta / bsdf.pdf;
         }
-
-        if (dot(bsdf.direction, hit.normal) < 0.f)
-            ray.origin = hit.point - hit.normal * 1e-3f;
-        else
-            ray.origin = hit.point + hit.normal * 1e-3f;
-        ray.direction = bsdf.direction;
+        float3 origin;
+        float sign = reflected ? 1.f : -1.f;
+        origin = hit.point + hit.normal * 1e-3f * sign;
+        ray = Ray(origin, bsdf.direction);
     }
 
     return finalColor;

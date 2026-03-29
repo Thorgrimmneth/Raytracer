@@ -66,5 +66,13 @@ struct Material
     BSDFVal getBSDF(
         const Ray &ray,
         const HitRecord &hit,
+        curandState* rngStates,
+        bool &isInside,
+        bool &reflected) const;
+
+    __device__
+    BSDFVal getBSDF(
+        const Ray &ray,
+        const HitRecord &hit,
     curandState* rngStates) const;
 };
