@@ -1,7 +1,6 @@
 #include "direct_lighting_integrator.hpp"
 #include "lights/quad_light.hpp"
 #include "materials/emissive_material.hpp"
-#include "utils/random.hpp"
 
 namespace RT
 {

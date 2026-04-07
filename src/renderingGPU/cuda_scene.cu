@@ -1,7 +1,7 @@
 #include "lights/cuda_light.cuh"
 #include "cuda_scene.cuh"
-#include "../scene.hpp"
 #include "../defines.hpp"
+#include "../scene.hpp"
 #include "../objects/base_object.hpp"
 #include "../objects/plane.hpp"
 #include "../objects/sphere.hpp"
@@ -21,8 +21,7 @@
 #include "../lights/cylinder_light.hpp"
 #include "../lights/directionnal_light.hpp"
 
-__device__ 
-bool CudaScene::intersect(const Ray &p_ray, const float p_tMin, const float p_tMax, HitRecord &p_hitRecord) const
+__device__ bool CudaScene::intersect(const Ray &p_ray, const float p_tMin, const float p_tMax, HitRecord &p_hitRecord) const
 {
 	float tMax = p_tMax;
 	bool hit = false;
@@ -34,11 +33,9 @@ bool CudaScene::intersect(const Ray &p_ray, const float p_tMin, const float p_tM
 	return hit;
 }
 
-__device__
-bool CudaScene::intersectAny(const Ray &p_ray, const float p_tMin, const float p_tMax) const
+__device__ bool CudaScene::intersectAny(const Ray &p_ray, const float p_tMin, const float p_tMax) const
 {
 	return bvhScene.intersectAny(p_ray, p_tMin, p_tMax, materials);
-	
 }
 
 AABB convertBBOX(RT::AABB bbox)
@@ -52,7 +49,8 @@ AABB convertBBOX(RT::AABB bbox)
 int flattenBVH(const RT::BVHNode *node,
 			   std::vector<BVH> &outNodes)
 {
-	if (!node) return -1;
+	if (!node)
+		return -1;
 	int index = outNodes.size();
 	outNodes.push_back({});
 
@@ -127,6 +125,93 @@ Material convertMaterial(RT::BaseMaterial *bm)
 	return m;
 }
 
+__host__
+void CudaScene::uploadObjects(
+					   std::vector<Sphere> spheresGPU,
+					   std::vector<Plane> planesGPU,
+					   std::vector<TriangleMesh> triangleMeshesGPU,
+					   std::vector<float3> verticesGPU,
+					   std::vector<BaseObject> primitivesGPU)
+{
+	cudaMalloc(&primitives,
+			   primitivesGPU.size() * sizeof(BaseObject));
+
+	cudaMemcpy(primitives,
+			   primitivesGPU.data(),
+			   primitivesGPU.size() * sizeof(BaseObject),
+			   cudaMemcpyHostToDevice);
+
+	bvhScene = BVHScene::buildBVHScene(&primitivesGPU, &spheresGPU, &planesGPU, &triangleMeshesGPU);
+
+	nbSpheres = spheresGPU.size();
+
+	nbPlanes = planesGPU.size();
+
+	cudaMalloc(&spheres,
+			   spheresGPU.size() * sizeof(Sphere));
+
+	cudaMemcpy(spheres,
+			   spheresGPU.data(),
+			   spheresGPU.size() * sizeof(Sphere),
+			   cudaMemcpyHostToDevice);
+
+	cudaMalloc(&planes,
+			   planesGPU.size() * sizeof(Plane));
+
+	cudaMemcpy(planes,
+			   planesGPU.data(),
+			   planesGPU.size() * sizeof(Plane),
+			   cudaMemcpyHostToDevice);
+
+	nbTriangleMeshes = triangleMeshesGPU.size();
+
+	cudaMalloc(&triangleMeshes,
+			   triangleMeshesGPU.size() * sizeof(TriangleMesh));
+
+	cudaMemcpy(triangleMeshes,
+			   triangleMeshesGPU.data(),
+			   triangleMeshesGPU.size() * sizeof(TriangleMesh),
+			   cudaMemcpyHostToDevice);
+
+	bvhScene.d_spheres = spheres;
+	bvhScene.d_planes = planes;
+	bvhScene.d_meshes = triangleMeshes;
+	
+}
+
+__host__
+void CudaScene::uploadLights(
+                             std::vector<Light> lightsGPU){
+	nbLights = lightsGPU.size();
+	cudaMalloc(&lights,
+			   lightsGPU.size() * sizeof(Light));
+
+	cudaMemcpy(lights,
+			   lightsGPU.data(),
+			   lightsGPU.size() * sizeof(Light),
+			   cudaMemcpyHostToDevice);
+}
+
+__host__ 
+void CudaScene::uploadMaterials(std::vector<Material> materialsGPU)
+{
+	nbMaterials = materialsGPU.size();
+
+	if (nbMaterials > 0)
+	{
+		cudaMalloc(&materials,
+				   nbMaterials * sizeof(Material));
+
+		cudaMemcpy(materials,
+				   materialsGPU.data(),
+				   nbMaterials * sizeof(Material),
+				   cudaMemcpyHostToDevice);
+	}
+	else
+	{
+		materials = nullptr;
+	}
+}
 CudaScene uploadSceneToGPU(const RT::Scene &scene, float4 sunDir)
 {
 	CudaScene gpuScene;
@@ -136,7 +221,7 @@ CudaScene uploadSceneToGPU(const RT::Scene &scene, float4 sunDir)
 	std::vector<TriangleMesh> triangleMeshesGPU;
 	std::vector<float3> verticesGPU;
 	std::vector<BaseObject> primitivesGPU;
-	std::vector<Material> materials;
+	std::vector<Material> materialsGPU;
 	std::vector<Light> lightsGPU;
 
 	for (const auto &pair : scene.getObject())
@@ -171,18 +256,18 @@ CudaScene uploadSceneToGPU(const RT::Scene &scene, float4 sunDir)
 
 			box1.min = getMin(box1.min, box2.min);
 			box1.max = getMax(box1.max, box2.max);
-			primitivesGPU.push_back(BaseObject{box1,ObjectType::SPHERE, (int)spheresGPU.size() });
+			primitivesGPU.push_back(BaseObject{box1, ObjectType::SPHERE, (int)spheresGPU.size()});
 			Material mat = convertMaterial(obj->getMaterial());
-			materials.push_back(mat);
-			s.materialIndex = materials.size() - 1;
+			materialsGPU.push_back(mat);
+			s.materialIndex = materialsGPU.size() - 1;
 			spheresGPU.push_back(s);
-			if(mat.type == MaterialType::EMISSIVE){
+			if (mat.type == MaterialType::EMISSIVE)
+			{
 				Light l;
 				l.type = LightType::SPHERE_GEOM;
-				l.geomIndex = spheresGPU.size()-1;
+				l.geomIndex = spheresGPU.size() - 1;
 				lightsGPU.push_back(l);
 			}
-			
 		}
 		else if (obj->getType() == RT::ObjectType::Plane)
 		{
@@ -197,8 +282,8 @@ CudaScene uploadSceneToGPU(const RT::Scene &scene, float4 sunDir)
 			Plane p;
 			p.delta = plane.getDelta();
 			p.normal = make_float3(plane.getNormal().x, plane.getNormal().y, plane.getNormal().z);
-			materials.push_back(convertMaterial(obj->getMaterial()));
-			p.materialIndex = materials.size() - 1;
+			materialsGPU.push_back(convertMaterial(obj->getMaterial()));
+			p.materialIndex = materialsGPU.size() - 1;
 			AABB bbox;
 			bbox.min = make_float4(-1e3f, plane.getPosition().y, -1e3f, 0.f);
 			bbox.max = make_float4(1e3f, plane.getPosition().y, 1e3f, 0.f);
@@ -277,62 +362,20 @@ CudaScene uploadSceneToGPU(const RT::Scene &scene, float4 sunDir)
 					   cudaMemcpyHostToDevice);
 
 			Material mat = convertMaterial(obj->getMaterial());
-			materials.push_back(mat);
-			tm.materialIndex = materials.size() - 1;
+			materialsGPU.push_back(mat);
+			tm.materialIndex = materialsGPU.size() - 1;
 			primitivesGPU.push_back(BaseObject{linearBVH[0].bbox, ObjectType::TRIANGLE, (int)triangleMeshesGPU.size()});
 			triangleMeshesGPU.push_back(tm);
 
-			if(mat.type == MaterialType::EMISSIVE){
+			if (mat.type == MaterialType::EMISSIVE)
+			{
 				Light l;
 				l.type = LightType::MESH_GEOM;
-				l.geomIndex = triangleMeshesGPU.size()-1;
+				l.geomIndex = triangleMeshesGPU.size() - 1;
 				lightsGPU.push_back(l);
 			}
 		}
 	}
-	cudaMalloc(&gpuScene.primitives,
-			   primitivesGPU.size() * sizeof(BaseObject));
-
-	cudaMemcpy(gpuScene.primitives,
-			   primitivesGPU.data(),
-			   primitivesGPU.size() * sizeof(BaseObject),
-			   cudaMemcpyHostToDevice);
-
-	gpuScene.bvhScene = BVHScene::buildBVHScene(&primitivesGPU, &spheresGPU, &planesGPU, &triangleMeshesGPU);
-
-	gpuScene.nbSpheres = spheresGPU.size();
-
-	gpuScene.nbPlanes = planesGPU.size();
-	
-	cudaMalloc(&gpuScene.spheres,
-			   spheresGPU.size() * sizeof(Sphere));
-
-	cudaMemcpy(gpuScene.spheres,
-			   spheresGPU.data(),
-			   spheresGPU.size() * sizeof(Sphere),
-			   cudaMemcpyHostToDevice);
-
-	cudaMalloc(&gpuScene.planes,
-			   planesGPU.size() * sizeof(Plane));
-
-	cudaMemcpy(gpuScene.planes,
-			   planesGPU.data(),
-			   planesGPU.size() * sizeof(Plane),
-			   cudaMemcpyHostToDevice);
-
-	gpuScene.nbTriangleMeshes = triangleMeshesGPU.size();
-
-	cudaMalloc(&gpuScene.triangleMeshes,
-			   triangleMeshesGPU.size() * sizeof(TriangleMesh));
-
-	cudaMemcpy(gpuScene.triangleMeshes,
-			   triangleMeshesGPU.data(),
-			   triangleMeshesGPU.size() * sizeof(TriangleMesh),
-			   cudaMemcpyHostToDevice);
-	
-	gpuScene.bvhScene.d_spheres = gpuScene.spheres;
-	gpuScene.bvhScene.d_planes = gpuScene.planes;
-	gpuScene.bvhScene.d_meshes = gpuScene.triangleMeshes;
 
 	for (const auto &light : scene.getLights())
 	{
@@ -392,34 +435,175 @@ CudaScene uploadSceneToGPU(const RT::Scene &scene, float4 sunDir)
 	l.direction = toFloat3(sunDir);
 	l.type = LightType::SUN;
 	lightsGPU.push_back(l);
-	gpuScene.nbLights = lightsGPU.size();
+	
+	gpuScene.uploadObjects(spheresGPU, planesGPU, triangleMeshesGPU, verticesGPU, primitivesGPU);
+	gpuScene.uploadLights(lightsGPU);
+	gpuScene.uploadMaterials(materialsGPU);
 
-	cudaMalloc(&gpuScene.lights,
-			   lightsGPU.size() * sizeof(Light));
-
-	cudaMemcpy(gpuScene.lights,
-			   lightsGPU.data(),
-			   lightsGPU.size() * sizeof(Light),
-			   cudaMemcpyHostToDevice);
-
-	gpuScene.nbMaterials = materials.size();
-
-	if (gpuScene.nbMaterials > 0)
-	{
-		cudaMalloc(&gpuScene.materials,
-				gpuScene.nbMaterials * sizeof(Material));
-
-		cudaMemcpy(gpuScene.materials,
-				materials.data(),
-				gpuScene.nbMaterials * sizeof(Material),
-				cudaMemcpyHostToDevice);
-	}
-	else
-	{
-		gpuScene.materials = nullptr;
-	}
-
-	//printf("nb objects bvh %i\n", gpuScene.bvhScene.nbObjects);
-	//printf("nb nodes bvh %i\n", gpuScene.bvhScene.nbNodes);
+	// printf("nb objects bvh %i\n", gpuScene.bvhScene.nbObjects);
+	// printf("nb nodes bvh %i\n", gpuScene.bvhScene.nbNodes);
 	return gpuScene;
+}
+
+CudaScene spheresScene(float4 sunDir)
+{
+    CudaScene gpuScene;
+
+    std::vector<Sphere> spheresGPU;
+    std::vector<Plane> planesGPU;
+    std::vector<TriangleMesh> triangleMeshesGPU;
+    std::vector<float3> verticesGPU;
+    std::vector<BaseObject> primitivesGPU;
+    std::vector<Material> materialsGPU;
+    std::vector<Light> lightsGPU;
+
+    // ===== PLAN =====
+    {
+        Plane p;
+        p.delta = 0.f;
+        p.normal = make_float3(0.f, 1.f, 0.f);
+
+        Material ground = Material(make_float3(0.5f));
+        materialsGPU.push_back(ground);
+        p.materialIndex = materialsGPU.size() - 1;
+
+        AABB bbox;
+        bbox.min = make_float4(-1e3f, 0.f, -1e3f, 0.f);
+        bbox.max = make_float4(1e3f, 0.f, 1e3f, 0.f);
+
+        primitivesGPU.push_back(BaseObject{bbox, ObjectType::PLANE, (int)planesGPU.size()});
+        planesGPU.push_back(p);
+    }
+
+    // ===== MATERIALS DE BASE =====
+    Material mirror = Material(make_float3(0.f), true);
+    Material transparent = Material(make_float3(0.f), 1.5f, MaterialType::TRANSPARENT);
+    Material emissive = Material(make_float3(1.f, 0.f, 0.f), 11.f, MaterialType::EMISSIVE);
+
+    int mirrorIdx = materialsGPU.size(); materialsGPU.push_back(mirror);
+    int transparentIdx = materialsGPU.size(); materialsGPU.push_back(transparent);
+    int emissiveIdx = materialsGPU.size(); materialsGPU.push_back(emissive);
+
+    float bigRadius = 1.0f;
+    float smallRadius = 0.2f;
+    float margin = 0.05f;
+    float minDist = bigRadius + smallRadius + margin;
+
+    // ===== PETITES SPHERES =====
+    for (int i = -11; i < 11; i++)
+    {
+        for (int j = -11; j < 11; j++)
+        {
+            double choose_mat = RT::randomDouble();
+
+            float3 center = make_float3(
+                i + 0.9f * RT::randomFloat(),
+                0.2f,
+                j + 0.9f * RT::randomFloat()
+            );
+
+            if (
+                length(center - make_float3(4.f, 1.f, 0.f)) < minDist ||
+                length(center - make_float3(0.f, 1.f, 0.f)) < minDist ||
+                length(center - make_float3(-4.f, 1.f, 0.f)) < minDist)
+                continue;
+
+            Sphere s;
+            s.center1 = center;
+            s.center2 = center;
+            s.radius = 0.2f;
+
+            // ===== MATERIAL =====
+            if (choose_mat < 0.6)
+            {
+                Material mat = Material(make_float3(
+                    RT::randomFloat(),
+                    RT::randomFloat(),
+                    RT::randomFloat()
+                ));
+                materialsGPU.push_back(mat);
+                s.materialIndex = materialsGPU.size() - 1;
+            }
+            else if (choose_mat < 0.8)
+            {
+                Material mat = Material::randomMetal();
+                materialsGPU.push_back(mat);
+                s.materialIndex = materialsGPU.size() - 1;
+            }
+            else if (choose_mat < 0.88)
+            {
+                s.materialIndex = mirrorIdx;
+            }
+            else
+            {
+                s.materialIndex = transparentIdx;
+            }
+
+            // ===== AABB =====
+            float3 r = make_float3(s.radius);
+            AABB box;
+            box.min = toFloat4(center - r);
+            box.max = toFloat4(center + r);
+
+            primitivesGPU.push_back(BaseObject{
+                box,
+                ObjectType::SPHERE,
+                (int)spheresGPU.size()
+            });
+
+            spheresGPU.push_back(s);
+        }
+    }
+
+    // ===== GROSSES SPHERES =====
+    auto addBigSphere = [&](float3 center, float radius, int matIndex)
+    {
+        Sphere s;
+        s.center1 = center;
+        s.center2 = center;
+        s.radius = radius;
+        s.materialIndex = matIndex;
+
+        float3 r = make_float3(radius);
+        AABB box;
+        box.min = toFloat4(center - r);
+        box.max = toFloat4(center + r);
+
+        primitivesGPU.push_back(BaseObject{
+            box,
+            ObjectType::SPHERE,
+            (int)spheresGPU.size()
+        });
+
+        spheresGPU.push_back(s);
+		Material& mat = materialsGPU[matIndex];
+
+		if (mat.type == MaterialType::EMISSIVE)
+		{
+			Light l;
+			l.type = LightType::SPHERE_GEOM;
+			l.geomIndex = spheresGPU.size() - 1;
+			lightsGPU.push_back(l);
+		}
+    };
+
+    addBigSphere(make_float3(0.f, 1.f, 0.f), 1.f, transparentIdx);
+    addBigSphere(make_float3(-4.f, 1.f, 0.f), 1.f, emissiveIdx);
+    addBigSphere(make_float3(4.f, 1.f, 0.f), 1.f, mirrorIdx);
+
+    // ===== LIGHT (SUN) =====
+    Light l;
+    l.color = make_float3(1.f);
+    l.power = 1.f;
+    l.area = 1.f;
+    l.direction = toFloat3(sunDir);
+    l.type = LightType::SUN;
+    lightsGPU.push_back(l);
+
+    // ===== UPLOAD =====
+    gpuScene.uploadObjects(spheresGPU, planesGPU, triangleMeshesGPU, verticesGPU, primitivesGPU);
+    gpuScene.uploadLights(lightsGPU);
+    gpuScene.uploadMaterials(materialsGPU);
+
+    return gpuScene;
 }

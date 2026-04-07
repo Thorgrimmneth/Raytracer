@@ -4,7 +4,6 @@
 #include "integrators/ray_cast_integrator.hpp"
 #include "integrators/whitted_integrator.hpp"
 #include "utils/console_progress_bar.hpp"
-#include "utils/random.hpp"
 
 namespace RT
 {

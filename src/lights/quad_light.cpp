@@ -1,5 +1,4 @@
 #include "quad_light.hpp"
-#include "utils/random.hpp"
 
 namespace RT
 {

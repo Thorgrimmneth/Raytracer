@@ -93,6 +93,30 @@ namespace RT
 	inline float degToRad( float deg ) { return deg * PIf / 180.f; }
 	inline float radToDeg( float rad ) { return rad * 180.f / PIf; }
 	inline float length(Vec3f a) {return sqrt(a.x * a.x + a.y * a.y + a.z * a.z);}
+
+	inline double randomDouble()
+	{
+		static std::mt19937 generator(std::random_device{}());
+		static std::uniform_real_distribution<double> distribution(0.0, 1.0);
+		return distribution(generator);
+	}
+
+	inline double randomDouble(float min, float max)
+	{
+		static std::mt19937 generator(std::random_device{}());
+		static std::uniform_real_distribution<double> distribution(min, max);
+		return distribution(generator);
+	}
+
+	inline float randomFloat()
+	{
+		return static_cast<float>(randomDouble());
+	}
+
+	inline float randomFloat(float min, float max)
+	{
+		return static_cast<float>(randomDouble(min, max));
+	}
 } // namespace RT
 
 #endif // __RT_ISICG_DEFINES__

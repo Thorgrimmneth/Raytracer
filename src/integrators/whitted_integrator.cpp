@@ -1,5 +1,4 @@
 ﻿#include "whitted_integrator.hpp"
-#include "utils/random.hpp"
 
 namespace RT
 {

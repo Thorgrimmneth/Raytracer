@@ -1,6 +1,5 @@
 #include "triangle_mesh_geometry.hpp"
 #include "objects/triangle_mesh.hpp"
-#include "utils/random.hpp"
 
 namespace RT
 {

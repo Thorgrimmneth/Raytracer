@@ -1,6 +1,5 @@
 #include "perspective_camera.hpp"
 #include <glm/gtx/string_cast.hpp>
-#include "utils/random.hpp"
 
 namespace RT
 {
@@ -30,16 +29,6 @@ namespace RT
 		_viewportV			   = _v * viewportHeight;
 		_viewportU			   = _u * viewportWidth;
 		_viewportTopLeftCorner = _position - _w * _focalDistance + _viewportV / 2.f - _viewportU / 2.f;
-	}
-
-	// Generates a random float
-	inline float randomFloat( float min, float max )
-	{
-		static std::random_device rd;
-		static std::mt19937		  gen( rd() );
-
-		std::uniform_real_distribution<float> dist( min, max );
-		return dist( gen );
 	}
 
 	// Generates a random point in a disk (z = 0 because the lens is in 2D)

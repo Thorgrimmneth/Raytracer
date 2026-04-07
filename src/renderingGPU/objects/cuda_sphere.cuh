@@ -10,6 +10,9 @@ struct Sphere{
     float3 center2;
     int materialIndex;
 
+    Sphere() = default;
+    Sphere(float3 c, float r) : center1(c), radius(r), center2(c) {}
+    Sphere(float3 c1, float3 c2, float r) : center1(c1), center2(c2), radius(r) {}
     __device__
     bool intersectGeometry(const Ray& ray, float& p_t1, float& p_t2) const;
     __device__

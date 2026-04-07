@@ -11,6 +11,8 @@ struct Plane
     float delta;
     int materialIndex;
 
+	Plane() = default;
+	Plane(float3 pos, float3 n) : normal(n), delta(dot(-n, pos)) {}
 	__device__
     bool intersectGeometry( const Ray & ray, float & p_t1 ) const;
 

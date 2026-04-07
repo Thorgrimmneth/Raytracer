@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../../defines.hpp"
 #include "../raytracingUtils/cuda_ray.cuh"
 #include "../raytracingUtils/cuda_hitrecord.cuh"
 #include "../lights/cuda_lightsample.cuh"
@@ -34,6 +35,40 @@ struct Material
     float shininess = 1.f;
     MaterialType type;
 
+    Material() = default;
+    Material(float3 c) : color(c), type(MaterialType::LAMBERT){}
+    Material(float3 c, bool isMirror) : color(c), type(MaterialType::MIRROR){}
+    Material(float3 c, float i, MaterialType t) : color(c), intensity(i){
+        switch (t)
+        {
+            case MaterialType::PLASTIC:
+                shininess = i;
+                break;
+            case MaterialType::TRANSPARENT:
+                ior = i;
+                break;
+            case MaterialType::EMISSIVE:
+                intensity = i;
+                break;
+        }
+        type = t;
+    }
+    Material(float3 c, float m, float r) : color(c), metalness(m), ruggedness(r), alpha(r*r), type(MaterialType::METAL){}
+
+    __host__
+    static inline Material randomMetal()
+    {
+        float3 color = make_float3(
+            0.5f + 0.5f * RT::randomFloat(),
+            0.5f + 0.5f * RT::randomFloat(),
+            0.5f + 0.5f * RT::randomFloat()
+        );
+
+        float metalness = 0.8f + 0.2f * RT::randomFloat();
+        float ruggedness = RT::randomFloat();
+
+        return Material(color, metalness, ruggedness);
+    }
     __device__ 
     inline float3 evaluateLambert() const;
 

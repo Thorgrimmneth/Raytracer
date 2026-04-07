@@ -3,7 +3,6 @@
 
 #include "base_material.hpp"
 #include "defines.hpp"
-#include "utils/random.hpp"
 
 namespace RT
 {

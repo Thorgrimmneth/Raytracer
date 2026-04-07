@@ -383,8 +383,8 @@ unsigned char* launchHelloCUDA(const RT::Scene& scene,
     float bloomStrength = 0.25f;
     float exposure = 1.0f;
     float4 sunDir = make_float4(sunDirx, sunDiry, sunDirz, 0.f);
-    CudaScene gpuScene = uploadSceneToGPU(scene, sunDir);
-
+    //CudaScene gpuScene = uploadSceneToGPU(scene, sunDir);
+    CudaScene gpuScene = spheresScene(sunDir);
     size_t hdrBufferSize = width * height * sizeof(float3);
     size_t finalBufferSize = width * height * 3 * sizeof(unsigned char);
 
