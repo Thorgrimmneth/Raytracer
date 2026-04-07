@@ -46,7 +46,7 @@ float3 WhittedIntegrator::lighting(
             break;
         }
         BSDFVal bsdf = mtl.getBSDF(ray, hit, rng, isInside, reflected);
-
+        if(bsdf.pdf <= 1e-4f) break;
         if(mtl.type == MaterialType::MIRROR || mtl.type == MaterialType::TRANSPARENT){
             throughput *= bsdf.brdf;
         }
@@ -116,10 +116,9 @@ float3 WhittedIntegrator::toneMap(const float3 &c)
 __device__ __noinline__
 float3 WhittedIntegrator::getSkyColor(const Ray &ray)
 {
-    float3 rayDir = normalize(ray.direction);
-    float3 sunDir = normalize(sunDirection);
+    float3 rayDir = ray.direction;
     //float mult = lerp(1.f, 20.f, (max(-0.4f,sunDir.y) + 0.4)/1.4f);
-    float t = clamp((sunDir.y + 0.4f) / 1.4f, 0.0f, 1.0f);
+    float t = clamp((sunDirection.y + 0.4f) / 1.4f, 0.0f, 1.0f);
     float tM = 1 - t;
     float B0 = pow(1.0f - t, 3.0f);
     float B1 = 3.0f * tM * tM * t;
@@ -137,7 +136,7 @@ float3 WhittedIntegrator::getSkyColor(const Ray &ray)
     float opticalDepthR = 0.0f;
     float opticalDepthM = 0.0f;
 
-    float mu = dot(rayDir, sunDir);
+    float mu = dot(rayDir, sunDirection);
 
     float g = 0.95f;
 
@@ -170,7 +169,7 @@ float3 WhittedIntegrator::getSkyColor(const Ray &ray)
 
         for (int j = 0; j < sunSamples; ++j)
         {
-            sunSamplePosition += sunDir * sunSegmentLength;
+            sunSamplePosition += sunDirection * sunSegmentLength;
 
             float heightLight = max(sunSamplePosition.y, 0.0f);
 
@@ -195,7 +194,7 @@ float3 WhittedIntegrator::getSkyColor(const Ray &ray)
                  sumM * betaM * phaseM * 0.3f;
 
     float sunAngularRadius = 2.1f * GPUPIf / 180.f;
-    float cosTheta = dot(rayDir, sunDir);
+    float cosTheta = dot(rayDir, sunDirection);
 
     float sunDisk =
         smoothstep(cos(sunAngularRadius),

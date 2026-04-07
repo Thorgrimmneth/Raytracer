@@ -247,11 +247,31 @@ void upsampleAdd(float3* lowRes,
 
     if (x >= highWidth || y >= lowHeight * 2) return;
 
-    int lx = x / 2;
-    int ly = y / 2;
+    float gx = (x + 0.5f) * 0.5f - 0.5f;
+    float gy = (y + 0.5f) * 0.5f - 0.5f;
 
-    highRes[y * highWidth + x] +=
-        lowRes[ly * lowWidth + lx] * strength;
+    int x0 = floorf(gx);
+    int y0 = floorf(gy);
+    int x1 = min(x0 + 1, lowWidth - 1);
+    int y1 = min(y0 + 1, lowHeight - 1);
+
+    float tx = gx - x0;
+    float ty = gy - y0;
+
+    x0 = max(x0, 0);
+    y0 = max(y0, 0);
+
+    float3 c00 = lowRes[y0 * lowWidth + x0];
+    float3 c10 = lowRes[y0 * lowWidth + x1];
+    float3 c01 = lowRes[y1 * lowWidth + x0];
+    float3 c11 = lowRes[y1 * lowWidth + x1];
+
+    float3 c =
+        lerp(lerp(c00, c10, tx),
+            lerp(c01, c11, tx),
+            ty);
+
+    highRes[y * highWidth + x] += c * strength;
 }
 
 void applyMultiScaleBloom(float3* d_bright,

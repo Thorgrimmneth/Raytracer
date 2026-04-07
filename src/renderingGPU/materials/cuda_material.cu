@@ -3,7 +3,7 @@
 __device__
 void Material::createONB(const float3& n, float3& tangent, float3& bitangent) const
 {
-    if (n.z < -0.9999999f) {
+    if (n.z < -0.999f) {
         tangent = make_float3(0.0f, -1.0f, 0.0f);
         bitangent = make_float3(-1.0f, 0.0f, 0.0f);
         return;
@@ -31,7 +31,7 @@ __device__
 float3 Material::toWorld(const float3& normal, const float3 direction) const{
     float3 T, B;
     createONB(normal, T, B);
-    return direction.x * T + direction.y * B + direction.z * normal;
+    return normalize(direction.x * T + direction.y * B + direction.z * normal);
 }
 
 __device__ 
@@ -49,7 +49,8 @@ float3 Material::samplingLambert(const float3 normal, curandState* rngStates) co
     float phi = 2 * GPUPIf * e2;
     float x = r * cos(phi);
     float y = r * sin(phi);
-    float3 direction = toWorld(normal, make_float3(x, y, sqrt(1 - x *x - y* y)));
+    float z = sqrtf(fmaxf(0.f, 1.f - x*x - y*y));
+    float3 direction = toWorld(normal, make_float3(x, y, z));
     return direction;
 }
 
@@ -239,6 +240,7 @@ BSDFVal Material::getBSDF(
         float n2 = isInside ? 1.f : ior;
 
         float cosI = clamp(dot(normal, wo), -1.f, 1.f);
+        
         float eta = n1 / n2;
         float k = 1.f - eta * eta * (1.f - cosI * cosI);
         float3 wi;
@@ -326,7 +328,6 @@ float3 Material::evalBSDF(
 
     case MIRROR:
     case TRANSPARENT:
-        // delta → pas utilisable en eval classique
         return make_float3(0.f);
     }
 
