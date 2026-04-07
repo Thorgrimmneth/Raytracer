@@ -6,14 +6,6 @@
 #include "cuda_direct_lighting_integrator.cuh"
 #include "../utils/cuda_defines.cuh"
 
-struct CurrentLight
-{
-    Ray ray;
-    float3 weight;
-    bool inside;
-    int depth;
-};
-
 struct WhittedIntegrator
 {
 

@@ -287,3 +287,82 @@ BSDFVal Material::getBSDF(
     };
     return bsdf;
 };
+
+__device__
+float3 Material::evalBSDF(
+    const Ray &ray,
+    const HitRecord &hit,
+    const float3 &wi
+) const
+{
+    float3 normal = normalize(hit.normal);
+    float3 wo = normalize(-ray.direction);
+
+    switch(type)
+    {
+    case LAMBERT:
+        return evaluateLambert();
+
+    case METAL:
+    {
+        float3 F0 = lerp(make_float3(0.04f), color, metalness);
+        return evaluateGGX(wo, normal, wi, F0);
+    }
+
+    case PLASTIC:
+    {
+        float3 F0 = make_float3(0.04f);
+
+        float cosTheta = saturate(dot(normal, wo));
+        float3 F = fresnelSchlick(cosTheta, F0);
+
+        float specWeight = (F.x + F.y + F.z) / 3.f;
+
+        float3 diffuse = evaluateLambert();
+        float3 specular = evaluateGGX(wo, normal, wi, F0);
+
+        return (1.f - specWeight) * diffuse + specWeight * specular;
+    }
+
+    case MIRROR:
+    case TRANSPARENT:
+        // delta → pas utilisable en eval classique
+        return make_float3(0.f);
+    }
+
+    return make_float3(0.f);
+}
+
+__device__
+float Material::pdf(
+    const Ray &ray,
+    const HitRecord &hit,
+    const float3 &wi
+) const
+{
+    float3 normal = normalize(hit.normal);
+    float3 wo = normalize(-ray.direction);
+
+    switch(type)
+    {
+    case LAMBERT:
+        return pdfLambert(normal, wi);
+
+    case METAL:
+        return pdfGGX(normal, wi, wo);
+
+    case PLASTIC:
+    {
+        float3 F0 = make_float3(0.04f);
+        float cosTheta = saturate(dot(normal, wo));
+        float3 F = fresnelSchlick(cosTheta, F0);
+        float specWeight = (F.x + F.y + F.z) / 3.f;
+
+        return specWeight * pdfGGX(normal, wi, wo)
+             + (1.f - specWeight) * pdfLambert(normal, wi);
+    }
+
+    default:
+        return 0.f;
+    }
+}

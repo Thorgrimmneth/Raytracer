@@ -75,4 +75,18 @@ struct Material
         const Ray &ray,
         const HitRecord &hit,
     curandState* rngStates) const;
+
+    __device__
+    float3 evalBSDF(
+        const Ray &ray,
+        const HitRecord &hit,
+        const float3 &wi
+    ) const;
+
+    __device__
+    float pdf(
+        const Ray &ray,
+        const HitRecord &hit,
+        const float3 &wi
+    ) const;
 };

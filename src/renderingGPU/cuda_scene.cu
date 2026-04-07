@@ -1,3 +1,4 @@
+#include "lights/cuda_light.cuh"
 #include "cuda_scene.cuh"
 #include "../scene.hpp"
 #include "../defines.hpp"
@@ -171,10 +172,17 @@ CudaScene uploadSceneToGPU(const RT::Scene &scene, float4 sunDir)
 			box1.min = getMin(box1.min, box2.min);
 			box1.max = getMax(box1.max, box2.max);
 			primitivesGPU.push_back(BaseObject{box1,ObjectType::SPHERE, (int)spheresGPU.size() });
-
-			materials.push_back(convertMaterial(obj->getMaterial()));
+			Material mat = convertMaterial(obj->getMaterial());
+			materials.push_back(mat);
 			s.materialIndex = materials.size() - 1;
 			spheresGPU.push_back(s);
+			if(mat.type == MaterialType::EMISSIVE){
+				Light l;
+				l.type = LightType::SPHERE_GEOM;
+				l.geomIndex = spheresGPU.size()-1;
+				lightsGPU.push_back(l);
+			}
+			
 		}
 		else if (obj->getType() == RT::ObjectType::Plane)
 		{
@@ -268,10 +276,18 @@ CudaScene uploadSceneToGPU(const RT::Scene &scene, float4 sunDir)
 					   linearBVH.size() * sizeof(BVH),
 					   cudaMemcpyHostToDevice);
 
-			materials.push_back(convertMaterial(obj->getMaterial()));
+			Material mat = convertMaterial(obj->getMaterial());
+			materials.push_back(mat);
 			tm.materialIndex = materials.size() - 1;
 			primitivesGPU.push_back(BaseObject{linearBVH[0].bbox, ObjectType::TRIANGLE, (int)triangleMeshesGPU.size()});
 			triangleMeshesGPU.push_back(tm);
+
+			if(mat.type == MaterialType::EMISSIVE){
+				Light l;
+				l.type = LightType::MESH_GEOM;
+				l.geomIndex = triangleMeshesGPU.size()-1;
+				lightsGPU.push_back(l);
+			}
 		}
 	}
 	cudaMalloc(&gpuScene.primitives,

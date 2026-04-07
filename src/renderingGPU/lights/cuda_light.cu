@@ -1,8 +1,11 @@
+#include "../cuda_scene.cuh"
 #include "cuda_light.cuh"
 #include <curand_kernel.h>
 
+
 __device__
-LightSample Light::sampleCylinder(const float3 &p_point, curandState *rng) const
+	LightSample
+	Light::sampleCylinder(const float3 &p_point, curandState *rng) const
 {
 	float u = curand_uniform(rng);
 	float v = curand_uniform(rng);
@@ -47,7 +50,8 @@ LightSample Light::sampleCylinder(const float3 &p_point, curandState *rng) const
 }
 
 __device__
-LightSample Light::sampleDirectionnal(const float3 &p_point) const
+	LightSample
+	Light::sampleDirectionnal(const float3 &p_point) const
 {
 
 	LightSample rep;
@@ -61,7 +65,8 @@ LightSample Light::sampleDirectionnal(const float3 &p_point) const
 }
 
 __device__
-LightSample Light::samplePoint(const float3 &p_point) const
+	LightSample
+	Light::samplePoint(const float3 &p_point) const
 {
 	float dist = distance(p_point, position);
 	float3 radiance = color * power / (dist * dist);
@@ -77,7 +82,8 @@ LightSample Light::samplePoint(const float3 &p_point) const
 }
 
 __device__
-LightSample Light::sampleQuad(const float3 &p_point, curandState *rng) const
+	LightSample
+	Light::sampleQuad(const float3 &p_point, curandState *rng) const
 {
 	float3 randomPos = position + curand_uniform(rng) * u + curand_uniform(rng) * v;
 	float3 direction = normalize(randomPos - p_point);
@@ -102,40 +108,148 @@ LightSample Light::sampleQuad(const float3 &p_point, curandState *rng) const
 }
 
 __device__
-LightSample Light::sampleCone(const float3& p_point, curandState *rng) const
+	LightSample
+	Light::sampleCone(const float3 &p_point, curandState *rng) const
 {
 	float sunAngularRadius = 3.f * GPUPIf / 180.f;
 
-    float u1 = curand_uniform(rng);
-    float u2 = curand_uniform(rng);
+	float u1 = curand_uniform(rng);
+	float u2 = curand_uniform(rng);
 
-    float cosTheta = 1.0f - u1 * (1.0f - cosf(sunAngularRadius));
-    float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
-    float phi = 2.0f * GPUPIf * u2;
+	float cosTheta = 1.0f - u1 * (1.0f - cosf(sunAngularRadius));
+	float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
+	float phi = 2.0f * GPUPIf * u2;
 
-    float3 w = normalize(direction);
-    float3 up = fabs(w.y) < 0.99f ? make_float3(0,1,0) : make_float3(1,0,0);
-    float3 u = normalize(cross(up, w));
-    float3 v = cross(w, u);
+	float3 w = normalize(direction);
+	float3 up = fabs(w.y) < 0.99f ? make_float3(0, 1, 0) : make_float3(1, 0, 0);
+	float3 u = normalize(cross(up, w));
+	float3 v = cross(w, u);
 
-    float3 sampledDir =
-        normalize(u * cosf(phi) * sinTheta +
-                  v * sinf(phi) * sinTheta +
-                  w * cosTheta);
+	float3 sampledDir =
+		normalize(u * cosf(phi) * sinTheta +
+				  v * sinf(phi) * sinTheta +
+				  w * cosTheta);
 	float cosMax = cosf(sunAngularRadius);
-    LightSample rep;
-    rep.direction = sampledDir;
-    rep.distance  = 1e20f;
-    rep.radiance  = color * power;
-    //rep.pdf       = 1.0f / (2.0f * GPUPIf * (1.0f - cosMax));
+	LightSample rep;
+	rep.direction = sampledDir;
+	rep.distance = 1e20f;
+	rep.radiance = color * power;
+	// rep.pdf       = 1.0f / (2.0f * GPUPIf * (1.0f - cosMax));
 	rep.pdf = 1.f;
-    rep.power     = power;
+	rep.power = power;
 
-    return rep;
+	return rep;
 }
 
 __device__
-LightSample Light::sample(const float3 &p_point, curandState *rng) const
+	LightSample
+	Light::sampleSphereGeom(const float3 &p_point, curandState *rng, const CudaScene& scene) const
+{
+	const Sphere& s = scene.spheres[geomIndex];
+    const Material& m = scene.materials[s.materialIndex];
+
+    float z = 1.f - 2.f * curand_uniform(rng);
+    float r = sqrtf(max(0.f, 1.f - z*z));
+    float phi = 2.f * M_PI * curand_uniform(rng);
+
+    float3 n = make_float3(r*cos(phi), r*sin(phi), z);
+
+    float3 p = s.center1 + s.radius * n;
+
+    float3 wi = normalize(p - p_point);
+    float dist2 = length2(p - p_point);
+
+	LightSample ls;
+    float cosThetaLight = max(dot(n, -wi), 0.f);
+    if (cosThetaLight <= 0.f)
+        return ls;
+
+    float area = 4.f * M_PI * s.radius * s.radius;
+    float pdf_area = 1.f / area;
+
+    float pdf = pdf_area * dist2 / cosThetaLight;
+
+    ls.direction = wi;
+    ls.distance = sqrtf(dist2);
+    ls.radiance = m.color * m.intensity;
+    ls.pdf = pdf;
+    ls.normal = n;
+
+    return ls;
+}
+
+__device__
+LightSample
+Light::sampleMeshGeom(const float3 &p_point, curandState *rng, const CudaScene& scene) const
+{
+    const TriangleMesh& mesh = scene.triangleMeshes[geomIndex];
+    const Material& m = scene.materials[mesh.materialIndex];
+
+    int triIndex = int(curand_uniform(rng) * mesh.triangleCount);
+    triIndex = min(triIndex, mesh.triangleCount - 1);
+
+    const TriangleMeshGeometry& tri = mesh.triangles[triIndex];
+    const float3* vertices = mesh.vertices;
+
+    float3 v0 = vertices[tri.i0];
+    float3 v1 = vertices[tri.i1];
+    float3 v2 = vertices[tri.i2];
+
+    float u = curand_uniform(rng);
+    float v = curand_uniform(rng);
+
+    if (u + v > 1.f)
+    {
+        u = 1.f - u;
+        v = 1.f - v;
+    }
+
+    float3 p = v0 + u * (v1 - v0) + v * (v2 - v0);
+
+    float3 wi = normalize(p - p_point);
+    float dist2 = length2(p - p_point);
+
+    LightSample ls;
+
+    float3 n = normalize(cross(v1 - v0, v2 - v0));
+
+    float cosThetaLight = max(dot(n, -wi), 0.f);
+    if (cosThetaLight <= 0.f)
+        return ls;
+
+    float triArea = 0.5f * length(cross(v1 - v0, v2 - v0));
+
+    float pdf_area = 1.f / (mesh.triangleCount * triArea);
+
+    float pdf = pdf_area * dist2 / cosThetaLight;
+
+    ls.direction = wi;
+    ls.distance = sqrtf(dist2);
+    ls.radiance = m.color * m.intensity;
+    ls.pdf = pdf;
+    ls.normal = n;
+
+    return ls;
+}
+
+__device__
+LightSample
+Light::sample(const float3& p_point, curandState *rng, const CudaScene& scene) const
+{
+	switch(type)
+	{
+	case SPHERE_GEOM:
+		return sampleSphereGeom(p_point, rng, scene);
+	case MESH_GEOM:
+		return sampleMeshGeom(p_point, rng, scene);
+	default:
+		return sample(p_point,rng);
+	}
+}
+
+__device__
+	LightSample
+	Light::sample(const float3 &p_point, curandState *rng) const
 {
 	switch (type)
 	{
@@ -146,12 +260,13 @@ LightSample Light::sample(const float3 &p_point, curandState *rng) const
 	case SUN:
 		return sampleCone(p_point, rng);
 	default:
-		return samplePoint(p_point);
+		return sample(p_point);
 	}
 }
 
 __device__
-LightSample Light::sample(const float3 &p_point) const
+	LightSample
+	Light::sample(const float3 &p_point) const
 {
 	switch (type)
 	{

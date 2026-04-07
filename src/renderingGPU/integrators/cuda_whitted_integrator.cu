@@ -1,3 +1,5 @@
+#include "../cuda_scene.cuh"
+#include "../lights/cuda_light.cuh"
 #include "cuda_whitted_integrator.cuh"
 
 __device__
@@ -14,6 +16,7 @@ float3 WhittedIntegrator::lighting(
     float3 throughput = make_float3(1.f);
     bool isInside = false;
     bool reflected;
+    float lastPdf = 1.f;
     for (int depth = 0; depth < nbBounces; depth++)
     {
         reflected = true;
@@ -26,8 +29,20 @@ float3 WhittedIntegrator::lighting(
         }
 
         const Material &mtl = scene.materials[hit.materialIndex];
-        if(mtl.type == MaterialType::EMISSIVE){
-            finalColor += throughput * mtl.color * mtl.intensity;
+        if(mtl.type == MaterialType::EMISSIVE)
+        {
+            if(depth == 0 || reflected)
+            {
+                finalColor += throughput * mtl.color * mtl.intensity;
+            }
+            else
+            {
+                float pdf_light = 1.f / scene.nbLights;
+
+                float w = powerHeuristic(lastPdf, pdf_light);
+
+                finalColor += throughput * mtl.color * mtl.intensity * w;
+            }
             break;
         }
         BSDFVal bsdf = mtl.getBSDF(ray, hit, rng, isInside, reflected);
@@ -36,9 +51,51 @@ float3 WhittedIntegrator::lighting(
             throughput *= bsdf.brdf;
         }
         else{
+            int lightIndex = int(curand_uniform(rng) * scene.nbLights);
+            lightIndex = min(lightIndex, scene.nbLights - 1);
+
+            const Light& light = scene.lights[lightIndex];
+            LightSample ls = light.sample(hit.point, rng, scene);
+
+            if (ls.pdf > 0.f)
+            {
+                float3 shadowOrigin = hit.point + hit.normal * 1e-3f;
+                Ray shadowRay(shadowOrigin, ls.direction);
+
+                if (!scene.intersectAny(shadowRay, 1e-3f, ls.distance - 1e-3f))
+                {
+
+                    float cosTheta = fmaxf(dot(hit.normal, ls.direction), 0.0f);
+
+                    if (cosTheta > 0.f)
+                    {
+                        float3 f = mtl.evalBSDF(ray, hit, ls.direction);
+
+                        float pdf_light = ls.pdf / scene.nbLights;
+
+                        float pdf_bsdf = mtl.pdf(ray, hit, ls.direction);
+
+                        float w = powerHeuristic(pdf_light, pdf_bsdf);
+
+                        finalColor += throughput * f * ls.radiance * cosTheta * w / pdf_light;
+                    }
+                }
+            }
+
             float cosTheta = fmaxf(dot(hit.normal, bsdf.direction), 0.0f);
 
             throughput = throughput * bsdf.brdf * cosTheta / bsdf.pdf;
+            lastPdf = bsdf.pdf;
+        }
+        if (depth > 3)
+        {
+            float p = fmaxf(throughput.x, fmaxf(throughput.y, throughput.z));
+            p = fminf(p, 0.95f);
+
+            if (curand_uniform(rng) > p)
+                break;
+
+            throughput /= p;
         }
         float3 origin;
         float sign = reflected ? 1.f : -1.f;

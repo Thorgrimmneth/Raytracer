@@ -8,9 +8,10 @@ namespace RT {
 #include "objects/cuda_plane.cuh"
 #include "objects/cuda_triangle_mesh.cuh"
 #include "materials/cuda_material.cuh"
-#include "lights/cuda_light.cuh"
 #include "objectsUtils/cuda_aabb.cuh"
 #include "objectsUtils/cuda_bvh_scene.cuh"
+
+struct Light;
 
 struct CudaScene
 {

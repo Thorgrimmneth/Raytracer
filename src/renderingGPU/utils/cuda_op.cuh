@@ -219,6 +219,12 @@ inline float length(const float3& a)
 }
 
 __host__ __device__
+inline float length2(const float3& a)
+{
+    return a.x * a.x + a.y * a.y + a.z * a.z;
+}
+
+__host__ __device__
 inline float distance(const float3& a, const float3& b)
 {
     return sqrtf((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y) + (a.z - b.z) * (a.z - b.z));
@@ -304,7 +310,14 @@ float smoothstep(float edge0, float edge1, float x)
     return t * t * (3.0f - 2.0f * t);
 }
 
-static __device__ float saturate(float x)
+static inline __device__ float saturate(float x)
 {
     return fminf(fmaxf(x, 0.f), 1.f);
+}
+
+static inline __device__ float powerHeuristic(float pdfA, float pdfB)
+{
+    float a = pdfA * pdfA;
+    float b = pdfB * pdfB;
+    return a / (a + b);
 }

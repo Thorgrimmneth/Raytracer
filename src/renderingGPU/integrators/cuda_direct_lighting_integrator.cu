@@ -1,3 +1,4 @@
+#include "../lights/cuda_light.cuh"
 #include "cuda_direct_lighting_integrator.cuh"
 
     __device__ __noinline__
