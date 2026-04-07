@@ -92,7 +92,7 @@ namespace RT
 
 	inline float degToRad( float deg ) { return deg * PIf / 180.f; }
 	inline float radToDeg( float rad ) { return rad * 180.f / PIf; }
-
+	inline float length(Vec3f a) {return sqrt(a.x * a.x + a.y * a.y + a.z * a.z);}
 } // namespace RT
 
 #endif // __RT_ISICG_DEFINES__
