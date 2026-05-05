@@ -2,7 +2,6 @@
 #include <cuda_runtime.h>
 #include <fstream>
 #include "cuda_scene.cuh"
-#include "../scene.hpp"
 #include "integrators/cuda_direct_lighting_integrator.cuh"
 #include "integrators/cuda_whitted_integrator.cuh"
 #include <curand_kernel.h>
@@ -371,8 +370,7 @@ void finalizeImage(float3* hdr,
     out[fb + 2] = (unsigned char)(255.f * fminf(c.z, 1.f));
 }
 
-unsigned char* launchHelloCUDA(const RT::Scene& scene,
-                               const int nbSample,
+unsigned char* launchHelloCUDA(const int nbSample,
                                const int width,
                                const int height,
                                float sunDirx,

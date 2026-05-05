@@ -1,11 +1,5 @@
 #pragma once
 
-namespace RT
-{
-    class Scene;
-}
-
-
 #include "objects/cuda_sphere.cuh"
 #include "objects/cuda_plane.cuh"
 #include "objects/cuda_triangle_mesh.cuh"
@@ -53,4 +47,3 @@ struct CudaScene
 };
 
 CudaScene spheresScene(float4 sunDir);
-CudaScene uploadSceneToGPU(const RT::Scene &scene, float4 sunDir);
