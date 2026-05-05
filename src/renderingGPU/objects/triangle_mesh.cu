@@ -1,4 +1,4 @@
-#include "cuda_triangle_mesh.cuh"
+#include "triangle_mesh.cuh"
 
 
 __device__ __noinline__

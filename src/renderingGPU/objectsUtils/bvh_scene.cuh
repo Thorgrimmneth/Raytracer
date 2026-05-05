@@ -1,11 +1,11 @@
 #pragma once
 #include <vector>
-#include "cuda_aabb.cuh"
-#include "../raytracingUtils/cuda_hitrecord.cuh"    
-#include "../objects/cuda_sphere.cuh"
-#include "../objects/cuda_plane.cuh"
-#include "../materials/cuda_material.cuh"
-#include "../objects/cuda_triangle_mesh.cuh"
+#include "aabb.cuh"
+#include "../raytracingUtils/hitrecord.cuh"    
+#include "../objects/sphere.cuh"
+#include "../objects/plane.cuh"
+#include "../materials/material.cuh"
+#include "../objects/triangle_mesh.cuh"
 
 struct Current{
     int index;

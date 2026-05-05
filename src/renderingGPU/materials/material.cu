@@ -1,4 +1,4 @@
-#include "cuda_material.cuh"
+#include "material.cuh"
 
 __device__
 void Material::createONB(const float3& n, float3& tangent, float3& bitangent) const

@@ -1,9 +1,9 @@
 #pragma once
 
 #include "../../defines.hpp"
-#include "../raytracingUtils/cuda_ray.cuh"
-#include "../raytracingUtils/cuda_hitrecord.cuh"
-#include "../lights/cuda_lightsample.cuh"
+#include "../raytracingUtils/ray.cuh"
+#include "../raytracingUtils/hitrecord.cuh"
+#include "../lights/lightsample.cuh"
 #include "../utils/cuda_defines.cuh"
 #include <curand_kernel.h>
 

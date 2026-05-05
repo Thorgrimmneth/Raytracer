@@ -1,5 +1,5 @@
-#include "../lights/cuda_light.cuh"
-#include "cuda_direct_lighting_integrator.cuh"
+#include "../lights/light.cuh"
+#include "direct_lighting_integrator.cuh"
 
     __device__ __noinline__
     float3 DirectLightingIntegrator::directLighting( const CudaScene &	   p_scene,

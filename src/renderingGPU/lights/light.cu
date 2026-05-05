@@ -1,5 +1,5 @@
-#include "../cuda_scene.cuh"
-#include "cuda_light.cuh"
+#include "../scene.cuh"
+#include "light.cuh"
 #include <curand_kernel.h>
 
 

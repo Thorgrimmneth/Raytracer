@@ -1,4 +1,4 @@
-#include "cuda_hitrecord.cuh"
+#include "hitrecord.cuh"
 
 __device__ 
 void HitRecord::faceNormal(const float3 &direction)

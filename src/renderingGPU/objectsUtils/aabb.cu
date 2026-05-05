@@ -1,4 +1,4 @@
-#include "cuda_aabb.cuh"
+#include "aabb.cuh"
 
 __host__ __device__
 float4 AABB::centroid() const

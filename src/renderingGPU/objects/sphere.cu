@@ -1,4 +1,4 @@
-#include "cuda_sphere.cuh"
+#include "sphere.cuh"
 
 __device__
 bool Sphere::intersectGeometry(const Ray &ray, float& t1, float& t2) const

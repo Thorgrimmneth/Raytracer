@@ -1,9 +1,9 @@
 #pragma once
 
-#include "../cuda_scene.cuh"
-#include "../raytracingUtils/cuda_ray.cuh"
-#include "../raytracingUtils/cuda_hitrecord.cuh"
-#include "cuda_direct_lighting_integrator.cuh"
+#include "../scene.cuh"
+#include "../raytracingUtils/ray.cuh"
+#include "../raytracingUtils/hitrecord.cuh"
+#include "direct_lighting_integrator.cuh"
 #include "../utils/cuda_defines.cuh"
 
 struct WhittedIntegrator

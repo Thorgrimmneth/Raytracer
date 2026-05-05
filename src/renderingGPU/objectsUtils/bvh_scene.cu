@@ -1,4 +1,4 @@
-#include "cuda_bvh_scene.cuh"
+#include "bvh_scene.cuh"
 #include <cstdio>
 #include <algorithm>
 

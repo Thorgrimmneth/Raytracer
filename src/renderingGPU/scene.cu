@@ -1,5 +1,5 @@
-#include "lights/cuda_light.cuh"
-#include "cuda_scene.cuh"
+#include "lights/light.cuh"
+#include "scene.cuh"
 
 __device__ bool CudaScene::intersect(const Ray &p_ray, const float p_tMin, const float p_tMax, HitRecord &p_hitRecord) const
 {

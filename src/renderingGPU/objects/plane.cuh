@@ -1,9 +1,9 @@
 #pragma once
 
-#include "../utils/cuda_op.cuh"
-#include "../raytracingUtils/cuda_ray.cuh"
-#include "../raytracingUtils/cuda_hitrecord.cuh"
-#include "../materials/cuda_material.cuh"
+#include "../utils/op.cuh"
+#include "../raytracingUtils/ray.cuh"
+#include "../raytracingUtils/hitrecord.cuh"
+#include "../materials/material.cuh"
 
 struct Plane
 {

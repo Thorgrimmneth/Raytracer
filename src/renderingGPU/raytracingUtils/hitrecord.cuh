@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../utils/cuda_op.cuh"
+#include "../utils/op.cuh"
 
 struct HitRecord
 {

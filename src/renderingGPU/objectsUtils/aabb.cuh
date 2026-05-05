@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../utils/cuda_op.cuh"
-#include "../raytracingUtils/cuda_ray.cuh"
+#include "../utils/op.cuh"
+#include "../raytracingUtils/ray.cuh"
 
 struct AABB{
     float4 min = float4f(+INFINITY);

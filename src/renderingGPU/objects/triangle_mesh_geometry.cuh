@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../objectsUtils/cuda_aabb.cuh"
+#include "../objectsUtils/aabb.cuh"
 
 class TriangleMesh;
 

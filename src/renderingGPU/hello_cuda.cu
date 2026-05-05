@@ -1,9 +1,9 @@
 #include <cstdio>
 #include <cuda_runtime.h>
 #include <fstream>
-#include "cuda_scene.cuh"
-#include "integrators/cuda_direct_lighting_integrator.cuh"
-#include "integrators/cuda_whitted_integrator.cuh"
+#include "scene.cuh"
+#include "integrators/direct_lighting_integrator.cuh"
+#include "integrators/whitted_integrator.cuh"
 #include <curand_kernel.h>
 #include "camera/camera.cuh"
 

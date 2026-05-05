@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../raytracingUtils/cuda_ray.cuh"
-#include "../raytracingUtils/cuda_hitrecord.cuh"
-#include "cuda_base_object.cuh"
+#include "../raytracingUtils/ray.cuh"
+#include "../raytracingUtils/hitrecord.cuh"
+#include "base_object.cuh"
 struct Sphere{
     BaseObject base;
     float3 center1;

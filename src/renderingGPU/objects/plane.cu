@@ -1,4 +1,4 @@
-#include "cuda_plane.cuh"
+#include "plane.cuh"
 #include <stdio.h>
 
 __device__

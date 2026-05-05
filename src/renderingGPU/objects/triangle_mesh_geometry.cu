@@ -1,5 +1,5 @@
-#include "cuda_triangle_mesh_geometry.cuh"
-#include "cuda_triangle_mesh.cuh"
+#include "triangle_mesh_geometry.cuh"
+#include "triangle_mesh.cuh"
 
 __device__
 bool TriangleMeshGeometry::intersect(const Ray &p_ray, float &p_t, float2 &p_uv, float3* vertices) const

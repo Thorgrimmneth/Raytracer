@@ -1,8 +1,8 @@
 #pragma once
 
-#include "cuda_lightsample.cuh"
+#include "lightsample.cuh"
 #include "../utils/cuda_defines.cuh"
-#include "../utils/cuda_op.cuh"
+#include "../utils/op.cuh"
 
 #ifdef __CUDACC__
 #include <curand_kernel.h>

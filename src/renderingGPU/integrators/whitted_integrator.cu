@@ -1,6 +1,6 @@
-#include "../cuda_scene.cuh"
-#include "../lights/cuda_light.cuh"
-#include "cuda_whitted_integrator.cuh"
+#include "../scene.cuh"
+#include "../lights/light.cuh"
+#include "whitted_integrator.cuh"
 
 __device__
 float3 WhittedIntegrator::lighting(
