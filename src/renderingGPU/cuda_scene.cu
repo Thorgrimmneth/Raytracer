@@ -266,6 +266,7 @@ CudaScene uploadSceneToGPU(const RT::Scene &scene, float4 sunDir)
 				Light l;
 				l.type = LightType::SPHERE_GEOM;
 				l.geomIndex = spheresGPU.size() - 1;
+				l.area = 4.f * M_PI * s.radius * s.radius;
 				lightsGPU.push_back(l);
 			}
 		}
@@ -369,9 +370,18 @@ CudaScene uploadSceneToGPU(const RT::Scene &scene, float4 sunDir)
 
 			if (mat.type == MaterialType::EMISSIVE)
 			{
+				float meshArea = 0.f;
+				for (const auto &tri : triangles)
+				{
+					const float3 &v0 = vertices[tri.i0];
+					const float3 &v1 = vertices[tri.i1];
+					const float3 &v2 = vertices[tri.i2];
+					meshArea += 0.5f * length(cross(v1 - v0, v2 - v0));
+				}
 				Light l;
 				l.type = LightType::MESH_GEOM;
 				l.geomIndex = triangleMeshesGPU.size() - 1;
+				l.area = meshArea;
 				lightsGPU.push_back(l);
 			}
 		}
@@ -583,6 +593,7 @@ CudaScene spheresScene(float4 sunDir)
 			Light l;
 			l.type = LightType::SPHERE_GEOM;
 			l.geomIndex = spheresGPU.size() - 1;
+			l.area = 4.f * M_PI * radius * radius;
 			lightsGPU.push_back(l);
 		}
     };
