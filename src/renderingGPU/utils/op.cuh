@@ -7,6 +7,12 @@ inline float3 make_float3(const float a)
 }
 
 __host__ __device__
+inline float3 make_float3(const float4 a)
+{
+    return make_float3(a.x, a.y, a.z);
+}
+
+__host__ __device__
 inline float4 float4f(const float a)
 {
     return make_float4(a, a, a,0.f);

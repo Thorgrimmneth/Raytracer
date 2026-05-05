@@ -305,3 +305,12 @@ bool BVHScene::intersect(const Ray &p_ray,
     return hit;
 }
 
+size_t BVHScene::getDeviceSize() const
+{
+    size_t size = 0;
+
+    size += nbNodes   * sizeof(BVHSceneNode);
+    size += nbObjects * sizeof(BaseObject);
+
+    return size;
+}
