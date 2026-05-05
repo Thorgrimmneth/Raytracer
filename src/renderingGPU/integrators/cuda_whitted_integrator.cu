@@ -15,11 +15,11 @@ float3 WhittedIntegrator::lighting(
     Ray ray = primaryRay;
     float3 throughput = make_float3(1.f);
     bool isInside = false;
-    bool reflected;
+    bool reflected = false;
     float lastPdf = 1.f;
+    float lastLightPdf = 1.f;
     for (int depth = 0; depth < nbBounces; depth++)
     {
-        reflected = true;
         HitRecord hit;
 
         if (!scene.intersect(ray, tMin, tMax, hit))
@@ -37,9 +37,7 @@ float3 WhittedIntegrator::lighting(
             }
             else
             {
-                float pdf_light = 1.f / scene.nbLights;
-
-                float w = powerHeuristic(lastPdf, pdf_light);
+                float w = powerHeuristic(lastPdf, lastLightPdf);
 
                 finalColor += throughput * mtl.color * mtl.intensity * w;
             }
@@ -70,6 +68,7 @@ float3 WhittedIntegrator::lighting(
 
                     if (cosTheta > 0.f)
                     {
+                        lastLightPdf = ls.pdf * (1.f / scene.nbLights);
                         float3 f = mtl.evalBSDF(ray, hit, ls.direction);
 
                         float pdf_light = ls.pdf * (1.f / scene.nbLights); 
@@ -99,7 +98,6 @@ float3 WhittedIntegrator::lighting(
             throughput /= p;
         }
         float3 origin;
-        float sign = reflected ? 1.f : -1.f;
         origin = hit.point + bsdf.direction * 1e-3f;
         ray = Ray(origin, bsdf.direction);
     }
