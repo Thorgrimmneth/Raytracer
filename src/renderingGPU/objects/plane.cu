@@ -38,7 +38,7 @@ bool Plane::intersect(const Ray &p_ray, const float p_tMin, const float p_tMax, 
 __device__
 bool Plane::intersectAny(const Ray &p_ray, const float p_tMin, const float p_tMax, const Material* materials) const
 {
-	if(materials[materialIndex].type == MaterialType::TRANSPARENT){
+	if(materials[materialIndex].type() == MaterialType::TRANSPARENT){
 		return false;
 	}
 	float t1;

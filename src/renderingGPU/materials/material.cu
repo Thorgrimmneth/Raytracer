@@ -41,7 +41,7 @@ float3 Material::toWorld(const float3& normal, const float3 direction) const
 __device__
 inline float3 Material::evaluateLambert() const
 {
-    return color * GPUInvPIf;
+    return color() * GPUInvPIf;
 }
 
 __device__
@@ -71,6 +71,8 @@ float Material::pdfLambert(const float3 normal, const float3 direction) const
 __device__
 float Material::computeD(const float3& p_normal, const float3& h) const
 {
+    float roughness = this->roughness();
+    float alpha = roughness * roughness;
     float a          = fmaxf(alpha, 1e-4f);
     float a2         = a * a;
     float NdotH      = fmaxf(dot(p_normal, h), 0.f);
@@ -95,7 +97,8 @@ float Material::computeG1(const float& x, const float& k) const
 __device__
 float Material::computeG(const float3& wi, const float3& wo, const float3& p_normal) const
 {
-    float k = ((ruggedness + 1.f) * (ruggedness + 1.f)) / 8.f;
+    float roughness = this->roughness();
+    float k = ((roughness + 1.f) * (roughness + 1.f)) / 8.f;
     return computeG1(fmaxf(dot(p_normal, wo), 0.f), k)
          * computeG1(fmaxf(dot(p_normal, wi), 0.f), k);
 }
@@ -127,7 +130,9 @@ __device__
 float3 Material::samplingGGX(
     const float3& wo, const float3& normal,
     curandState* rngStates) const
-{
+{   
+    float roughness = this->roughness();
+    float alpha = roughness * roughness;
     float a = fmaxf(alpha, 1e-4f);
 
     float3 T, B;
@@ -205,7 +210,7 @@ BSDFVal Material::getBSDF(
     float3   wo     = normalize(-ray.direction);
     BSDFVal  bsdf;
 
-    switch (type)
+    switch (type())
     {
     // ---- Lambertian ----
     case LAMBERT:
@@ -217,7 +222,7 @@ BSDFVal Material::getBSDF(
     // ---- Metal (GGX) ----
     case METAL:
     {
-        float3 F0      = lerp(make_float3(0.04f), color, metalness);
+        float3 F0      = lerp(make_float3(0.04f), color(), metalness());
         bsdf.direction = samplingGGX(wo, normal, rngStates);
 
         if (dot(normal, bsdf.direction) <= 0.f) {
@@ -262,7 +267,7 @@ BSDFVal Material::getBSDF(
     {
         bsdf.direction = reflect(-wo, normal);
         bsdf.pdf       = 1.f;
-        bsdf.brdf      = color;
+        bsdf.brdf      = color();
         reflected      = true;
         break;
     }
@@ -276,7 +281,7 @@ BSDFVal Material::getBSDF(
             n    = -n;
             cosI = -cosI;
         }
-
+        float ior = this->ior();
         float n1  = isInside ? ior : 1.f;
         float n2  = isInside ? 1.f : ior;
         float eta = n1 / n2;
@@ -341,14 +346,14 @@ float3 Material::evalBSDF(
     float3 normal = normalize(hit.normal);
     float3 wo     = normalize(-ray.direction);
 
-    switch (type)
+    switch (type())
     {
     case LAMBERT:
         return evaluateLambert();
 
     case METAL:
     {
-        float3 F0 = lerp(make_float3(0.04f), color, metalness);
+        float3 F0 = lerp(make_float3(0.04f), color(), metalness());
         return evaluateGGX(wo, normal, wi, F0);
     }
 
@@ -386,7 +391,7 @@ float Material::pdf(
     float3 normal = normalize(hit.normal);
     float3 wo     = normalize(-ray.direction);
 
-    switch (type)
+    switch (type())
     {
     case LAMBERT:
         return pdfLambert(normal, wi);

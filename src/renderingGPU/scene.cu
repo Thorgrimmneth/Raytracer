@@ -20,56 +20,70 @@ __device__ bool CudaScene::intersectAny(const Ray &p_ray, const float p_tMin, co
 
 __host__
 void CudaScene::uploadObjects(
-					   std::vector<Sphere> spheresGPU,
-					   std::vector<Plane> planesGPU,
-					   std::vector<TriangleMesh> triangleMeshesGPU,
-					   std::vector<float3> verticesGPU,
-					   std::vector<BaseObject> primitivesGPU)
+    std::vector<Sphere> spheresGPU,
+    std::vector<Plane> planesGPU,
+    std::vector<TriangleMesh> triangleMeshesGPU,
+    std::vector<float3> verticesGPU,
+    std::vector<BaseObject> primitivesGPU)
 {
-	cudaMalloc(&primitives,
-			   primitivesGPU.size() * sizeof(BaseObject));
+    // =========================
+    // Upload primitives
+    // =========================
+    int nbObjects = primitivesGPU.size();
 
-	cudaMemcpy(primitives,
-			   primitivesGPU.data(),
-			   primitivesGPU.size() * sizeof(BaseObject),
-			   cudaMemcpyHostToDevice);
+    cudaMalloc(&primitives, nbObjects * sizeof(BaseObject));
+    cudaMemcpy(primitives,
+               primitivesGPU.data(),
+               nbObjects * sizeof(BaseObject),
+               cudaMemcpyHostToDevice);
 
-	bvhScene = BVHScene::buildBVHScene(&primitivesGPU, &spheresGPU, &planesGPU, &triangleMeshesGPU);
+    // =========================
+    // Build BVH
+    // =========================
+    bvhScene = BVHScene::buildBVHScene(&primitivesGPU,
+                                       &spheresGPU,
+                                       &planesGPU,
+                                       &triangleMeshesGPU);
 
-	nbSpheres = spheresGPU.size();
+    // =========================
+    // Upload spheres
+    // =========================
+    nbSpheres = spheresGPU.size();
 
-	nbPlanes = planesGPU.size();
+    cudaMalloc(&spheres, nbSpheres * sizeof(Sphere));
+    cudaMemcpy(spheres,
+               spheresGPU.data(),
+               nbSpheres * sizeof(Sphere),
+               cudaMemcpyHostToDevice);
 
-	cudaMalloc(&spheres,
-			   spheresGPU.size() * sizeof(Sphere));
+    // =========================
+    // Upload planes
+    // =========================
+    nbPlanes = planesGPU.size();
 
-	cudaMemcpy(spheres,
-			   spheresGPU.data(),
-			   spheresGPU.size() * sizeof(Sphere),
-			   cudaMemcpyHostToDevice);
+    cudaMalloc(&planes, nbPlanes * sizeof(Plane));
+    cudaMemcpy(planes,
+               planesGPU.data(),
+               nbPlanes * sizeof(Plane),
+               cudaMemcpyHostToDevice);
 
-	cudaMalloc(&planes,
-			   planesGPU.size() * sizeof(Plane));
+    // =========================
+    // Upload meshes
+    // =========================
+    nbTriangleMeshes = triangleMeshesGPU.size();
 
-	cudaMemcpy(planes,
-			   planesGPU.data(),
-			   planesGPU.size() * sizeof(Plane),
-			   cudaMemcpyHostToDevice);
+    cudaMalloc(&triangleMeshes,
+               nbTriangleMeshes * sizeof(TriangleMesh));
 
-	nbTriangleMeshes = triangleMeshesGPU.size();
+    cudaMemcpy(triangleMeshes,
+               triangleMeshesGPU.data(),
+               nbTriangleMeshes * sizeof(TriangleMesh),
+               cudaMemcpyHostToDevice);
 
-	cudaMalloc(&triangleMeshes,
-			   triangleMeshesGPU.size() * sizeof(TriangleMesh));
-
-	cudaMemcpy(triangleMeshes,
-			   triangleMeshesGPU.data(),
-			   triangleMeshesGPU.size() * sizeof(TriangleMesh),
-			   cudaMemcpyHostToDevice);
-
-	bvhScene.d_spheres = spheres;
-	bvhScene.d_planes = planes;
-	bvhScene.d_meshes = triangleMeshes;
-	
+    bvhScene.d_primitives = primitives;
+    bvhScene.d_spheres    = spheres;
+    bvhScene.d_planes     = planes;
+    bvhScene.d_meshes     = triangleMeshes;
 }
 
 __host__
@@ -124,7 +138,7 @@ CudaScene spheresScene(float4 sunDir)
         p.delta = 0.f;
         p.normal = make_float3(0.f, 1.f, 0.f);
 
-        Material ground = Material(make_float3(0.5f));
+        Material ground = Material::makeMaterial(make_float3(0.5f), LAMBERT, 1.0f);
         materialsGPU.push_back(ground);
         p.materialIndex = materialsGPU.size() - 1;
 
@@ -137,9 +151,9 @@ CudaScene spheresScene(float4 sunDir)
     }
 
     // ===== MATERIALS DE BASE =====
-    Material mirror = Material(make_float3(0.f), true);
-    Material transparent = Material(make_float3(0.f), 1.5f, MaterialType::TRANSPARENT);
-    Material emissive = Material(make_float3(1.f, 0.f, 0.f), 11.f, MaterialType::EMISSIVE);
+    Material mirror      = Material::makeMaterial(make_float3(0.f), MIRROR);
+    Material transparent = Material::makeMaterial(make_float3(1.f), TRANSPARENT, 0.f, 0.f, 1.5f);
+    Material emissive    = Material::makeMaterial(make_float3(1.f, 0.f, 0.f), EMISSIVE, 0.f, 0.f, 1.f, 11.f);
 
     int mirrorIdx = materialsGPU.size(); materialsGPU.push_back(mirror);
     int transparentIdx = materialsGPU.size(); materialsGPU.push_back(transparent);
@@ -177,11 +191,15 @@ CudaScene spheresScene(float4 sunDir)
             // ===== MATERIAL =====
             if (choose_mat < 0.6)
             {
-                Material mat = Material(make_float3(
-                    RT::randomFloat(),
-                    RT::randomFloat(),
-                    RT::randomFloat()
-                ));
+                Material mat = Material::makeMaterial(
+                    make_float3(
+                        RT::randomFloat(),
+                        RT::randomFloat(),
+                        RT::randomFloat()
+                    ),
+                    LAMBERT,
+                    1.0f
+                );
                 materialsGPU.push_back(mat);
                 s.materialIndex = materialsGPU.size() - 1;
             }
@@ -239,7 +257,7 @@ CudaScene spheresScene(float4 sunDir)
         spheresGPU.push_back(s);
 		Material& mat = materialsGPU[matIndex];
 
-		if (mat.type == MaterialType::EMISSIVE)
+		if (mat.type() == MaterialType::EMISSIVE)
 		{
 			Light l;
 			l.type = LightType::SPHERE_GEOM;
@@ -267,5 +285,23 @@ CudaScene spheresScene(float4 sunDir)
     gpuScene.uploadLights(lightsGPU);
     gpuScene.uploadMaterials(materialsGPU);
 
+    size_t totalSize = 0;
+    totalSize += gpuScene.nbSpheres * sizeof(Sphere);
+    printf("Size of spheres: %zu bytes. %2.2f gain compared to v1\n", gpuScene.nbSpheres * sizeof(Sphere), (1.f - (gpuScene.nbSpheres * sizeof(Sphere) / 38240.f)) * 100.f);
+    totalSize += gpuScene.nbPlanes * sizeof(Plane);
+    printf("Size of planes: %zu bytes. %2.2f gain compared to v1\n", gpuScene.nbPlanes * sizeof(Plane), (1.f - (gpuScene.nbPlanes * sizeof(Plane) / 20.f))* 100.f);
+    totalSize += gpuScene.nbTriangleMeshes * sizeof(TriangleMesh);
+    printf("Size of triangle meshes: %zu bytes. %2.2f gain compared to v1\n", gpuScene.nbTriangleMeshes * sizeof(TriangleMesh), (1.f - (gpuScene.nbTriangleMeshes * sizeof(TriangleMesh) / 1.f)) * 100.f);
+    totalSize += gpuScene.nbMaterials * sizeof(Material);
+    printf("Size of materials: %zu bytes. %2.2f gain compared to v1\n", gpuScene.nbMaterials * sizeof(Material), (1.f - (gpuScene.nbMaterials * sizeof(Material) / 15360.f)) * 100.f);
+    totalSize += gpuScene.nbLights * sizeof(Light);
+    printf("Size of lights: %zu bytes. %2.2f gain compared to v1\n", gpuScene.nbLights * sizeof(Light), (1.f - (gpuScene.nbLights * sizeof(Light) / 192.f)) * 100.f);
+    totalSize += verticesGPU.size() * sizeof(float3);
+    printf("Size of vertices: %zu bytes. %2.2f gain compared to v1\n", verticesGPU.size() * sizeof(float3), (1.f - (verticesGPU.size() * sizeof(float3) / 1.f)) * 100.f);
+    totalSize += primitivesGPU.size() * sizeof(BaseObject);
+    printf("Size of primitives: %zu bytes. %2.2f gain compared to v1\n", primitivesGPU.size() * sizeof(BaseObject), (1.f - (primitivesGPU.size() * sizeof(BaseObject) / 22992.f)) * 100.f);
+    totalSize += gpuScene.bvhScene.getDeviceSize();
+    printf("BVH size: %zu bytes. %2.2f gain compared to v1\n", gpuScene.bvhScene.getDeviceSize(), (1.f - (gpuScene.bvhScene.getDeviceSize() / 68928.f)) * 100.f);
+    printf("Total size of GPU data: %zu bytes. %2.2f gain compared to v1\n", totalSize, (1.f - (totalSize / 145732.f)) * 100.f);
     return gpuScene;
 }

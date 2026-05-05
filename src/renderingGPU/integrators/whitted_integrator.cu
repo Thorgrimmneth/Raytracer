@@ -29,23 +29,23 @@ float3 WhittedIntegrator::lighting(
         }
 
         const Material &mtl = scene.materials[hit.materialIndex];
-        if(mtl.type == MaterialType::EMISSIVE)
+        if(mtl.type() == MaterialType::EMISSIVE)
         {
             if(depth == 0 || reflected)
             {
-                finalColor += throughput * mtl.color * mtl.intensity;
+                finalColor += throughput * mtl.color() * mtl.intensity();
             }
             else
             {
                 float w = powerHeuristic(lastPdf, lastLightPdf);
 
-                finalColor += throughput * mtl.color * mtl.intensity * w;
+                finalColor += throughput * mtl.color() * mtl.intensity() * w;
             }
             break;
         }
         BSDFVal bsdf = mtl.getBSDF(ray, hit, rng, isInside, reflected);
         if(bsdf.pdf <= 1e-4f) break;
-        if(mtl.type == MaterialType::MIRROR || mtl.type == MaterialType::TRANSPARENT){
+        if(mtl.type() == MaterialType::MIRROR || mtl.type() == MaterialType::TRANSPARENT){
             float cosTheta = fabsf(dot(hit.normal, bsdf.direction));
             throughput *= bsdf.brdf * cosTheta;
         }
@@ -87,7 +87,7 @@ float3 WhittedIntegrator::lighting(
             throughput = throughput * bsdf.brdf * cosTheta / bsdf.pdf;
             lastPdf = bsdf.pdf;
         }
-        if (depth > 3 && mtl.type != MaterialType::MIRROR && mtl.type != MaterialType::TRANSPARENT)
+        if (depth > 3 && mtl.type() != MaterialType::MIRROR && mtl.type() != MaterialType::TRANSPARENT)
         {
             float p = fmaxf(throughput.x, fmaxf(throughput.y, throughput.z));
             p = fminf(p, 0.95f);

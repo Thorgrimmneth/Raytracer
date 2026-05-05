@@ -12,9 +12,9 @@
 		float3 Li = make_float3(0.0f);
 
 		const Material& mtl = p_scene.materials[p_hitRecord.materialIndex];
-		if(mtl.type == MaterialType::EMISSIVE)
+		if(mtl.type() == MaterialType::EMISSIVE)
 		{
-			return mtl.color * mtl.intensity;
+			return mtl.color() * mtl.params.w;
 		} 
 		for (int i = 0; i < p_scene.nbLights; i++ )
 		{

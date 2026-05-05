@@ -65,7 +65,7 @@ bool TriangleMesh::intersectAny(const Ray &p_ray,
                                 const float p_tMax,
                             const Material* materials) const
 {
-    if(materials[materialIndex].type == MaterialType::TRANSPARENT) return false;
+    if(materials[materialIndex].type() == MaterialType::TRANSPARENT) return false;
     int stack[64];
     int stackPtr = 0;
 

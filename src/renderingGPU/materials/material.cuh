@@ -26,37 +26,26 @@ struct BSDFVal
 
 struct Material
 {
-    float3 color;
-    float intensity = 1.f;
-    float metalness = 0.f;
-    float alpha = 0.f;        // GGX alpha = roughness^2
-    float ruggedness = 0.f;   // roughness in [0,1]
-    float ior = 1.f;
-    float shininess = 1.f;
-    MaterialType type;
-
-    Material() = default;
-    Material(float3 c) : color(c), type(MaterialType::LAMBERT){}
-    Material(float3 c, bool isMirror) : color(c), type(MaterialType::MIRROR){}
-    Material(float3 c, float i, MaterialType t) : color(c), intensity(i){
-        switch (t)
-        {
-            case MaterialType::PLASTIC:
-                shininess = i;
-                break;
-            case MaterialType::TRANSPARENT:
-                ior = i;
-                break;
-            case MaterialType::EMISSIVE:
-                intensity = i;
-                break;
-        }
-        type = t;
-    }
-    Material(float3 c, float m, float r) : color(c), metalness(m), ruggedness(r), alpha(max(r, 0.f) * max(r, 0.f)), type(MaterialType::METAL){}
+    float4 baseColor; // xyz=color, w=type
+    float4 params;    // x=roughness, y=metalness, z=ior, w=emission/intensity/shininess
 
     __host__
-    static inline Material randomMetal()
+    static Material makeMaterial(
+        float3 color,
+        MaterialType type,
+        float rough = 0.5f,
+        float metal = 0.f,
+        float ior = 1.5f,
+        float emission = 0.f)
+    {
+        Material m;
+        m.baseColor = make_float4(color.x, color.y, color.z, (float)type);
+        m.params    = make_float4(rough, metal, ior, emission);
+        return m;
+    }
+
+    __host__
+    static Material randomMetal()
     {
         float3 color = make_float3(
             0.5f + 0.5f * RT::randomFloat(),
@@ -64,11 +53,35 @@ struct Material
             0.5f + 0.5f * RT::randomFloat()
         );
 
-        float metalness = 0.8f + 0.2f * RT::randomFloat();
-        float ruggedness = RT::randomFloat();
+        float metal = 0.8f + 0.2f * RT::randomFloat();
+        float rough = RT::randomFloat();
 
-        return Material(color, metalness, ruggedness);
+        return makeMaterial(color, METAL, rough, metal);
     }
+
+    // ==== GETTERS ====
+    __host__ __device__
+    inline float3 color() const { return make_float3(baseColor); }
+
+    __host__ __device__
+    inline MaterialType type() const { return (MaterialType)((int)baseColor.w); }
+
+    __host__ __device__
+    inline float roughness() const { return params.x; }
+
+    __host__ __device__
+    inline float metalness() const { return params.y; }
+
+    __host__ __device__
+    inline float ior() const { return params.z; }
+
+    __host__ __device__
+    inline float emission() const { return params.w; }
+
+    __host__ __device__
+    inline float intensity() const { return params.w; }
+
+    // ==== LAMBERT ====
     __device__ 
     inline float3 evaluateLambert() const;
 
@@ -78,21 +91,32 @@ struct Material
     __device__
     float pdfLambert(const float3 normal, const float3 direction) const;
 
+    // ==== GGX ====
     __device__ 
     float computeD(const float3 &p_normal, const float3 &h) const;
 
     __device__
     float3 computeF(const float3 &wo, const float3 &h, const float3 &F0) const;
 
-    __device__ float computeG1(const float &x, const float &k) const;
+    __device__ 
+    float computeG1(const float &x, const float &k) const;
 
-    __device__ float computeG(const float3 &wi, const float3 &wo, const float3 &p_normal) const;
+    __device__ 
+    float computeG(const float3 &wi, const float3 &wo, const float3 &p_normal) const;
 
-    __device__ inline float3 evaluateGGX(const float3 &wo, const float3 &normal, const float3 &wi, const float3 &F0) const;
-    __device__ float3 samplingGGX(const float3 &wo, const float3 &normal, curandState* rngStates) const;
-    __device__ float pdfGGX(const float3 normal, const float3 direction, const float3 wo) const;
+    __device__ 
+    inline float3 evaluateGGX(const float3 &wo, const float3 &normal, const float3 &wi, const float3 &F0) const;
 
-    __device__ float3 toWorld(const float3& normal, const float3 direction) const;
+    __device__ 
+    float3 samplingGGX(const float3 &wo, const float3 &normal, curandState* rngStates) const;
+
+    __device__ 
+    float pdfGGX(const float3 normal, const float3 direction, const float3 wo) const;
+
+    // ==== UTILS ====
+    __device__ 
+    float3 toWorld(const float3& normal, const float3 direction) const;
+
     __device__ void createONB(const float3& n, float3& tangent, float3& bitangent) const;
 
     __device__ float3 fresnelSchlick(float cosTheta, const float3& F0) const;

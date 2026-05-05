@@ -33,6 +33,8 @@ struct BVHSceneNode{
 struct BVHScene {
 
     BVHSceneNode* d_nodes;
+    int* d_indices;
+
     BaseObject* d_primitives;
     Sphere* d_spheres;
     Plane* d_planes;
@@ -44,6 +46,8 @@ struct BVHScene {
     __host__
     static BVHScene buildBVHScene(std::vector<BaseObject>* primitives,std::vector<Sphere>* spheres,std::vector<Plane>* planes,std::vector<TriangleMesh>* meshes);
 
+    __host__
+    size_t getDeviceSize() const;
     __device__ 
     bool intersect(const Ray& ray,
                    float tMin,
@@ -54,60 +58,58 @@ struct BVHScene {
     bool intersectAny(const Ray& ray,
                   float tMin,
                   float tMax,
-                  const Material* materials) const{
-    int stack[32];
-    int stackPtr = 0;
-    stack[stackPtr++] = 0; // root index
-
-    while(stackPtr > 0)
+                  const Material* materials) const
     {
-        int nodeIndex = stack[--stackPtr];
-        const BVHSceneNode& node = d_nodes[nodeIndex];
+        int stack[32];
+        int stackPtr = 0;
+        stack[stackPtr++] = 0;
 
-        if (!node.bbox.intersect(ray, tMin, tMax))
-            continue;
-
-        if (node.isLeaf())
+        while(stackPtr > 0)
         {
-            for(int i = node.firstObjectIndex;
-                i < node.lastObjectIndex;
-                ++i)
+            int nodeIndex = stack[--stackPtr];
+            const BVHSceneNode& node = d_nodes[nodeIndex];
+
+            if (!node.bbox.intersect(ray, tMin, tMax))
+                continue;
+
+            if (node.isLeaf())
             {
-                BaseObject& prim = d_primitives[i];
-                switch(prim.type)
+                for(int i = node.firstObjectIndex;
+                    i < node.lastObjectIndex;
+                    ++i)
                 {
-                    case ObjectType::SPHERE:
-                    if(materials[d_spheres[prim.index].materialIndex].type == MaterialType::TRANSPARENT) continue;
-                        if (d_spheres[prim.index].intersectAny(ray, tMin, tMax))
-                        {
-                            return true;
-                        }
-                        break;
-                    case ObjectType::PLANE:
-                    if(materials[d_planes[prim.index].materialIndex].type == MaterialType::TRANSPARENT) continue;
-                        if(d_planes[prim.index].intersectAny(ray, tMin, tMax, materials))
-                        {
-                            return true;
-                        }
-                        break;
-                    case ObjectType::TRIANGLE:
-                    if(materials[d_meshes[prim.index].materialIndex].type == MaterialType::TRANSPARENT) continue;
-                        if(d_meshes[prim.index].intersectAny(ray, tMin, tMax, materials))
-                        {
-                            return true;
-                        }
-                        break;
+                    BaseObject& prim = d_primitives[d_indices[i]];
+
+                    switch(prim.type)
+                    {
+                        case ObjectType::SPHERE:
+                            if(materials[d_spheres[prim.index].materialIndex].type() == MaterialType::TRANSPARENT) continue;
+                            if (d_spheres[prim.index].intersectAny(ray, tMin, tMax))
+                                return true;
+                            break;
+
+                        case ObjectType::PLANE:
+                            if(materials[d_planes[prim.index].materialIndex].type() == MaterialType::TRANSPARENT) continue;
+                            if(d_planes[prim.index].intersectAny(ray, tMin, tMax, materials))
+                                return true;
+                            break;
+
+                        case ObjectType::TRIANGLE:
+                            if(materials[d_meshes[prim.index].materialIndex].type() == MaterialType::TRANSPARENT) continue;
+                            if(d_meshes[prim.index].intersectAny(ray, tMin, tMax, materials))
+                                return true;
+                            break;
+                    }
                 }
             }
+            else
+            {
+                stack[stackPtr++] = node.left;
+                stack[stackPtr++] = node.right;
+            }
         }
-        else
-        {
-            stack[stackPtr++] = node.left;
-            stack[stackPtr++] = node.right;
-        }
-    }
 
-    return false;
+        return false;
     }
 };
 

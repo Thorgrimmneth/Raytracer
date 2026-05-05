@@ -1,6 +1,10 @@
 #include "bvh_scene.cuh"
-#include <cstdio>
 #include <algorithm>
+#include <limits>
+
+// ============================================================
+// BUILD BVH (CPU)
+// ============================================================
 
 __host__
 BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
@@ -20,6 +24,11 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
     std::vector<BVHSceneNode> nodes;
     nodes.reserve(primitives->size() * 2);
 
+    // ✅ indices (IMPORTANT)
+    std::vector<int> indices(primitives->size());
+    for (int i = 0; i < primitives->size(); i++)
+        indices[i] = i;
+
     // Root
     nodes.push_back(BVHSceneNode{});
 
@@ -36,10 +45,10 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
         nodes[nodeIndex].firstObjectIndex = task.first;
         nodes[nodeIndex].lastObjectIndex  = task.last;
 
-        // ==== Compute bbox ====
+        // ===== Compute bbox =====
         AABB bbox{};
         for (int i = task.first; i < task.last; ++i)
-            bbox.extend((*primitives)[i].bbox);
+            bbox.extend((*primitives)[indices[i]].bbox);
 
         nodes[nodeIndex].bbox = bbox;
 
@@ -48,10 +57,10 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
         if (nbObjects <= maxObjectsPerLeaf || task.depth >= maxDepth)
             continue;
 
-        // ==== Centroid bbox ====
+        // ===== Centroid bbox =====
         AABB centroidBBox{};
         for (int i = task.first; i < task.last; ++i)
-            centroidBBox.extend((*primitives)[i].bbox.centroid());
+            centroidBBox.extend((*primitives)[indices[i]].bbox.centroid());
 
         float bestCost = std::numeric_limits<float>::max();
         int bestAxis = -1;
@@ -77,19 +86,16 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
             for (int i = task.first; i < task.last; i++)
             {
                 float centroid =
-                    getAxis((*primitives)[i].bbox.centroid(), axis);
+                    getAxis((*primitives)[indices[i]].bbox.centroid(), axis);
 
-                int binId =
-                    int(BIN_COUNT * (centroid - cmin) / extent);
-
-                binId = std::min(BIN_COUNT - 1,
-                                 std::max(0, binId));
+                int binId = int(BIN_COUNT * (centroid - cmin) / extent);
+                binId = std::min(BIN_COUNT - 1, std::max(0, binId));
 
                 bins[binId].count++;
-                bins[binId].bbox.extend((*primitives)[i].bbox);
+                bins[binId].bbox.extend((*primitives)[indices[i]].bbox);
             }
 
-            // Prefix sweep
+            // Prefix
             AABB leftBBox[BIN_COUNT];
             int leftCount[BIN_COUNT];
 
@@ -105,7 +111,7 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
                 leftCount[i] = tmpCount;
             }
 
-            // Suffix sweep
+            // Suffix
             AABB rightBBox[BIN_COUNT];
             int rightCount[BIN_COUNT];
 
@@ -139,9 +145,9 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
             }
         }
 
+        // ===== fallback =====
         if (bestAxis == -1)
         {
-            // fallback split médian
             int mid = task.first + nbObjects / 2;
 
             int leftIndex = nodes.size();
@@ -155,27 +161,25 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
 
             stack.push_back({rightIndex, mid, task.last, task.depth + 1});
             stack.push_back({leftIndex, task.first, mid, task.depth + 1});
-
             continue;
         }
 
         float cmin = getAxis(centroidBBox.min, bestAxis);
-        float cmax = getAxis(centroidBBox.max, bestAxis);
-        float extent = cmax - cmin;
+        float extent = getAxis(centroidBBox.max, bestAxis) - cmin;
 
         float splitPos =
             cmin + extent * float(bestSplitBin + 1) / float(BIN_COUNT);
 
         auto midIter = std::partition(
-            primitives->begin() + task.first,
-            primitives->begin() + task.last,
-            [bestAxis, splitPos](const BaseObject& obj)
+            indices.begin() + task.first,
+            indices.begin() + task.last,
+            [&](int idx)
             {
-                return getAxis(obj.bbox.centroid(), bestAxis) < splitPos;
+                return getAxis((*primitives)[idx].bbox.centroid(), bestAxis) < splitPos;
             }
         );
 
-        int mid = midIter - primitives->begin();
+        int mid = midIter - indices.begin();
 
         if (mid == task.first || mid == task.last)
             continue;
@@ -193,16 +197,16 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
         stack.push_back({leftIndex,  task.first, mid, task.depth + 1});
     }
 
-    // ==== Upload primitives ====
-    cudaMalloc(&scene.d_primitives,
-               primitives->size() * sizeof(BaseObject));
+    // ===== Upload indices =====
+    cudaMalloc(&scene.d_indices,
+               indices.size() * sizeof(int));
 
-    cudaMemcpy(scene.d_primitives,
-               primitives->data(),
-               primitives->size() * sizeof(BaseObject),
+    cudaMemcpy(scene.d_indices,
+               indices.data(),
+               indices.size() * sizeof(int),
                cudaMemcpyHostToDevice);
 
-    // ==== Upload nodes ====
+    // ===== Upload nodes =====
     cudaMalloc(&scene.d_nodes,
                nodes.size() * sizeof(BVHSceneNode));
 
@@ -211,106 +215,111 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
                nodes.size() * sizeof(BVHSceneNode),
                cudaMemcpyHostToDevice);
 
+    scene.d_primitives = nullptr;
     scene.nbObjects = primitives->size();
     scene.nbNodes   = nodes.size();
 
     return scene;
 }
 
+// ============================================================
+// INTERSECT (closest hit)
+// ============================================================
+
 __device__ __noinline__
-bool BVHScene::intersect(const Ray &p_ray,
-                         const float p_tMin,
-                         const float p_tMax,
-                         HitRecord &p_hitRecord) const
+bool BVHScene::intersect(const Ray &ray,
+                         const float tMin,
+                         const float tMaxInit,
+                         HitRecord &hit) const
 {
-    Current stack[32];
+    Current stack[64];
     int stackPtr = 0;
-    bool hit = false;
 
-    float tMax = p_tMax;
+    float tMax = tMaxInit;
+    bool hitSomething = false;
 
-    float distTemp;
-    if(!d_nodes[0].bbox.intersectCheck(p_ray, p_tMin, p_tMax, distTemp)) return false;
-    if(distTemp > tMax) return false;
-    stack[stackPtr++] = {0,distTemp};
+    float dist;
+    if (!d_nodes[0].bbox.intersectCheck(ray, tMin, tMax, dist))
+        return false;
+
+    stack[stackPtr++] = {0, dist};
 
     while (stackPtr > 0)
     {
-        Current currentNode = stack[--stackPtr];
-        if(currentNode.distance > tMax) continue;
-        const BVHSceneNode& node = d_nodes[currentNode.index];
+        Current current = stack[--stackPtr];
+
+        if (current.distance > tMax)
+            continue;
+
+        const BVHSceneNode& node = d_nodes[current.index];
 
         if (node.isLeaf())
         {
-            for (int i = node.firstObjectIndex;
-                 i < node.lastObjectIndex;
-                 ++i)
+            for (int i = node.firstObjectIndex; i < node.lastObjectIndex; ++i)
             {
-                BaseObject& prim = d_primitives[i];
-                switch(prim.type)
+                BaseObject& prim = d_primitives[d_indices[i]];
+
+                switch (prim.type)
                 {
-                    case ObjectType::SPHERE:
-                        if (d_spheres[prim.index].intersect(p_ray, p_tMin, tMax, p_hitRecord))
+                    case SPHERE:
+                        if (d_spheres[prim.index].intersect(ray, tMin, tMax, hit))
                         {
-                            tMax = p_hitRecord.distance;
-                            hit = true;
+                            tMax = hit.distance;
+                            hitSomething = true;
                         }
                         break;
-                    case ObjectType::PLANE:
-                        if(d_planes[prim.index].intersect(p_ray, p_tMin, tMax, p_hitRecord))
+
+                    case PLANE:
+                        if (d_planes[prim.index].intersect(ray, tMin, tMax, hit))
                         {
-                            tMax = p_hitRecord.distance;
-                            hit = true;
+                            tMax = hit.distance;
+                            hitSomething = true;
                         }
                         break;
-                    case ObjectType::TRIANGLE:
-                        if(d_meshes[prim.index].intersect(p_ray, p_tMin, tMax, p_hitRecord))
+
+                    case TRIANGLE:
+                        if (d_meshes[prim.index].intersect(ray, tMin, tMax, hit))
                         {
-                            tMax = p_hitRecord.distance;
-                            hit = true;
+                            tMax = hit.distance;
+                            hitSomething = true;
                         }
                         break;
                 }
-                
             }
         }
         else
         {
-            float tempLeft;
-            bool hitLeft;
-            hitLeft = d_nodes[node.left].bbox.intersectCheck(p_ray, p_tMin, tMax, tempLeft);
+            float dl, dr;
+            bool hl = d_nodes[node.left].bbox.intersectCheck(ray, tMin, tMax, dl);
+            bool hr = d_nodes[node.right].bbox.intersectCheck(ray, tMin, tMax, dr);
 
-            float tempRight;
-            bool hitRight;
-            hitRight = d_nodes[node.right].bbox.intersectCheck(p_ray, p_tMin, tMax, tempRight);
-
-            if(!hitLeft && !hitRight) continue;
-            if(hitLeft && hitRight){
-                if(tempLeft < tempRight){
-                    stack[stackPtr++] = Current{node.right, tempRight};
-                    stack[stackPtr++] = Current{node.left, tempLeft};
+            if (hl && hr)
+            {
+                if (dl < dr)
+                {
+                    stack[stackPtr++] = {node.right, dr};
+                    stack[stackPtr++] = {node.left, dl};
                 }
-                else{
-                    stack[stackPtr++] = Current{node.left, tempLeft};
-                    stack[stackPtr++] = Current{node.right, tempRight};
+                else
+                {
+                    stack[stackPtr++] = {node.left, dl};
+                    stack[stackPtr++] = {node.right, dr};
                 }
             }
-            else{
-                if(hitLeft)stack[stackPtr++] = Current{node.left, tempLeft};
-                else stack[stackPtr++] = Current{node.right, tempRight};
-            }
+            else if (hl)
+                stack[stackPtr++] = {node.left, dl};
+            else if (hr)
+                stack[stackPtr++] = {node.right, dr};
         }
     }
 
-    return hit;
+    return hitSomething;
 }
 
 size_t BVHScene::getDeviceSize() const
 {
     size_t size = 0;
-
-    size += nbNodes   * sizeof(BVHSceneNode);
-    size += nbObjects * sizeof(BaseObject);
-
+    size += nbNodes * sizeof(BVHSceneNode);
+    size += nbObjects * sizeof(int); // d_indices
     return size;
 }

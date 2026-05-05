@@ -171,7 +171,7 @@ __device__
 
     ls.direction = wi;
     ls.distance = sqrtf(dist2);
-    ls.radiance = m.color * m.intensity;
+    ls.radiance = m.color() * m.intensity();
     ls.pdf = pdf;
     ls.normal = n;
 
@@ -226,7 +226,7 @@ Light::sampleMeshGeom(const float3 &p_point, curandState *rng, const CudaScene& 
 
     ls.direction = wi;
     ls.distance = sqrtf(dist2);
-    ls.radiance = m.color * m.intensity;
+    ls.radiance = m.color() * m.intensity();
     ls.pdf = pdf;
     ls.normal = n;
 

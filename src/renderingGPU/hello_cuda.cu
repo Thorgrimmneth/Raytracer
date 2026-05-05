@@ -6,6 +6,7 @@
 #include "integrators/whitted_integrator.cuh"
 #include <curand_kernel.h>
 #include "camera/camera.cuh"
+#include "../defines.hpp"
 
 __constant__ int nbBounces;
 __constant__ float earthRadius;
@@ -382,6 +383,7 @@ unsigned char* launchHelloCUDA(const int nbSample,
     float exposure = 1.0f;
     float4 sunDir = make_float4(sunDirx, sunDiry, sunDirz, 0.f);
     //CudaScene gpuScene = uploadSceneToGPU(scene, sunDir);
+    RT::setSeed(42);
     CudaScene gpuScene = spheresScene(sunDir);
     printf("Size of gpuScene: %zu bytes\n", sizeof(gpuScene));
     size_t hdrBufferSize = width * height * sizeof(float3);
