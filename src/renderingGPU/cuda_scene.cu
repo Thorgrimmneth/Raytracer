@@ -98,7 +98,7 @@ Material convertMaterial(RT::BaseMaterial *bm)
 		RT::MetalMaterial *material = dynamic_cast<RT::MetalMaterial *>(bm);
 		m.color = make_float3(material->getFlatColor().x, material->getFlatColor().y, material->getFlatColor().z);
 		m.metalness = material->getMetalness();
-		m.ruggedness = material->getRuggedness();
+		m.ruggedness = clamp(material->getRuggedness(), 0.f, 1.f);
 		m.alpha = m.ruggedness * m.ruggedness;
 		m.type = MaterialType::METAL;
 	}

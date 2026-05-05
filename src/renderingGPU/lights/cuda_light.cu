@@ -134,8 +134,8 @@ __device__
 	rep.direction = sampledDir;
 	rep.distance = 1e20f;
 	rep.radiance = color * power;
-	// rep.pdf       = 1.0f / (2.0f * GPUPIf * (1.0f - cosMax));
-	rep.pdf = 1.f;
+	rep.pdf       = 1.0f / (2.0f * GPUPIf * (1.0f - cosMax));
+	//rep.pdf = 1.f;
 	rep.power = power;
 
 	return rep;

@@ -29,8 +29,8 @@ struct Material
     float3 color;
     float intensity = 1.f;
     float metalness = 0.f;
-    float alpha = 0.f;
-    float ruggedness = 0.f;
+    float alpha = 0.f;        // GGX alpha = roughness^2
+    float ruggedness = 0.f;   // roughness in [0,1]
     float ior = 1.f;
     float shininess = 1.f;
     MaterialType type;
@@ -53,7 +53,7 @@ struct Material
         }
         type = t;
     }
-    Material(float3 c, float m, float r) : color(c), metalness(m), ruggedness(r), alpha(r*r), type(MaterialType::METAL){}
+    Material(float3 c, float m, float r) : color(c), metalness(m), ruggedness(r), alpha(max(r, 0.f) * max(r, 0.f)), type(MaterialType::METAL){}
 
     __host__
     static inline Material randomMetal()

@@ -48,7 +48,8 @@ float3 WhittedIntegrator::lighting(
         BSDFVal bsdf = mtl.getBSDF(ray, hit, rng, isInside, reflected);
         if(bsdf.pdf <= 1e-4f) break;
         if(mtl.type == MaterialType::MIRROR || mtl.type == MaterialType::TRANSPARENT){
-            throughput *= bsdf.brdf;
+            float cosTheta = fabsf(dot(hit.normal, bsdf.direction));
+            throughput *= bsdf.brdf * cosTheta;
         }
         else{
             int lightIndex = int(curand_uniform(rng) * scene.nbLights);
@@ -71,7 +72,7 @@ float3 WhittedIntegrator::lighting(
                     {
                         float3 f = mtl.evalBSDF(ray, hit, ls.direction);
 
-                        float pdf_light = ls.pdf / scene.nbLights;
+                        float pdf_light = ls.pdf * (1.f / scene.nbLights); 
 
                         float pdf_bsdf = mtl.pdf(ray, hit, ls.direction);
 
@@ -87,7 +88,7 @@ float3 WhittedIntegrator::lighting(
             throughput = throughput * bsdf.brdf * cosTheta / bsdf.pdf;
             lastPdf = bsdf.pdf;
         }
-        if (depth > 3)
+        if (depth > 3 && mtl.type != MaterialType::MIRROR && mtl.type != MaterialType::TRANSPARENT)
         {
             float p = fmaxf(throughput.x, fmaxf(throughput.y, throughput.z));
             p = fminf(p, 0.95f);
@@ -99,7 +100,7 @@ float3 WhittedIntegrator::lighting(
         }
         float3 origin;
         float sign = reflected ? 1.f : -1.f;
-        origin = hit.point + hit.normal * 1e-3f * sign;
+        origin = hit.point + bsdf.direction * 1e-3f;
         ray = Ray(origin, bsdf.direction);
     }
 
