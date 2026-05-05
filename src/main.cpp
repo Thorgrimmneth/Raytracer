@@ -1,24 +1,56 @@
-#include "defines.hpp"
+
 #include "texture.hpp"
 #include "utils/chrono.hpp"
 #include "renderingGPU/hello_cuda.hpp"
 
 namespace RT
 {	
-	//extern "C" void launch_cuda_test();
 	int main( int argc, char ** argv )
 	{
 		const double aspect_ratio = 16.0 / 9.0;
-		const int img_width	= argc < 2 ? 600 : glm::max(100,std::atoi(argv[1]));
-		int			 temp_height  = int( img_width / aspect_ratio );
-		const int	 img_height	  = ( temp_height < 1 ) ? 1 : temp_height;
-		Texture imgCuda =  Texture(img_width, img_height);
-		int nbSample = argc < 3 ? 32 : glm::max(1,std::atoi(argv[2]));
+		int nbSample = 32;
+		int width = 1920;
+		int nbImage = 10;
+		int skipImage = 0;
+		for (int i = 1; i < argc; i++)
+		{
+			std::string arg = argv[i];
+
+			if (arg == "-spp" && i + 1 < argc)
+			{
+				nbSample = std::stoi(argv[++i]);
+			}
+			else if (arg == "-w" && i + 1 < argc)
+			{
+				width = std::stoi(argv[++i]);
+			}
+			else if (arg == "-i" && i + 1 < argc)
+			{
+				nbImage = std::stoi(argv[++i]);
+			}
+			else if (arg == "-skip" && i + 1 < argc)
+			{
+				skipImage = std::stoi(argv[++i]);
+			}
+			else if (arg == "--help")
+			{
+				std::cout << "Usage: ./mon_projet [options]\n";
+				std::cout << "  -spp <int>   samples per pixel\n";
+				std::cout << "  -w <int>     width\n";
+				std::cout << "  -i <int>     number of images\n";
+				std::cout << "  -skip <int>  start with the ith image\n";
+				return 0;
+			}
+		}
+
+		int			 temp_height  = int( width / aspect_ratio );
+		const int	 height	  = ( temp_height < 1 ) ? 1 : temp_height;
+
+		Texture imgCuda =  Texture(width, height);
 		float maxElevation = 90.0f;
-		int nbImage = argc < 4 ? 10 : std::atoi(argv[3]);
 		Chrono			   chrono;
 		chrono.start();
-		for(int i = 0; i <= nbImage; i++){
+		for(int i = skipImage; i <= nbImage; i++){
 			float t = i / float(nbImage - 1);
 			float theta = 1.1 * PIf * t; 
 			float az = 20.f * PIf / 180.f;
@@ -34,8 +66,8 @@ namespace RT
 					base.y,
 					base.x * sin(az) + base.z * cos(az)
 				));
-			unsigned char* img_cuda_raw = launchHelloCUDA(nbSample, img_width, img_height, sunDir.x, sunDir.y, sunDir.z);
-			imgCuda.createFromRaw(img_cuda_raw, img_width, img_height);
+			unsigned char* img_cuda_raw = launchHelloCUDA(nbSample, width, height, sunDir.x, sunDir.y, sunDir.z);
+			imgCuda.createFromRaw(img_cuda_raw, width, height);
 			const std::string imgCudaName = "imageCuda"+std::to_string(i)+".jpg";
 			imgCuda.saveJPG(RESULTS_PATH + imgCudaName);
 			std::cout << "saved" +std::to_string(i)<< std::endl;
