@@ -11,6 +11,8 @@ struct TriangleMesh{
 
     TriangleMeshGeometry* triangles;
     int triangleCount;
+    float* triangleAreaCdf;
+    float meshArea;
 
     float3* vertices;
     float3* normals;

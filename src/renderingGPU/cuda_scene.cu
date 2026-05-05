@@ -335,32 +335,47 @@ CudaScene uploadSceneToGPU(const RT::Scene &scene, float4 sunDir)
 
 			// ===== Triangles =====
 			std::vector<TriangleMeshGeometry> triangles;
-			for (const auto &tri : meshCPU->getTriangles())
-			{
-				TriangleMeshGeometry t;
-				t.i0 = tri.getV0();
-				t.i1 = tri.getV1();
-				t.i2 = tri.getV2();
-				triangles.push_back(t);
-			}
+            std::vector<float> triangleAreaCdf;
+            float meshArea = 0.f;
+            for (const auto &tri : meshCPU->getTriangles())
+            {
+                TriangleMeshGeometry t;
+                t.i0 = tri.getV0();
+                t.i1 = tri.getV1();
+                t.i2 = tri.getV2();
+                triangles.push_back(t);
 
-			tm.triangleCount = triangles.size();
+                const float3 &v0 = vertices[t.i0];
+                const float3 &v1 = vertices[t.i1];
+                const float3 &v2 = vertices[t.i2];
+                float area = 0.5f * length(cross(v1 - v0, v2 - v0));
+                meshArea += area;
+                triangleAreaCdf.push_back(meshArea);
+            }
 
-			cudaMalloc(&tm.triangles, triangles.size() * sizeof(TriangleMeshGeometry));
-			cudaMemcpy(tm.triangles, triangles.data(),
-					   triangles.size() * sizeof(TriangleMeshGeometry),
-					   cudaMemcpyHostToDevice);
+            tm.triangleCount = triangles.size();
+            tm.meshArea = meshArea;
 
-			// ===== BVH =====
-			std::vector<BVH> linearBVH;
-			flattenBVH(meshCPU->getBVH().getRoot(), linearBVH);
+            cudaMalloc(&tm.triangles, triangles.size() * sizeof(TriangleMeshGeometry));
+            cudaMemcpy(tm.triangles, triangles.data(),
+                       triangles.size() * sizeof(TriangleMeshGeometry),
+                       cudaMemcpyHostToDevice);
 
-			tm.bvhNodeCount = linearBVH.size();
+            cudaMalloc(&tm.triangleAreaCdf, triangleAreaCdf.size() * sizeof(float));
+            cudaMemcpy(tm.triangleAreaCdf, triangleAreaCdf.data(),
+                       triangleAreaCdf.size() * sizeof(float),
+                       cudaMemcpyHostToDevice);
 
-			cudaMalloc(&tm.bvhNodes, linearBVH.size() * sizeof(BVH));
-			cudaMemcpy(tm.bvhNodes, linearBVH.data(),
-					   linearBVH.size() * sizeof(BVH),
-					   cudaMemcpyHostToDevice);
+            // ===== BVH =====
+            std::vector<BVH> linearBVH;
+            flattenBVH(meshCPU->getBVH().getRoot(), linearBVH);
+
+            tm.bvhNodeCount = linearBVH.size();
+
+            cudaMalloc(&tm.bvhNodes, linearBVH.size() * sizeof(BVH));
+            cudaMemcpy(tm.bvhNodes, linearBVH.data(),
+                       linearBVH.size() * sizeof(BVH),
+                       cudaMemcpyHostToDevice);
 
 			Material mat = convertMaterial(obj->getMaterial());
 			materialsGPU.push_back(mat);

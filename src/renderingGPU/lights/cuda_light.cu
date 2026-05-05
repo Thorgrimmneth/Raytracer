@@ -185,8 +185,14 @@ Light::sampleMeshGeom(const float3 &p_point, curandState *rng, const CudaScene& 
     const TriangleMesh& mesh = scene.triangleMeshes[geomIndex];
     const Material& m = scene.materials[mesh.materialIndex];
 
-    int triIndex = int(curand_uniform(rng) * mesh.triangleCount);
-    triIndex = min(triIndex, mesh.triangleCount - 1);
+    LightSample ls;
+    if (mesh.triangleCount == 0 || mesh.meshArea <= 0.f)
+        return ls;
+
+    float sampleArea = curand_uniform(rng) * mesh.meshArea;
+    int triIndex = 0;
+    while (triIndex < mesh.triangleCount - 1 && mesh.triangleAreaCdf[triIndex] < sampleArea)
+        ++triIndex;
 
     const TriangleMeshGeometry& tri = mesh.triangles[triIndex];
     const float3* vertices = mesh.vertices;
@@ -209,18 +215,13 @@ Light::sampleMeshGeom(const float3 &p_point, curandState *rng, const CudaScene& 
     float3 wi = normalize(p - p_point);
     float dist2 = length2(p - p_point);
 
-    LightSample ls;
-
     float3 n = normalize(cross(v1 - v0, v2 - v0));
 
     float cosThetaLight = max(dot(n, -wi), 0.f);
     if (cosThetaLight <= 0.f)
         return ls;
 
-    float triArea = 0.5f * length(cross(v1 - v0, v2 - v0));
-
-    float pdf_area = 1.f / (mesh.triangleCount * triArea);
-
+    float pdf_area = 1.f / mesh.meshArea;
     float pdf = pdf_area * dist2 / cosThetaLight;
 
     ls.direction = wi;

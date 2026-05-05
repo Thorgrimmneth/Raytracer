@@ -33,11 +33,15 @@
 						if ( !p_scene.intersectAny( shadowRay, 1.e-4f, lightSample.distance ) )
 						{
 							float angle = max( dot( p_hitRecord.normal, lightSample.direction ), 0.f );
-							float3 shade = mtl.getBSDF( p_ray, p_hitRecord, rng).brdf;
+							BSDFVal bsdf = mtl.getBSDF( p_ray, p_hitRecord, rng);
+							float3 shade = bsdf.brdf;
+							float pdf_light = lightSample.pdf / p_scene.nbLights;
+							float pdf_bsdf = mtl.pdf(p_ray, p_hitRecord, lightSample.direction);
+							float w = (pdf_bsdf > 0.f) ? powerHeuristic(pdf_light, pdf_bsdf) : 1.f;
 							// if the lightSample is invalid we add black (caused by cylinder light)
 							if (length(lightSample.direction) < 1e-6f ) { LiTemp += make_float3(0.0f); }
 							else {
-								LiTemp += shade * lightSample.radiance * angle / lightSample.pdf; 
+								LiTemp += shade * lightSample.radiance * angle * w / pdf_light; 
 							}
 						}
 					}
@@ -54,8 +58,11 @@
 				{
 					if (length(lightSample.direction) < 1e-6f ) { Li += make_float3(0.0f); }
 					else{
-					float angle = max( dot( p_hitRecord.normal, lightSample.direction ), 0.f );
-					Li += mtl.getBSDF( p_ray, p_hitRecord, rng).brdf * lightSample.radiance * angle;
+						float angle = max( dot( p_hitRecord.normal, lightSample.direction ), 0.f );
+						float pdf_light = lightSample.pdf / p_scene.nbLights;
+						float pdf_bsdf = mtl.pdf(p_ray, p_hitRecord, lightSample.direction);
+						float w = (pdf_bsdf > 0.f) ? powerHeuristic(pdf_light, pdf_bsdf) : 1.f;
+						Li += mtl.getBSDF( p_ray, p_hitRecord, rng).brdf * lightSample.radiance * angle * w / pdf_light;
 					}
 				}
 			}
