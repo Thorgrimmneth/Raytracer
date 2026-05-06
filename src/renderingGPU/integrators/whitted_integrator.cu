@@ -15,9 +15,8 @@ float3 WhittedIntegrator::lighting(
     Ray ray = primaryRay;
     float3 throughput = make_float3(1.f);
     bool isInside = false;
-    bool reflected = false;
-    float lastPdf = 1.f;
-    float lastLightPdf = 1.f;
+    bool lastBounceWasDelta = true;
+    float lastBsdfPdf = 1.f;
     for (int depth = 0; depth < nbBounces; depth++)
     {
         HitRecord hit;
@@ -31,23 +30,35 @@ float3 WhittedIntegrator::lighting(
         const Material &mtl = scene.materials[hit.materialIndex];
         if(mtl.type() == MaterialType::EMISSIVE)
         {
-            if(depth == 0 || reflected)
+            float3 emission =
+                mtl.color() * mtl.intensity();
+
+            if(lastBounceWasDelta)
             {
-                finalColor += throughput * mtl.color() * mtl.intensity();
+                finalColor += throughput * emission;
             }
             else
             {
-                float w = powerHeuristic(lastPdf, lastLightPdf);
+                float lightPdf =
+                    scene.lightPdf(
+                        ray.origin,
+                        ray.direction);
 
-                finalColor += throughput * mtl.color() * mtl.intensity() * w;
+                float w =
+                    powerHeuristic(
+                        lastBsdfPdf,
+                        lightPdf);
+
+                finalColor +=
+                    throughput * emission * w;
             }
+
             break;
         }
-        BSDFVal bsdf = mtl.getBSDF(ray, hit, rng, isInside, reflected);
+        BSDFVal bsdf = mtl.getBSDF(ray, hit, rng, isInside);
         if(bsdf.pdf <= 1e-4f) break;
-        if(mtl.type() == MaterialType::MIRROR || mtl.type() == MaterialType::TRANSPARENT){
-            float cosTheta = fabsf(dot(hit.normal, bsdf.direction));
-            throughput *= bsdf.brdf * cosTheta;
+        if(bsdf.isDelta){
+            throughput *= bsdf.brdf;
         }
         else{
             int lightIndex = int(curand_uniform(rng) * scene.nbLights);
@@ -68,7 +79,6 @@ float3 WhittedIntegrator::lighting(
 
                     if (cosTheta > 0.f)
                     {
-                        lastLightPdf = ls.pdf * (1.f / scene.nbLights);
                         float3 f = mtl.evalBSDF(ray, hit, ls.direction);
 
                         float pdf_light = ls.pdf * (1.f / scene.nbLights); 
@@ -81,16 +91,16 @@ float3 WhittedIntegrator::lighting(
                     }
                 }
             }
-
             float cosTheta = fmaxf(dot(hit.normal, bsdf.direction), 0.0f);
 
             throughput = throughput * bsdf.brdf * cosTheta / bsdf.pdf;
-            lastPdf = bsdf.pdf;
         }
-        if (depth > 3 && mtl.type() != MaterialType::MIRROR && mtl.type() != MaterialType::TRANSPARENT)
+        lastBounceWasDelta = bsdf.isDelta;
+        lastBsdfPdf = bsdf.pdf;
+        if (depth > 3)
         {
             float p = fmaxf(throughput.x, fmaxf(throughput.y, throughput.z));
-            p = fminf(p, 0.95f);
+            p = clamp(p, 0.05f, 0.95f);
 
             if (curand_uniform(rng) > p)
                 break;
@@ -195,7 +205,7 @@ float3 WhittedIntegrator::getSkyColor(const Ray &ray)
     float sunAngularRadius = 2.1f * GPUPIf / 180.f;
     float cosTheta = dot(rayDir, sunDirection);
 
-    float sunDisk =
+    /*float sunDisk =
         smoothstep(cos(sunAngularRadius),
                    cos(sunAngularRadius * 0.5f),
                    cosTheta);
@@ -206,7 +216,7 @@ float3 WhittedIntegrator::getSkyColor(const Ray &ray)
             make_float3(60.f,25.f,10.f),
             sunset);
 
-    sky += sunColor * sunDisk;
+    sky += sunColor * sunDisk;*/
 
     return sky * mult;
 }

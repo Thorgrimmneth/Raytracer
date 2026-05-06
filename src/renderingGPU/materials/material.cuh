@@ -22,6 +22,8 @@ struct BSDFVal
     float3 brdf = make_float3(0.f);
     float3 direction = make_float3(0.f);
     float pdf = -1.f;
+
+    bool isDelta;
 };
 
 struct Material
@@ -99,10 +101,10 @@ struct Material
     float3 computeF(const float3 &wo, const float3 &h, const float3 &F0) const;
 
     __device__ 
-    float computeG1(const float &x, const float &k) const;
+    float computeG1(const float &NdotV) const;
 
     __device__ 
-    float computeG(const float3 &wi, const float3 &wo, const float3 &p_normal) const;
+    float computeG(const float3 &wi, const float3 &wo, const float3 &n) const;
 
     __device__ 
     inline float3 evaluateGGX(const float3 &wo, const float3 &normal, const float3 &wi, const float3 &F0) const;
@@ -111,7 +113,7 @@ struct Material
     float3 samplingGGX(const float3 &wo, const float3 &normal, curandState* rngStates) const;
 
     __device__ 
-    float pdfGGX(const float3 normal, const float3 direction, const float3 wo) const;
+    float pdfGGX(const float3 n, const float3 direction, const float3 wo) const;
 
     // ==== UTILS ====
     __device__ 
@@ -126,8 +128,7 @@ struct Material
         const Ray &ray,
         const HitRecord &hit,
         curandState* rngStates,
-        bool &isInside,
-        bool &reflected) const;
+        bool &isInside) const;
 
     __device__
     BSDFVal getBSDF(

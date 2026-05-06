@@ -42,7 +42,10 @@ struct CudaScene
 
     __device__ bool intersectAny(const Ray &, float, float) const;
 
-    
+    __device__
+    float lightPdf(
+    const float3& origin,
+    const float3& dir) const;
 
 };
 

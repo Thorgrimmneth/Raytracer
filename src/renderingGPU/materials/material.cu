@@ -71,14 +71,13 @@ float Material::pdfLambert(const float3 normal, const float3 direction) const
 __device__
 float Material::computeD(const float3& p_normal, const float3& h) const
 {
-    float roughness = this->roughness();
-    float alpha = roughness * roughness;
-    float a          = fmaxf(alpha, 1e-4f);
-    float a2         = a * a;
+    float alpha = roughness() * roughness();
+    float alpha2          = alpha * alpha;
     float NdotH      = fmaxf(dot(p_normal, h), 0.f);
     float NdotH2     = NdotH * NdotH;
-    float denom      = GPUPIf * ((NdotH2 * (a2 - 1.f) + 1.f) * (NdotH2 * (a2 - 1.f) + 1.f));
-    return a2 / fmaxf(denom, 1e-8f);
+    float denom      = (NdotH2 * (alpha2 - 1.f) + 1.f);
+    denom = GPUPIf * denom * denom;
+    return alpha2 / fmaxf(denom, 1e-8f);
 }
 
 __device__
@@ -89,18 +88,29 @@ float3 Material::computeF(const float3& wo, const float3& h, const float3& F0) c
 }
 
 __device__
-float Material::computeG1(const float& x, const float& k) const
+float Material::computeG1(const float& NdotV) const
 {
-    return x / fmaxf(x * (1.f - k) + k, 1e-8f);
+    if (NdotV <= 0.f)
+        return 0.f;
+
+    float alpha = roughness() * roughness();
+
+    float tan2 =
+        (1.f - NdotV * NdotV) /
+        fmaxf(NdotV * NdotV, 1e-8f);
+
+    return 2.f /
+        (1.f + sqrtf(1.f + alpha * alpha * tan2));
 }
 
 __device__
-float Material::computeG(const float3& wi, const float3& wo, const float3& p_normal) const
+float Material::computeG(const float3& wi, const float3& wo, const float3& n) const
 {
-    float roughness = this->roughness();
-    float k = ((roughness + 1.f) * (roughness + 1.f)) / 8.f;
-    return computeG1(fmaxf(dot(p_normal, wo), 0.f), k)
-         * computeG1(fmaxf(dot(p_normal, wi), 0.f), k);
+    float NdotV = fmaxf(dot(n, wo), 0.f);
+    float NdotL = fmaxf(dot(n, wi), 0.f);
+
+    return computeG1(NdotV)
+         * computeG1(NdotL);
 }
 
 __device__
@@ -156,7 +166,7 @@ float3 Material::samplingGGX(
     float t2 = r * sinf(phi);
 
     float s = 0.5f * (1.f + V.z);
-    t2 = (1.f - s) * sqrtf(fmaxf(0.f, 1.f - t1*t1)) + s * t2;
+    t2 = (1.f - s) * sqrtf(1.f - t1*t1) + s * t2;
 
     float3 Nh = t1*T1 + t2*T2 + sqrtf(fmaxf(0.f, 1.f - t1*t1 - t2*t2)) * V;
 
@@ -173,12 +183,22 @@ float3 Material::samplingGGX(
 
 __device__
 float Material::pdfGGX(
-    const float3 normal, const float3 wi, const float3 wo) const
+    const float3 n, const float3 wi, const float3 wo) const
 {
-    float3 h    = normalize(wo + wi);
-    float  D    = computeD(normal, h);
-    float  denom = 4.f * fmaxf(dot(wo, h), 1e-6f);
-    return (D * fmaxf(dot(normal, h), 0.f)) / denom;
+    float3 h = normalize(wi + wo);
+
+    if(dot(wo, h) <= 0.f)
+        return 0.f;
+
+    float NdotV = fmaxf(dot(n, wo), 0.f);
+
+    if (NdotV <= 0.f)
+        return 0.f;
+
+    float D  = computeD(n, h);
+    float G1 = computeG1(NdotV);
+
+    return (G1 * D) / (4.f * NdotV);
 }
 
 // ------------------------------------------------------------
@@ -203,8 +223,7 @@ BSDFVal Material::getBSDF(
     const Ray&      ray,
     const HitRecord& hit,
     curandState*    rngStates,
-    bool&           isInside,
-    bool&           reflected) const
+    bool&           isInside) const
 {
     float3   normal = normalize(hit.normal);
     float3   wo     = normalize(-ray.direction);
@@ -217,6 +236,7 @@ BSDFVal Material::getBSDF(
         bsdf.direction = samplingLambert(normal, rngStates);
         bsdf.pdf       = pdfLambert(normal, bsdf.direction);
         bsdf.brdf      = evaluateLambert();
+        bsdf.isDelta = false;
         break;
 
     // ---- Metal (GGX) ----
@@ -233,6 +253,7 @@ BSDFVal Material::getBSDF(
 
         bsdf.pdf  = pdfGGX(normal, bsdf.direction, wo);
         bsdf.brdf = evaluateGGX(wo, normal, bsdf.direction, F0);
+        bsdf.isDelta = false;
         break;
     }
 
@@ -259,6 +280,7 @@ BSDFVal Material::getBSDF(
 
         bsdf.pdf = specW       * pdfGGX(normal, bsdf.direction, wo)
                  + (1.f - specW) * pdfLambert(normal, bsdf.direction);
+        bsdf.isDelta = false;
         break;
     }
 
@@ -268,7 +290,7 @@ BSDFVal Material::getBSDF(
         bsdf.direction = reflect(-wo, normal);
         bsdf.pdf       = 1.f;
         bsdf.brdf      = color();
-        reflected      = true;
+        bsdf.isDelta     = true;
         break;
     }
 
@@ -293,7 +315,6 @@ BSDFVal Material::getBSDF(
             bsdf.direction = reflect(-wo, n);
             bsdf.pdf       = 1.f;
             bsdf.brdf      = make_float3(1.f);
-            reflected      = true;
             break;
         }
 
@@ -315,7 +336,6 @@ BSDFVal Material::getBSDF(
             bsdf.direction = reflect(-wo, n);
             bsdf.pdf       = reff;
             bsdf.brdf      = make_float3(1.f);
-            reflected      = true;
         } else {
             // Refraction branch
             float3 wi      = eta * (-wo) + (eta * cosI - cosT) * n;
@@ -324,8 +344,8 @@ BSDFVal Material::getBSDF(
             float etaSq    = eta * eta;
             bsdf.brdf      = make_float3(etaSq);
             isInside       = !isInside;
-            reflected      = false;
         }
+        bsdf.isDelta = true;
         break;
     }
     } // switch
@@ -362,12 +382,11 @@ float3 Material::evalBSDF(
         float3 F0      = make_float3(0.04f);
         float  cosTheta = saturate(dot(normal, wo));
         float3 F       = fresnelSchlick(cosTheta, F0);
-        float  specW   = (F.x + F.y + F.z) / 3.f;
 
         float3 diffuse  = evaluateLambert();
         float3 specular = evaluateGGX(wo, normal, wi, F0);
 
-        return (1.f - specW) * diffuse + specW * specular;
+        return (make_float3(1.f) - F) * diffuse + F * specular;
     }
 
     // Delta materials have no well-defined BSDF for NEE

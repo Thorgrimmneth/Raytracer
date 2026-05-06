@@ -285,7 +285,7 @@ CudaScene spheresScene(float4 sunDir)
     gpuScene.uploadLights(lightsGPU);
     gpuScene.uploadMaterials(materialsGPU);
 
-    size_t totalSize = 0;
+    /*size_t totalSize = 0;
     totalSize += gpuScene.nbSpheres * sizeof(Sphere);
     printf("Size of spheres: %zu bytes. %2.2f gain compared to v1\n", gpuScene.nbSpheres * sizeof(Sphere), (1.f - (gpuScene.nbSpheres * sizeof(Sphere) / 38240.f)) * 100.f);
     totalSize += gpuScene.nbPlanes * sizeof(Plane);
@@ -302,6 +302,86 @@ CudaScene spheresScene(float4 sunDir)
     printf("Size of primitives: %zu bytes. %2.2f gain compared to v1\n", primitivesGPU.size() * sizeof(BaseObject), (1.f - (primitivesGPU.size() * sizeof(BaseObject) / 22992.f)) * 100.f);
     totalSize += gpuScene.bvhScene.getDeviceSize();
     printf("BVH size: %zu bytes. %2.2f gain compared to v1\n", gpuScene.bvhScene.getDeviceSize(), (1.f - (gpuScene.bvhScene.getDeviceSize() / 68928.f)) * 100.f);
-    printf("Total size of GPU data: %zu bytes. %2.2f gain compared to v1\n", totalSize, (1.f - (totalSize / 145732.f)) * 100.f);
+    printf("Total size of GPU data: %zu bytes. %2.2f gain compared to v1\n", totalSize, (1.f - (totalSize / 145732.f)) * 100.f);*/
     return gpuScene;
 }
+
+__device__
+float CudaScene::lightPdf(
+    const float3& origin,
+    const float3& dir) const
+{
+    Ray ray(origin, dir);
+
+    HitRecord hit;
+
+    if(!intersect(ray, 1e-4f, 1e30f, hit))
+        return 0.f;
+
+    const Material& mtl =
+        materials[hit.materialIndex];
+
+    if(mtl.type() != MaterialType::EMISSIVE)
+        return 0.f;
+
+    float pdf = 0.f;
+
+    // sphere emissive
+    if(hit.objectType == HIT_SPHERE)
+    {
+        const Sphere& s =
+            spheres[hit.objectIndex];
+
+        float3 lightCenter = s.center1;
+        float radius = s.radius;
+
+        float dist2 =
+            length2(hit.point - origin);
+
+        float3 n =
+            normalize(hit.point - lightCenter);
+
+        float cosTheta =
+            max(dot(n, -dir), 0.f);
+
+        if(cosTheta <= 0.f)
+            return 0.f;
+
+        float area =
+            4.f * GPUPIf * radius * radius;
+
+        float pdfArea = 1.f / area;
+
+        pdf =
+            pdfArea * dist2 / cosTheta;
+    }
+
+    // triangle mesh emissive
+    else if(hit.objectType == HIT_TRIANGLE_MESH)
+    {
+        const TriangleMesh& mesh =
+            triangleMeshes[hit.objectIndex];
+
+        float3 n = hit.normal;
+
+        float dist2 =
+            length2(hit.point - origin);
+
+        float cosTheta =
+            max(dot(n, -dir), 0.f);
+
+        if(cosTheta <= 0.f)
+            return 0.f;
+
+        float pdfArea =
+            1.f / mesh.meshArea;
+
+        pdf =
+            pdfArea * dist2 / cosTheta;
+    }
+
+    // lumière choisie uniformément
+    pdf *= (1.f / nbLights);
+
+    return pdf;
+};

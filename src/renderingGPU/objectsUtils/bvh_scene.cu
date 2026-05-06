@@ -24,7 +24,6 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
     std::vector<BVHSceneNode> nodes;
     nodes.reserve(primitives->size() * 2);
 
-    // ✅ indices (IMPORTANT)
     std::vector<int> indices(primitives->size());
     for (int i = 0; i < primitives->size(); i++)
         indices[i] = i;
@@ -266,6 +265,8 @@ bool BVHScene::intersect(const Ray &ray,
                         {
                             tMax = hit.distance;
                             hitSomething = true;
+                            hit.objectType = HIT_SPHERE;
+                            hit.objectIndex = prim.index;
                         }
                         break;
 
@@ -274,6 +275,8 @@ bool BVHScene::intersect(const Ray &ray,
                         {
                             tMax = hit.distance;
                             hitSomething = true;
+                            hit.objectType = HIT_PLANE;
+                            hit.objectIndex = prim.index;
                         }
                         break;
 
@@ -282,6 +285,8 @@ bool BVHScene::intersect(const Ray &ray,
                         {
                             tMax = hit.distance;
                             hitSomething = true;
+                            hit.objectType = HIT_TRIANGLE_MESH;
+                            hit.objectIndex = prim.index;
                         }
                         break;
                 }
