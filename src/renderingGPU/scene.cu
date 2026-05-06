@@ -273,8 +273,8 @@ CudaScene spheresScene(float4 sunDir)
 
     // ===== LIGHT (SUN) =====
     Light l;
-    l.color = make_float3(1.f);
-    l.power = 1.f;
+    l.color = make_float3(1.f, 0.95f, 0.9f);
+    l.power = 100.f;
     l.area = 1.f;
     l.direction = toFloat3(sunDir);
     l.type = LightType::SUN;

@@ -202,10 +202,10 @@ float3 WhittedIntegrator::getSkyColor(const Ray &ray)
     float3 sky = sumR * betaR * phaseR +
                  sumM * betaM * phaseM * 0.3f;
 
-    float sunAngularRadius = 2.1f * GPUPIf / 180.f;
+    /*float sunAngularRadius = 2.1f * GPUPIf / 180.f;
     float cosTheta = dot(rayDir, sunDirection);
 
-    /*float sunDisk =
+    float sunDisk =
         smoothstep(cos(sunAngularRadius),
                    cos(sunAngularRadius * 0.5f),
                    cosTheta);

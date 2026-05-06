@@ -12,6 +12,7 @@ namespace RT
 		int width = 1920;
 		int nbImage = 10;
 		int skipImage = 0;
+		bool testing = false;
 		for (int i = 1; i < argc; i++)
 		{
 			std::string arg = argv[i];
@@ -32,6 +33,9 @@ namespace RT
 			{
 				skipImage = std::stoi(argv[++i]);
 			}
+			else if(arg == "-profiling" && i + 1 < argc){
+				testing = true;
+			}
 			else if (arg == "--help")
 			{
 				std::cout << "Usage: ./mon_projet [options]\n";
@@ -39,6 +43,7 @@ namespace RT
 				std::cout << "  -w <int>     width\n";
 				std::cout << "  -i <int>     number of images\n";
 				std::cout << "  -skip <int>  start with the ith image\n";
+				std::cout << "  -ncu         used for profiling with ncu\n";
 				return 0;
 			}
 		}
@@ -50,50 +55,54 @@ namespace RT
 		float maxElevation = 90.0f;
 		Chrono			   chrono;
 		chrono.start();
-		/*for(int i = skipImage; i < nbImage; i++){
-			float t = i / float(nbImage - 1);
-			if(nbImage == 1){
-				t = 0.5f;
+		if(!testing){
+			for(int i = skipImage; i < nbImage; i++){
+				float t = i / float(nbImage - 1);
+				if(nbImage == 1){
+					t = 0.5f;
+				}
+				
+				float theta = 1.1 * PIf * t; 
+				float az = 20.f * PIf / 180.f;
+
+					Vec3f base = Vec3f(
+						cos(theta),
+						sin(theta),
+						0.0f
+					);
+
+					Vec3f sunDir = normalize(Vec3f(
+						base.x * cos(az) - base.z * sin(az),
+						base.y,
+						base.x * sin(az) + base.z * cos(az)
+					));
+				unsigned char* img_cuda_raw = launchHelloCUDA(nbSample, width, height, sunDir.x, sunDir.y, sunDir.z);
+				imgCuda.createFromRaw(img_cuda_raw, width, height);
+				const std::string imgCudaName = "imageCuda"+std::to_string(i)+".jpg";
+				imgCuda.saveJPG(RESULTS_PATH + imgCudaName);
+				std::cout << "saved" +std::to_string(i)<< std::endl;
 			}
-			
-			float theta = 1.1 * PIf * t; 
+		}
+		else{
+			float t = 0.5f;
+			float theta = 1.1 * PIf * t;
 			float az = 20.f * PIf / 180.f;
-
-				Vec3f base = Vec3f(
-					cos(theta),
-					sin(theta),
-					0.0f
-				);
-
-				Vec3f sunDir = normalize(Vec3f(
-					base.x * cos(az) - base.z * sin(az),
-					base.y,
-					base.x * sin(az) + base.z * cos(az)
-				));
+			Vec3f base = Vec3f(
+				cos(theta),
+				sin(theta),
+				0.0f
+			);
+			Vec3f sunDir = normalize(Vec3f(
+				base.x * cos(az) - base.z * sin(az),
+				base.y,
+				base.x * sin(az) + base.z * cos(az)
+			));
 			unsigned char* img_cuda_raw = launchHelloCUDA(nbSample, width, height, sunDir.x, sunDir.y, sunDir.z);
 			imgCuda.createFromRaw(img_cuda_raw, width, height);
-			const std::string imgCudaName = "imageCuda"+std::to_string(i)+".jpg";
+			const std::string imgCudaName = "imageCuda.jpg";
 			imgCuda.saveJPG(RESULTS_PATH + imgCudaName);
-			std::cout << "saved" +std::to_string(i)<< std::endl;
-		}*/
-		float t = 0.5f;
-		float theta = 1.1 * PIf * t;
-		float az = 20.f * PIf / 180.f;
-		Vec3f base = Vec3f(
-			cos(theta),
-			sin(theta),
-			0.0f
-		);
-		Vec3f sunDir = normalize(Vec3f(
-			base.x * cos(az) - base.z * sin(az),
-			base.y,
-			base.x * sin(az) + base.z * cos(az)
-		));
-		unsigned char* img_cuda_raw = launchHelloCUDA(nbSample, width, height, sunDir.x, sunDir.y, sunDir.z);
-		imgCuda.createFromRaw(img_cuda_raw, width, height);
-		const std::string imgCudaName = "imageCuda.jpg";
-		imgCuda.saveJPG(RESULTS_PATH + imgCudaName);
-		std::cout << "saved" << std::endl;
+			std::cout << "saved" << std::endl;
+		}
 
 		chrono.stop();
 		float time = chrono.elapsedTime();
