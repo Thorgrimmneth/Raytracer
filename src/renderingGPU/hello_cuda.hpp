@@ -1,5 +1,7 @@
 #pragma once
 
+struct cudaGraphicsResource;
+
 class Renderer
 {
 public:
@@ -19,7 +21,7 @@ public:
     void applyBloom();
 
     int getFrameNumber();
-    
+
     void renderFrame();
 
     unsigned char* getFramebuffer();
@@ -27,6 +29,8 @@ public:
     void resetAccumulation();
 
     void cleanup();
+
+    void setInteropResource(cudaGraphicsResource* resource);
 
 private:
 

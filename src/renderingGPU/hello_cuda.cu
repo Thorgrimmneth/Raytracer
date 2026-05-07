@@ -49,8 +49,6 @@ public:
 
     unsigned char* d_finalBuffer = nullptr;
 
-    unsigned char* h_finalBuffer = nullptr;
-
     curandState* d_rngStates = nullptr;
 
     dim3 blockSize = dim3(16, 16);
@@ -66,6 +64,8 @@ public:
     float3* d_lvl1 = nullptr;
 
     float3* d_lvl2 = nullptr;
+
+    cudaGraphicsResource* cudaTextureResource = nullptr;
 };
 
 Renderer::Renderer()
@@ -77,6 +77,11 @@ Renderer::~Renderer()
 {
     cleanup();
     delete impl;
+}
+
+void Renderer::setInteropResource(cudaGraphicsResource* resource)
+{
+    impl->cudaTextureResource = resource;
 }
 
 __host__
@@ -397,7 +402,7 @@ void addBloom(float3* hdr,
 __global__
 void finalizeImage(
     float3* hdr,
-    unsigned char* out,
+    cudaSurfaceObject_t surface,
     int width,
     int height,
     float exposure)
@@ -409,7 +414,6 @@ void finalizeImage(
         return;
 
     int idx = y * width + x;
-    int fb  = idx * 3;
 
     float3 c = hdr[idx];
 
@@ -423,9 +427,19 @@ void finalizeImage(
         sqrtf(fmaxf(c.z, 0.f))
     );
 
-    out[fb + 0] = (unsigned char)(255.f * fminf(c.x, 1.f));
-    out[fb + 1] = (unsigned char)(255.f * fminf(c.y, 1.f));
-    out[fb + 2] = (unsigned char)(255.f * fminf(c.z, 1.f));
+    uchar4 pixel = make_uchar4(
+        (unsigned char)(255.f * fminf(c.x, 1.f)),
+        (unsigned char)(255.f * fminf(c.y, 1.f)),
+        (unsigned char)(255.f * fminf(c.z, 1.f)),
+        255
+    );
+
+    surf2Dwrite(
+        pixel,
+        surface,
+        x * sizeof(uchar4),
+        y
+    );
 }
 
 void Renderer::resetAccumulation()
@@ -437,12 +451,6 @@ void Renderer::resetAccumulation()
         0,
         impl->hdrBufferSize
     );
-}
-
-unsigned char* Renderer::getFramebuffer(){
-    cudaDeviceSynchronize();
-    cudaMemcpy(impl->h_finalBuffer, impl->d_finalBuffer, impl->width * impl->height * 3 * sizeof(unsigned char), cudaMemcpyDeviceToHost);
-    return impl->h_finalBuffer;
 }
 
 void Renderer::init(
@@ -484,13 +492,6 @@ void Renderer::init(
     cudaMalloc(&impl->d_finalHDRBuffer, impl->hdrBufferSize);
 
     cudaMalloc(&impl->d_finalBuffer, finalBufferSize);
-
-    // =========================
-    // CPU display buffer
-    // =========================
-
-    impl->h_finalBuffer =
-        new unsigned char[impl->width * impl->height * 3];
 
     // =========================
     // Clear buffers
@@ -608,8 +609,6 @@ void Renderer::applyBloom()
         impl->height,
         impl->bloomStrength
     );
-    
-    cudaDeviceSynchronize();
 }
 
 int Renderer::getFrameNumber(){
@@ -637,7 +636,6 @@ void Renderer::cleanup()
 
     cudaFree(impl->d_lvl2);
 
-    delete[] impl->h_finalBuffer;
 }
 
 void Renderer::renderFrame()
@@ -654,7 +652,6 @@ void Renderer::renderFrame()
         impl->height
     );
 
-    cudaDeviceSynchronize();
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess)
     {
@@ -688,24 +685,59 @@ void Renderer::renderFrame()
     applyBloom();
 
     // =========================
+    // MAP OPENGL TEXTURE
+    // =========================
+
+    cudaGraphicsMapResources(
+        1,
+        &impl->cudaTextureResource
+    );
+
+    cudaArray_t textureArray;
+
+    cudaGraphicsSubResourceGetMappedArray(
+        &textureArray,
+        impl->cudaTextureResource,
+        0,
+        0
+    );
+
+    // =========================
+    // CREATE CUDA SURFACE
+    // =========================
+
+    cudaResourceDesc desc = {};
+    desc.resType = cudaResourceTypeArray;
+    desc.res.array.array = textureArray;
+
+    cudaSurfaceObject_t surface = 0;
+
+    cudaCreateSurfaceObject(
+        &surface,
+        &desc
+    );
+
+    // =========================
     // Tonemap + RGB8 conversion
     // =========================
 
     finalizeImage<<<impl->gridSize, impl->blockSize>>>(
         impl->d_finalHDRBuffer,
-        impl->d_finalBuffer,
+        surface,
         impl->width,
         impl->height,
         impl->exposure
     );
-    cudaDeviceSynchronize();
-    err = cudaDeviceSynchronize();
+    
+    // =========================
+    // CLEANUP
+    // =========================
 
-    if (err != cudaSuccess)
-    {
-        std::cout
-            << "CUDA ERROR: "
-            << cudaGetErrorString(err)
-            << std::endl;
-    }
+    cudaDestroySurfaceObject(surface);
+
+    cudaGraphicsUnmapResources(
+        1,
+        &impl->cudaTextureResource
+    );
+    
 }

@@ -23,15 +23,15 @@ namespace RT
             void initShaders();
             void initTexture(int width, int height);
             void initQuad();
-            void uploadTexture(
-            unsigned char* framebuffer,
-            int width,
-            int height);
             void draw();
             
         int width  = 1920;
         int height = 1080;
+        
+        Renderer renderer;
 
+        cudaGraphicsResource* cudaTextureResource = nullptr;
+        
         GLuint texture;
         GLuint vao;
         GLuint vbo;
