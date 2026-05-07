@@ -1,12 +1,13 @@
 #include <cstdio>
 #include <cuda_runtime.h>
+#include <curand_kernel.h>
 #include <fstream>
 #include "scene.cuh"
-#include "integrators/direct_lighting_integrator.cuh"
 #include "integrators/whitted_integrator.cuh"
-#include <curand_kernel.h>
+
 #include "camera/camera.cuh"
 #include "../defines.hpp"
+#include "hello_cuda.hpp"
 
 __constant__ int nbBounces;
 __constant__ float earthRadius;
@@ -19,6 +20,64 @@ __constant__ float3 betaM;
 __constant__ float exposure;
 __constant__ Camera camera;
 __constant__ float sizeAtmosphere;
+
+class Renderer::Impl
+{
+public:
+
+    int width  = 1920;
+    int height = 1080;
+
+    float threshold = 1.0f;
+    float bloomStrength = 0.25f;
+    float exposure = 1.0f;
+
+    int sampleCount = 0;
+
+    size_t hdrBufferSize = 0;
+
+    CudaScene gpuScene;
+
+    float3* d_accumBuffer = nullptr;
+    float3* d_normalizedBuffer = nullptr;
+
+    float3* d_brightBuffer = nullptr;
+    float3* d_bloomBuffer = nullptr;
+
+    float3* d_tempBuffer = nullptr;
+    float3* d_finalHDRBuffer = nullptr;
+
+    unsigned char* d_finalBuffer = nullptr;
+
+    unsigned char* h_finalBuffer = nullptr;
+
+    curandState* d_rngStates = nullptr;
+
+    dim3 blockSize = dim3(16, 16);
+
+    dim3 gridSize;
+
+    int w1 = 0;
+    int h1 = 0;
+
+    int w2 = 0;
+    int h2 = 0;
+
+    float3* d_lvl1 = nullptr;
+
+    float3* d_lvl2 = nullptr;
+};
+
+Renderer::Renderer()
+{
+    impl = new Impl();
+}
+
+Renderer::~Renderer()
+{
+    cleanup();
+    delete impl;
+}
 
 __host__
 Camera initCamera(int width, int height){
@@ -95,9 +154,8 @@ void initRNG(curandState* states, int width, int height)
 __global__
 void renderKernel(
     CudaScene gpuScene,
-    float3* d_hdrBuffer,
+    float3* d_accumBuffer,
     curandState* rngStates,
-    int nbSample,
     int width,
     int height)
 {
@@ -111,24 +169,39 @@ void renderKernel(
 
     float3 finalColor = make_float3(0.f);
 
-    for (int s = 0; s < nbSample; s++)
-    {
-        float sx = (x + curand_uniform(&localState)) / (float)(width  - 1);
-        float sy = (y + curand_uniform(&localState)) / (float)(height - 1);
+    float sx = (x + curand_uniform(&localState)) / (float)(width  - 1);
+    float sy = (y + curand_uniform(&localState)) / (float)(height - 1);
 
-        float3 rayTarget = toFloat3(camera.topLeft + sx * camera.viewPortU - sy * camera.viewPortV);
-        float3 direction = normalize(rayTarget - toFloat3(camera.cameraPos));
+    float3 rayTarget = toFloat3(camera.topLeft + sx * camera.viewPortU - sy * camera.viewPortV);
+    float3 direction = normalize(rayTarget - toFloat3(camera.cameraPos));
 
-        Ray ray(toFloat3(camera.cameraPos), direction);
-        finalColor += WhittedIntegrator::lighting(gpuScene, ray, 0, 1e20f, &localState);
-    }
+    Ray ray(toFloat3(camera.cameraPos), direction);
+    finalColor += WhittedIntegrator::lighting(gpuScene, ray, 0, 1e20f, &localState);
 
-    finalColor /= (float)nbSample;
-
-    d_hdrBuffer[pixelIndex] = finalColor;
+    d_accumBuffer[pixelIndex] += finalColor;
 
     rngStates[pixelIndex] = localState;
 }
+
+__global__
+void normalizeKernel(
+    float3* accum,
+    float3* normalized,
+    int sampleCount,
+    int width,
+    int height)
+{
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x >= width || y >= height)
+        return;
+
+    int idx = y * width + x;
+
+    normalized[idx] =accum[idx] / (float)sampleCount;
+}
+       
 
 __global__
 void extractBright(float3* hdr,
@@ -276,50 +349,31 @@ void upsampleAdd(float3* lowRes,
 
 void applyMultiScaleBloom(float3* d_bright,
                           float3* d_temp,
+                          float3* d_lvl1, float3* d_lvl2,
+                          int w1, int h1, int w2, int h2,
                           int width,
                           int height)
 {
     dim3 block(16,16);
 
-    int w1 = width / 2;
-    int h1 = height / 2;
-
-    float3* d_lvl1;
-    cudaMalloc(&d_lvl1, w1 * h1 * sizeof(float3));
-
     dim3 grid1((w1+15)/16,(h1+15)/16);
 
     downsample<<<grid1,block>>>(d_bright,d_lvl1,width,height);
-    cudaDeviceSynchronize();
 
     blurHorizontal<<<grid1,block>>>(d_lvl1,d_temp,w1,h1);
     blurVertical<<<grid1,block>>>(d_temp,d_lvl1,w1,h1);
-    cudaDeviceSynchronize();
-
-    int w2 = w1 / 2;
-    int h2 = h1 / 2;
-
-    float3* d_lvl2;
-    cudaMalloc(&d_lvl2, w2 * h2 * sizeof(float3));
 
     dim3 grid2((w2+15)/16,(h2+15)/16);
 
     downsample<<<grid2,block>>>(d_lvl1,d_lvl2,w1,h1);
-    cudaDeviceSynchronize();
 
     blurHorizontal<<<grid2,block>>>(d_lvl2,d_temp,w2,h2);
     blurVertical<<<grid2,block>>>(d_temp,d_lvl2,w2,h2);
-    cudaDeviceSynchronize();
 
     upsampleAdd<<<grid1,block>>>(d_lvl2,d_lvl1,w2,h2,w1,1.0f);
-    cudaDeviceSynchronize();
 
     upsampleAdd<<<dim3((width+15)/16,(height+15)/16),block>>>(
         d_lvl1,d_bright,w1,h1,width,1.0f);
-    cudaDeviceSynchronize();
-
-    cudaFree(d_lvl1);
-    cudaFree(d_lvl2);
 }
 
 __global__
@@ -341,25 +395,28 @@ void addBloom(float3* hdr,
 }
 
 __global__
-void finalizeImage(float3* hdr,
-                   unsigned char* out,
-                   int width,
-                   int height,
-                   float exposure)
+void finalizeImage(
+    float3* hdr,
+    unsigned char* out,
+    int width,
+    int height,
+    float exposure)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
 
-    if (x >= width || y >= height) return;
+    if (x >= width || y >= height)
+        return;
 
     int idx = y * width + x;
     int fb  = idx * 3;
 
     float3 c = hdr[idx];
 
+    // Reinhard tonemap
     c = (c * exposure) / (make_float3(1.f) + c * exposure);
 
-    // gamma
+    // Gamma correction
     c = make_float3(
         sqrtf(fmaxf(c.x, 0.f)),
         sqrtf(fmaxf(c.y, 0.f)),
@@ -371,123 +428,284 @@ void finalizeImage(float3* hdr,
     out[fb + 2] = (unsigned char)(255.f * fminf(c.z, 1.f));
 }
 
-unsigned char* launchHelloCUDA(const int nbSample,
-                               const int width,
-                               const int height,
-                               float sunDirx,
-                                float sunDiry,
-                            float sunDirz)
+void Renderer::resetAccumulation()
 {
-    float threshold = 10.0f;
-    float bloomStrength = 0.25f;
-    float exposure = 1.0f;
-    float4 sunDir = make_float4(sunDirx, sunDiry, sunDirz, 0.f);
-    RT::setSeed(42);
-    CudaScene gpuScene = spheresScene(sunDir);
-    //printf("Size of gpuScene: %zu bytes\n", sizeof(gpuScene));
-    size_t hdrBufferSize = width * height * sizeof(float3);
-    size_t finalBufferSize = width * height * 3 * sizeof(unsigned char);
+    impl->sampleCount = 0;
 
-    float3* d_hdrBuffer;
-    float3* d_brightBuffer;
-    float3* d_outBuffer;
-    unsigned char* d_finalBuffer;
-
-    cudaMalloc(&d_hdrBuffer, hdrBufferSize);
-    cudaMalloc(&d_brightBuffer, hdrBufferSize);
-    cudaMalloc(&d_outBuffer, hdrBufferSize);
-    cudaMalloc(&d_finalBuffer, finalBufferSize);
-
-    curandState* d_rngStates;
-    cudaMalloc(&d_rngStates, width * height * sizeof(curandState));
-
-    dim3 blockSize(16, 16);
-    dim3 gridSize(
-        (width + blockSize.x - 1) / blockSize.x,
-        (height + blockSize.y - 1) / blockSize.y
+    cudaMemset(
+        impl->d_accumBuffer,
+        0,
+        impl->hdrBufferSize
     );
-
-    initRNG<<<gridSize, blockSize>>>(d_rngStates, width, height);
-    cudaDeviceSynchronize();
-
-    initConstant(width, height, sunDir);
-
-    cudaEvent_t start, stop;
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
-
-    cudaEventRecord(start);
-
-    renderKernel<<<gridSize, blockSize>>>(
-        gpuScene,
-        d_hdrBuffer,
-        d_rngStates,
-        nbSample,
-        width,
-        height
-    );
-    cudaDeviceSynchronize();
-    
-    extractBright<<<gridSize, blockSize>>>(
-        d_hdrBuffer,
-        d_brightBuffer,
-        width,
-        height,
-        threshold
-    );
-    cudaDeviceSynchronize();
-    applyMultiScaleBloom(d_brightBuffer, d_outBuffer, width, height);
-    addBloom<<<gridSize, blockSize>>>(
-        d_hdrBuffer,
-        d_brightBuffer,
-        d_outBuffer,
-        width,
-        height,
-        bloomStrength
-    );
-    cudaDeviceSynchronize();
-    
-    finalizeImage<<<gridSize, blockSize>>>(
-        d_outBuffer,
-        d_finalBuffer,
-        width,
-        height,
-        exposure
-    );
-    cudaDeviceSynchronize();
-
-    cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
-
-    float milliseconds = 0.f;
-    cudaEventElapsedTime(&milliseconds, start, stop);
-    printf("Render time: %.3f s\n", milliseconds / 1000.f);
-
-    cudaEventDestroy(start);
-    cudaEventDestroy(stop);
-
-    cudaError_t errSync = cudaDeviceSynchronize();
-    cudaError_t errAsync = cudaGetLastError();
-
-    if (errSync != cudaSuccess)
-        printf("Sync error: %s\n", cudaGetErrorString(errSync));
-
-    if (errAsync != cudaSuccess)
-        printf("Async error: %s\n", cudaGetErrorString(errAsync));
-
-    unsigned char* h_framebuffer = new unsigned char[width * height * 3];
-
-    cudaMemcpy(h_framebuffer,
-               d_finalBuffer,
-               finalBufferSize,
-               cudaMemcpyDeviceToHost);
-
-    cudaFree(d_hdrBuffer);
-    cudaFree(d_brightBuffer);
-    cudaFree(d_outBuffer);
-    cudaFree(d_finalBuffer);
-    cudaFree(d_rngStates);
-
-    return h_framebuffer;
 }
 
+unsigned char* Renderer::getFramebuffer(){
+    cudaDeviceSynchronize();
+    cudaMemcpy(impl->h_finalBuffer, impl->d_finalBuffer, impl->width * impl->height * 3 * sizeof(unsigned char), cudaMemcpyDeviceToHost);
+    return impl->h_finalBuffer;
+}
+
+void Renderer::init(
+    int p_width,
+    int p_height,
+    float sunDirx,
+    float sunDiry,
+    float sunDirz)
+{
+    initConstant(p_width, p_height, make_float4(sunDirx, sunDiry, sunDirz, 0.f));
+    impl->width = p_width;
+    impl->height = p_height;
+
+    float4 sunDir =
+        make_float4(sunDirx, sunDiry, sunDirz, 0.f);
+
+    RT::setSeed(42);
+
+    impl->gpuScene = spheresScene(sunDir);
+
+    impl->hdrBufferSize =
+        impl->width * impl->height * sizeof(float3);
+
+    size_t finalBufferSize =
+        impl->width * impl->height * 3 * sizeof(unsigned char);
+
+    // =========================
+    // GPU buffers
+    // =========================
+
+    cudaMalloc(&impl->d_accumBuffer, impl->hdrBufferSize);
+
+    cudaMalloc(&impl->d_normalizedBuffer, impl->hdrBufferSize);
+
+    cudaMalloc(&impl->d_brightBuffer, impl->hdrBufferSize);
+
+    cudaMalloc(&impl->d_bloomBuffer, impl->hdrBufferSize);
+    cudaMalloc(&impl->d_tempBuffer, impl->hdrBufferSize);
+    cudaMalloc(&impl->d_finalHDRBuffer, impl->hdrBufferSize);
+
+    cudaMalloc(&impl->d_finalBuffer, finalBufferSize);
+
+    // =========================
+    // CPU display buffer
+    // =========================
+
+    impl->h_finalBuffer =
+        new unsigned char[impl->width * impl->height * 3];
+
+    // =========================
+    // Clear buffers
+    // =========================
+
+    cudaMemset(impl->d_accumBuffer, 0, impl->hdrBufferSize);
+
+    cudaMemset(impl->d_normalizedBuffer, 0, impl->hdrBufferSize);
+
+    cudaMemset(impl->d_brightBuffer, 0, impl->hdrBufferSize);
+
+    cudaMemset(impl->d_bloomBuffer, 0, impl->hdrBufferSize);
+
+    cudaMemset(impl->d_finalHDRBuffer, 0, impl->hdrBufferSize);
+
+    cudaMemset(impl->d_finalBuffer, 0, finalBufferSize);
+
+    // =========================
+    // RNG
+    // =========================
+
+    cudaMalloc(
+        &impl->d_rngStates,
+        impl->width * impl->height * sizeof(curandState)
+    );
+
+    impl->blockSize = dim3(16, 16);
+
+    impl->gridSize = dim3(
+        (impl->width + impl->blockSize.x - 1) / impl->blockSize.x,
+        (impl->height + impl->blockSize.y - 1) / impl->blockSize.y
+    );
+
+    initRNG<<<impl->gridSize, impl->blockSize>>>(
+        impl->d_rngStates,
+        impl->width,
+        impl->height
+    );
+
+    // =========================
+    // Bloom mip chain
+    // =========================
+
+    impl->w1 = impl->width / 2;
+    impl->h1 = impl->height / 2;
+
+    impl->w2 = impl->w1 / 2;
+    impl->h2 = impl->h1 / 2;
+
+    cudaMalloc(
+        &impl->d_lvl1,
+        impl->w1 * impl->h1 * sizeof(float3)
+    );
+
+    cudaMalloc(
+        &impl->d_lvl2,
+        impl->w2 * impl->h2 * sizeof(float3)
+    );
+
+    impl->sampleCount = 0;
+}
+
+void Renderer::applyBloom()
+{
+    cudaMemset(impl->d_brightBuffer, 0, impl->hdrBufferSize);
+
+    cudaMemset(impl->d_bloomBuffer, 0, impl->hdrBufferSize);
+
+    cudaMemset(impl->d_finalHDRBuffer, 0, impl->hdrBufferSize);
+
+    // =========================
+    // Extract bright pixels
+    // =========================
+
+    extractBright<<<impl->gridSize, impl->blockSize>>>(
+        impl->d_normalizedBuffer,
+        impl->d_brightBuffer,
+        impl->width,
+        impl->height,
+        impl->threshold
+    );
+
+    // =========================
+    // Blur bloom
+    // =========================
+
+    applyMultiScaleBloom(
+        impl->d_brightBuffer,
+        impl->d_tempBuffer,
+        impl->d_lvl1,
+        impl->d_lvl2,
+        impl->w1,
+        impl->h1,
+        impl->w2,
+        impl->h2,
+        impl->width,
+        impl->height
+    );
+
+    cudaMemcpy(
+        impl->d_bloomBuffer,
+        impl->d_brightBuffer,
+        impl->hdrBufferSize,
+        cudaMemcpyDeviceToDevice
+    );
+    // =========================
+    // Compose final HDR
+    // =========================
+
+    addBloom<<<impl->gridSize, impl->blockSize>>>(
+        impl->d_normalizedBuffer,
+        impl->d_bloomBuffer,
+        impl->d_finalHDRBuffer,
+        impl->width,
+        impl->height,
+        impl->bloomStrength
+    );
+    
+    cudaDeviceSynchronize();
+}
+
+int Renderer::getFrameNumber(){
+    return impl->sampleCount;
+}
+void Renderer::cleanup()
+{
+    cudaFree(impl->d_accumBuffer);
+
+    cudaFree(impl->d_normalizedBuffer);
+
+    cudaFree(impl->d_brightBuffer);
+
+    cudaFree(impl->d_bloomBuffer);
+
+    cudaFree(impl->d_tempBuffer);
+
+    cudaFree(impl->d_finalHDRBuffer);
+
+    cudaFree(impl->d_finalBuffer);
+
+    cudaFree(impl->d_rngStates);
+
+    cudaFree(impl->d_lvl1);
+
+    cudaFree(impl->d_lvl2);
+
+    delete[] impl->h_finalBuffer;
+}
+
+void Renderer::renderFrame()
+{
+    // =========================
+    // Accumulate one sample
+    // =========================
+
+    renderKernel<<<impl->gridSize, impl->blockSize>>>(
+        impl->gpuScene,
+        impl->d_accumBuffer,
+        impl->d_rngStates,
+        impl->width,
+        impl->height
+    );
+
+    cudaDeviceSynchronize();
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess)
+    {
+        std::cout << "renderKernel error: " << cudaGetErrorString(err) << std::endl;
+    }
+
+    impl->sampleCount++;
+
+    // =========================
+    // Normalize accumulation
+    // =========================
+
+    normalizeKernel<<<impl->gridSize, impl->blockSize>>>(
+        impl->d_accumBuffer,
+        impl->d_normalizedBuffer,
+        impl->sampleCount,
+        impl->width,
+        impl->height
+    );
+
+    err = cudaGetLastError();
+    if (err != cudaSuccess)
+    {
+        std::cout << "normalizeKernel error: " << cudaGetErrorString(err) << std::endl;
+    }
+
+    // =========================
+    // Bloom
+    // =========================
+
+    applyBloom();
+
+    // =========================
+    // Tonemap + RGB8 conversion
+    // =========================
+
+    finalizeImage<<<impl->gridSize, impl->blockSize>>>(
+        impl->d_finalHDRBuffer,
+        impl->d_finalBuffer,
+        impl->width,
+        impl->height,
+        impl->exposure
+    );
+    cudaDeviceSynchronize();
+    err = cudaDeviceSynchronize();
+
+    if (err != cudaSuccess)
+    {
+        std::cout
+            << "CUDA ERROR: "
+            << cudaGetErrorString(err)
+            << std::endl;
+    }
+}
