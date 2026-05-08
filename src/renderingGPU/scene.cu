@@ -164,10 +164,11 @@ CudaScene spheresScene(float4 sunDir)
     float margin = 0.05f;
     float minDist = bigRadius + smallRadius + margin;
 
+    int numberOfSpheresPerSide = 11;
     // ===== PETITES SPHERES =====
-    for (int i = -11; i < 11; i++)
+    for (int i = -numberOfSpheresPerSide; i < numberOfSpheresPerSide; i++)
     {
-        for (int j = -11; j < 11; j++)
+        for (int j = -numberOfSpheresPerSide; j < numberOfSpheresPerSide; j++)
         {
             double choose_mat = RT::randomDouble();
 
@@ -229,7 +230,7 @@ CudaScene spheresScene(float4 sunDir)
                 ObjectType::SPHERE,
                 (int)spheresGPU.size()
             });
-
+            s.base = &primitivesGPU.back();
             spheresGPU.push_back(s);
         }
     }
@@ -260,9 +261,8 @@ CudaScene spheresScene(float4 sunDir)
 		if (mat.type() == MaterialType::EMISSIVE)
 		{
 			Light l;
-			l.type = LightType::SPHERE_GEOM;
-			l.geomIndex = spheresGPU.size() - 1;
-			l.area = 4.f * M_PI * radius * radius;
+            l.direction = make_float4(0.f, 0.f, 0.f, 0.f);
+			l.metadata = Light::packMetadata(LightType::SPHERE_GEOM, spheresGPU.size() - 1);
 			lightsGPU.push_back(l);
 		}
     };
@@ -273,11 +273,9 @@ CudaScene spheresScene(float4 sunDir)
 
     // ===== LIGHT (SUN) =====
     Light l;
-    l.color = make_float3(1.f, 0.95f, 0.9f);
-    l.power = 100.f;
-    l.area = 1.f;
-    l.direction = toFloat3(sunDir);
-    l.type = LightType::SUN;
+    l.color_power = make_float4(1.f, 0.95f, 0.9f, 100.f);
+    l.direction = make_float4(sunDir.x, sunDir.y, sunDir.z, 0.f);
+    l.metadata = Light::packMetadata(LightType::SUN, 0);
     lightsGPU.push_back(l);
 
     // ===== UPLOAD =====
@@ -285,7 +283,15 @@ CudaScene spheresScene(float4 sunDir)
     gpuScene.uploadLights(lightsGPU);
     gpuScene.uploadMaterials(materialsGPU);
 
-    /*size_t totalSize = 0;
+    printf("Size of one BVH node: %zu bytes\n", sizeof(BVHSceneNode));
+    printf("Size of AABB: %zu bytes\n", sizeof(AABB));
+    printf("Size of BaseObject: %zu bytes\n", sizeof(BaseObject));
+    printf("Size of Sphere: %zu bytes\n", sizeof(Sphere));
+    printf("Size of Plane: %zu bytes\n", sizeof(Plane));
+    printf("Size of Material: %zu bytes\n", sizeof(Material));
+    printf("Size of Light: %zu bytes\n", sizeof(Light));
+    printf("\n");
+    size_t totalSize = 0;
     totalSize += gpuScene.nbSpheres * sizeof(Sphere);
     printf("Size of spheres: %zu bytes. %2.2f gain compared to v1\n", gpuScene.nbSpheres * sizeof(Sphere), (1.f - (gpuScene.nbSpheres * sizeof(Sphere) / 38240.f)) * 100.f);
     totalSize += gpuScene.nbPlanes * sizeof(Plane);
@@ -302,7 +308,7 @@ CudaScene spheresScene(float4 sunDir)
     printf("Size of primitives: %zu bytes. %2.2f gain compared to v1\n", primitivesGPU.size() * sizeof(BaseObject), (1.f - (primitivesGPU.size() * sizeof(BaseObject) / 22992.f)) * 100.f);
     totalSize += gpuScene.bvhScene.getDeviceSize();
     printf("BVH size: %zu bytes. %2.2f gain compared to v1\n", gpuScene.bvhScene.getDeviceSize(), (1.f - (gpuScene.bvhScene.getDeviceSize() / 68928.f)) * 100.f);
-    printf("Total size of GPU data: %zu bytes. %2.2f gain compared to v1\n", totalSize, (1.f - (totalSize / 145732.f)) * 100.f);*/
+    printf("Total size of GPU data: %zu bytes. %2.2f gain compared to v1\n", totalSize, (1.f - (totalSize / 145732.f)) * 100.f);
     return gpuScene;
 }
 

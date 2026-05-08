@@ -4,6 +4,7 @@
 #include "../raytracingUtils/hitrecord.cuh"
 #include "triangle_mesh_geometry.cuh"
 #include "../materials/material.cuh"
+
 //pas besoin de triangle_mesh_geometry parce qu'on parcourt le bvh pour l'intersection
 struct TriangleMesh{
     BVH* bvhNodes;

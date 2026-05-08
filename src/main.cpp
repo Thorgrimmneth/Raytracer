@@ -52,7 +52,6 @@ namespace RT
 				return 0;
 			}
 		}
-
 		int			 temp_height  = int( width / aspect_ratio );
 		height	  = ( temp_height < 1 ) ? 1 : temp_height;
 

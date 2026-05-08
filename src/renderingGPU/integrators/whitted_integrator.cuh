@@ -3,7 +3,6 @@
 #include "../scene.cuh"
 #include "../raytracingUtils/ray.cuh"
 #include "../raytracingUtils/hitrecord.cuh"
-#include "direct_lighting_integrator.cuh"
 #include "../utils/cuda_defines.cuh"
 #include "../utils/rng.cuh"
 

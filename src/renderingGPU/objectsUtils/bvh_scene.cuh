@@ -8,26 +8,36 @@
 #include "../objects/triangle_mesh.cuh"
 
 struct Current{
-    int index;
+    uint32_t index;
     float distance;
 };
 
 struct BuildTask {
-    int nodeIndex;
-    int first;
-    int last;
-    int depth;
+    uint32_t nodeIndex;
+    uint32_t first;
+    uint32_t last;
+    uint8_t depth;
 };
 
 struct BVHSceneNode{
     AABB bbox;
-    int left = -1;
-    int right = -1;
-    int firstObjectIndex = -1;
-    int lastObjectIndex = -1;
+    uint32_t left;          // 4 bytes (bit 31 = leaf flag, bits 0-30 = left index)
+    uint32_t right;
+    uint32_t firstIdx;
+    uint32_t objectCount;
+    // uint32_t version
+    __device__ __forceinline__
+    bool isLeaf() const { return (left & 0x80000000u) != 0; }
+    
+    __device__ __forceinline__
+    uint32_t getLeftIndex() const { return left & 0x7FFFFFFFu; }
 
-    __device__
-    inline bool isLeaf() const { return ( left == -1); }
+    // uint16_t version
+    /*__device__ __forceinline__
+    bool isLeaf() const { return (left & 0x8000u) != 0; }
+    
+    __device__ __forceinline__
+    uint32_t getLeftIndex() const { return left & 0x7FFFu; }*/
 };
 
 struct BVHScene {
@@ -74,8 +84,8 @@ struct BVHScene {
 
             if (node.isLeaf())
             {
-                for(int i = node.firstObjectIndex;
-                    i < node.lastObjectIndex;
+                for(uint32_t i = node.firstIdx;
+                    i < node.firstIdx + node.objectCount;
                     ++i)
                 {
                     BaseObject& prim = d_primitives[d_indices[i]];
@@ -104,7 +114,7 @@ struct BVHScene {
             }
             else
             {
-                stack[stackPtr++] = node.left;
+                stack[stackPtr++] = node.getLeftIndex();
                 stack[stackPtr++] = node.right;
             }
         }

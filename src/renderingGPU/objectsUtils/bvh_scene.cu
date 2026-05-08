@@ -18,9 +18,9 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
         return scene;
 
     const int maxObjectsPerLeaf = 1;
-    const int maxDepth = 16;
-    const int BIN_COUNT = 16;
-
+    const uint8_t maxDepth = 16;
+    const uint8_t BIN_COUNT = 16;
+    
     std::vector<BVHSceneNode> nodes;
     nodes.reserve(primitives->size() * 2);
 
@@ -32,7 +32,7 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
     nodes.push_back(BVHSceneNode{});
 
     std::vector<BuildTask> stack;
-    stack.push_back({0, 0, (int)primitives->size(), 0});
+    stack.push_back({uint32_t(0), uint32_t(0), uint32_t(primitives->size()), uint8_t(0)});
 
     while (!stack.empty())
     {
@@ -41,8 +41,8 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
 
         int nodeIndex = task.nodeIndex;
 
-        nodes[nodeIndex].firstObjectIndex = task.first;
-        nodes[nodeIndex].lastObjectIndex  = task.last;
+        nodes[nodeIndex].firstIdx = task.first;
+        nodes[nodeIndex].objectCount = task.last - task.first;
 
         // ===== Compute bbox =====
         AABB bbox{};
@@ -54,7 +54,11 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
         int nbObjects = task.last - task.first;
 
         if (nbObjects <= maxObjectsPerLeaf || task.depth >= maxDepth)
+        {
+            //nodes[nodeIndex].left = 0x8000u;
+            nodes[nodeIndex].left = 0x80000000u;  // Mark as leaf (set bit 31)
             continue;
+        }
 
         // ===== Centroid bbox =====
         AABB centroidBBox{};
@@ -147,19 +151,19 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
         // ===== fallback =====
         if (bestAxis == -1)
         {
-            int mid = task.first + nbObjects / 2;
+            uint32_t mid = task.first + nbObjects / 2;
 
-            int leftIndex = nodes.size();
+            uint32_t leftIndex = nodes.size();
             nodes.push_back(BVHSceneNode{});
 
-            int rightIndex = nodes.size();
+            uint32_t rightIndex = nodes.size();
             nodes.push_back(BVHSceneNode{});
-
-            nodes[nodeIndex].left = leftIndex;
+            nodes[nodeIndex].left = leftIndex & 0x7FFFFFFFFu;
+            //nodes[nodeIndex].left = leftIndex & 0x7FFFu;  // non-leaf: store index in bits 0-30
             nodes[nodeIndex].right = rightIndex;
 
-            stack.push_back({rightIndex, mid, task.last, task.depth + 1});
-            stack.push_back({leftIndex, task.first, mid, task.depth + 1});
+            stack.push_back({rightIndex, mid, task.last, uint8_t(task.depth + 1)});
+            stack.push_back({leftIndex, task.first, mid, uint8_t(task.depth + 1)});
             continue;
         }
 
@@ -178,22 +182,27 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
             }
         );
 
-        int mid = midIter - indices.begin();
+        uint32_t mid = midIter - indices.begin();
 
         if (mid == task.first || mid == task.last)
+        {
+            nodes[nodeIndex].left = 0x80000000u;  // Mark as leaf (set bit 31)
+            //nodes[nodeIndex].left = 0x8000u;
             continue;
+        }
 
-        int leftIndex = nodes.size();
+        uint32_t leftIndex = nodes.size();
         nodes.push_back(BVHSceneNode{});
 
-        int rightIndex = nodes.size();
+        uint32_t rightIndex = nodes.size();
         nodes.push_back(BVHSceneNode{});
 
-        nodes[nodeIndex].left  = leftIndex;
+        nodes[nodeIndex].left = leftIndex & 0x7FFFFFFFu;   // non-leaf: store index in bits 0-30
+        //nodes[nodeIndex].left = leftIndex & 0x7FFFu;
         nodes[nodeIndex].right = rightIndex;
 
-        stack.push_back({rightIndex, mid, task.last, task.depth + 1});
-        stack.push_back({leftIndex,  task.first, mid, task.depth + 1});
+        stack.push_back({rightIndex, mid, task.last, uint8_t(task.depth + 1)});
+        stack.push_back({leftIndex,  task.first, mid, uint8_t(task.depth + 1)});
     }
 
     // ===== Upload indices =====
@@ -217,7 +226,7 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
     scene.d_primitives = nullptr;
     scene.nbObjects = primitives->size();
     scene.nbNodes   = nodes.size();
-
+    printf("Built BVH with %d nodes for %d objects\n", scene.nbNodes, scene.nbObjects);
     return scene;
 }
 
@@ -254,7 +263,7 @@ bool BVHScene::intersect(const Ray &ray,
 
         if (node.isLeaf())
         {
-            for (int i = node.firstObjectIndex; i < node.lastObjectIndex; ++i)
+            for (uint32_t i = node.firstIdx; i < node.firstIdx + node.objectCount; ++i)
             {
                 BaseObject& prim = d_primitives[d_indices[i]];
 
@@ -295,7 +304,8 @@ bool BVHScene::intersect(const Ray &ray,
         else
         {
             float dl, dr;
-            bool hl = d_nodes[node.left].bbox.intersectCheck(ray, tMin, tMax, dl);
+            uint32_t leftIdx = node.getLeftIndex();
+            bool hl = d_nodes[leftIdx].bbox.intersectCheck(ray, tMin, tMax, dl);
             bool hr = d_nodes[node.right].bbox.intersectCheck(ray, tMin, tMax, dr);
 
             if (hl && hr)
@@ -303,16 +313,16 @@ bool BVHScene::intersect(const Ray &ray,
                 if (dl < dr)
                 {
                     stack[stackPtr++] = {node.right, dr};
-                    stack[stackPtr++] = {node.left, dl};
+                    stack[stackPtr++] = {leftIdx, dl};
                 }
                 else
                 {
-                    stack[stackPtr++] = {node.left, dl};
+                    stack[stackPtr++] = {leftIdx, dl};
                     stack[stackPtr++] = {node.right, dr};
                 }
             }
             else if (hl)
-                stack[stackPtr++] = {node.left, dl};
+                stack[stackPtr++] = {leftIdx, dl};
             else if (hr)
                 stack[stackPtr++] = {node.right, dr};
         }
@@ -324,7 +334,13 @@ bool BVHScene::intersect(const Ray &ray,
 size_t BVHScene::getDeviceSize() const
 {
     size_t size = 0;
-    size += nbNodes * sizeof(BVHSceneNode);
-    size += nbObjects * sizeof(int); // d_indices
+    
+    size_t nodesSize = (size_t)nbNodes * sizeof(BVHSceneNode);
+    size += nodesSize;
+    
+    // Indices array: one int per primitive
+    size_t indicesSize = (size_t)nbObjects * sizeof(int);
+    size += indicesSize;
+    
     return size;
 }
