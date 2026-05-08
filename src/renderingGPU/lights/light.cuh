@@ -8,7 +8,7 @@
 
 struct CudaScene;
 
-enum LightType : uint32_t
+enum LightType : uint8_t
 {
     POINT = 0,
     CYLINDER,

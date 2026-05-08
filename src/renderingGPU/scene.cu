@@ -142,11 +142,7 @@ CudaScene spheresScene(float4 sunDir)
         materialsGPU.push_back(ground);
         p.materialIndex = materialsGPU.size() - 1;
 
-        AABB bbox;
-        bbox.min = make_float4(-1e3f, 0.f, -1e3f, 0.f);
-        bbox.max = make_float4(1e3f, 0.f, 1e3f, 0.f);
-
-        primitivesGPU.push_back(BaseObject{bbox, ObjectType::PLANE, (int)planesGPU.size()});
+        primitivesGPU.push_back(BaseObject{make_float3(-1e3f, 0.f, -1e3f), make_float3(1e3f, 0.f, 1e3f),ObjectType::PLANE, (int)planesGPU.size()});
         planesGPU.push_back(p);
     }
 
@@ -221,16 +217,13 @@ CudaScene spheresScene(float4 sunDir)
 
             // ===== AABB =====
             float3 r = make_float3(s.radius);
-            AABB box;
-            box.min = toFloat4(center - r);
-            box.max = toFloat4(center + r);
 
             primitivesGPU.push_back(BaseObject{
-                box,
+                center - r,
+                center + r,
                 ObjectType::SPHERE,
                 (int)spheresGPU.size()
             });
-            s.base = &primitivesGPU.back();
             spheresGPU.push_back(s);
         }
     }
@@ -245,12 +238,10 @@ CudaScene spheresScene(float4 sunDir)
         s.materialIndex = matIndex;
 
         float3 r = make_float3(radius);
-        AABB box;
-        box.min = toFloat4(center - r);
-        box.max = toFloat4(center + r);
 
         primitivesGPU.push_back(BaseObject{
-            box,
+            center - r,
+            center + r,
             ObjectType::SPHERE,
             (int)spheresGPU.size()
         });
@@ -261,7 +252,6 @@ CudaScene spheresScene(float4 sunDir)
 		if (mat.type() == MaterialType::EMISSIVE)
 		{
 			Light l;
-            l.direction = make_float4(0.f, 0.f, 0.f, 0.f);
 			l.metadata = Light::packMetadata(LightType::SPHERE_GEOM, spheresGPU.size() - 1);
 			lightsGPU.push_back(l);
 		}

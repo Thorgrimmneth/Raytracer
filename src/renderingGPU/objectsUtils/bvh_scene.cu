@@ -47,7 +47,10 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
         // ===== Compute bbox =====
         AABB bbox{};
         for (int i = task.first; i < task.last; ++i)
-            bbox.extend((*primitives)[indices[i]].bbox);
+        {
+            bbox.extend((*primitives)[indices[i]].getMin());
+            bbox.extend((*primitives)[indices[i]].getMax());
+        }
 
         nodes[nodeIndex].bbox = bbox;
 
@@ -63,7 +66,12 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
         // ===== Centroid bbox =====
         AABB centroidBBox{};
         for (int i = task.first; i < task.last; ++i)
-            centroidBBox.extend((*primitives)[indices[i]].bbox.centroid());
+        {
+            AABB tempBox{};
+            tempBox.min = make_float4((*primitives)[indices[i]].getMin(), 0.0f);
+            tempBox.max = make_float4((*primitives)[indices[i]].getMax(), 0.0f);
+            centroidBBox.extend(tempBox.centroid());
+        }
 
         float bestCost = std::numeric_limits<float>::max();
         int bestAxis = -1;
@@ -88,14 +96,17 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
             // Fill bins
             for (int i = task.first; i < task.last; i++)
             {
+                AABB tempBox{};
+                tempBox.min = make_float4((*primitives)[indices[i]].getMin(), 0.0f);
+                tempBox.max = make_float4((*primitives)[indices[i]].getMax(), 0.0f);
                 float centroid =
-                    getAxis((*primitives)[indices[i]].bbox.centroid(), axis);
+                    getAxis(tempBox.centroid(), axis);
 
                 int binId = int(BIN_COUNT * (centroid - cmin) / extent);
                 binId = std::min(BIN_COUNT - 1, std::max(0, binId));
 
                 bins[binId].count++;
-                bins[binId].bbox.extend((*primitives)[indices[i]].bbox);
+                bins[binId].bbox.extend(tempBox);
             }
 
             // Prefix
@@ -178,7 +189,10 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
             indices.begin() + task.last,
             [&](int idx)
             {
-                return getAxis((*primitives)[idx].bbox.centroid(), bestAxis) < splitPos;
+                AABB tempBox{};
+                tempBox.min = make_float4((*primitives)[idx].getMin(), 0.0f);
+                tempBox.max = make_float4((*primitives)[idx].getMax(), 0.0f);
+                return getAxis(tempBox.centroid(), bestAxis) < splitPos;
             }
         );
 
@@ -267,35 +281,35 @@ bool BVHScene::intersect(const Ray &ray,
             {
                 BaseObject& prim = d_primitives[d_indices[i]];
 
-                switch (prim.type)
+                switch (prim.getType())
                 {
-                    case SPHERE:
-                        if (d_spheres[prim.index].intersect(ray, tMin, tMax, hit))
+                    case ObjectType::SPHERE:
+                        if (d_spheres[prim.getIndex()].intersect(ray, tMin, tMax, hit))
                         {
                             tMax = hit.distance;
                             hitSomething = true;
                             hit.objectType = HIT_SPHERE;
-                            hit.objectIndex = prim.index;
+                            hit.objectIndex = prim.getIndex();
                         }
                         break;
 
-                    case PLANE:
-                        if (d_planes[prim.index].intersect(ray, tMin, tMax, hit))
+                    case ObjectType::PLANE:
+                        if (d_planes[prim.getIndex()].intersect(ray, tMin, tMax, hit))
                         {
                             tMax = hit.distance;
                             hitSomething = true;
                             hit.objectType = HIT_PLANE;
-                            hit.objectIndex = prim.index;
+                            hit.objectIndex = prim.getIndex();
                         }
                         break;
 
-                    case TRIANGLE:
-                        if (d_meshes[prim.index].intersect(ray, tMin, tMax, hit))
+                    case ObjectType::TRIANGLE:
+                        if (d_meshes[prim.getIndex()].intersect(ray, tMin, tMax, hit))
                         {
                             tMax = hit.distance;
                             hitSomething = true;
                             hit.objectType = HIT_TRIANGLE_MESH;
-                            hit.objectIndex = prim.index;
+                            hit.objectIndex = prim.getIndex();
                         }
                         break;
                 }
