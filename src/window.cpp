@@ -20,6 +20,15 @@ Window::Window(int p_width, int p_height)
 {
 }
 
+Window::~Window()
+{
+    if (image)
+    {
+        delete[] image;
+        image = nullptr;
+    }
+}
+
 GLuint Window::createShader(GLenum type, const char* source)
 {
     GLuint shader = glCreateShader(type);
@@ -274,7 +283,7 @@ unsigned char* Window::cumulativeRendering(
         const GLFWvidmode* mode =
             glfwGetVideoMode(monitors[i]);
 
-        if (mode->refreshRate >= 165)
+        if (mode->width > 1920)
         {
             targetMonitor = monitors[i];
             break;
@@ -402,6 +411,9 @@ unsigned char* Window::cumulativeRendering(
     initTexture(width, height);
     initQuad();
 
+    // Allocate image buffer for RGB data
+    image = new unsigned char[width * height * 3];
+
     glClearColor(
         0.f,
         0.f,
@@ -466,6 +478,11 @@ unsigned char* Window::cumulativeRendering(
         }
     }
 
+    // Read the final rendered image from the texture
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
     cudaGraphicsUnregisterResource(
         cudaTextureResource
     );
@@ -482,7 +499,7 @@ unsigned char* Window::cumulativeRendering(
 
     glfwTerminate();
 
-    return nullptr;
+    return image;
 }
 
 } // namespace RT

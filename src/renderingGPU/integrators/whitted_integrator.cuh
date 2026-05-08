@@ -5,6 +5,7 @@
 #include "../raytracingUtils/hitrecord.cuh"
 #include "direct_lighting_integrator.cuh"
 #include "../utils/cuda_defines.cuh"
+#include "../utils/rng.cuh"
 
 struct WhittedIntegrator
 {
@@ -14,7 +15,7 @@ struct WhittedIntegrator
         const Ray &primaryRay,
         const float tMin,
         const float tMax,
-        curandState *rng);
+        RNG *rng);
 
     __device__ static float3 toneMap(const float3 &c);
 

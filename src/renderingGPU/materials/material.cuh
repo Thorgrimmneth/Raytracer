@@ -5,7 +5,7 @@
 #include "../raytracingUtils/hitrecord.cuh"
 #include "../lights/lightsample.cuh"
 #include "../utils/cuda_defines.cuh"
-#include <curand_kernel.h>
+#include "../utils/rng.cuh"
 
 enum MaterialType
 {
@@ -88,8 +88,7 @@ struct Material
     inline float3 evaluateLambert() const;
 
     __device__
-    float3 samplingLambert(const float3 normal, curandState* rngStates) const;
-
+    float3 samplingLambert(const float3 normal, RNG* rngStates) const;
     __device__
     float pdfLambert(const float3 normal, const float3 direction) const;
 
@@ -110,7 +109,7 @@ struct Material
     inline float3 evaluateGGX(const float3 &wo, const float3 &normal, const float3 &wi, const float3 &F0) const;
 
     __device__ 
-    float3 samplingGGX(const float3 &wo, const float3 &normal, curandState* rngStates) const;
+    float3 samplingGGX(const float3 &wo, const float3 &normal, RNG* rngStates) const;
 
     __device__ 
     float pdfGGX(const float3 n, const float3 direction, const float3 wo) const;
@@ -127,14 +126,14 @@ struct Material
     BSDFVal getBSDF(
         const Ray &ray,
         const HitRecord &hit,
-        curandState* rngStates,
+        RNG* rngStates,
         bool &isInside) const;
 
     __device__
     BSDFVal getBSDF(
         const Ray &ray,
         const HitRecord &hit,
-    curandState* rngStates) const;
+        RNG* rngStates) const;
 
     __device__
     float3 evalBSDF(

@@ -1,14 +1,13 @@
 #include "../scene.cuh"
 #include "light.cuh"
-#include <curand_kernel.h>
 
 
 __device__
 	LightSample
-	Light::sampleCylinder(const float3 &p_point, curandState *rng) const
+	Light::sampleCylinder(const float3 &p_point, RNG *rng) const
 {
-	float u = curand_uniform(rng);
-	float v = curand_uniform(rng);
+	float u = rng->nextFloat();
+	float v = rng->nextFloat();
 
 	float3 uVec = normalize(cross(direction, make_float3(1.f, 0.f, 0.f)));
 	if (length(uVec) < 1e-3f)
@@ -83,9 +82,9 @@ __device__
 
 __device__
 	LightSample
-	Light::sampleQuad(const float3 &p_point, curandState *rng) const
+	Light::sampleQuad(const float3 &p_point, RNG *rng) const
 {
-	float3 randomPos = position + curand_uniform(rng) * u + curand_uniform(rng) * v;
+	float3 randomPos = position + rng->nextFloat() * u + rng->nextFloat() * v;
 	float3 direction = normalize(randomPos - p_point);
 	float dist = distance(p_point, randomPos);
 	float cosTheta = dot(normal, -direction);
@@ -109,12 +108,12 @@ __device__
 
 __device__
 	LightSample
-	Light::sampleCone(const float3 &p_point, curandState *rng) const
+	Light::sampleCone(const float3 &p_point, RNG *rng) const
 {
 	float sunAngularRadius = 3.f * GPUPIf / 180.f;
 
-	float u1 = curand_uniform(rng);
-	float u2 = curand_uniform(rng);
+	float u1 = rng->nextFloat();
+	float u2 = rng->nextFloat();
 
 	float cosTheta = 1.0f - u1 * (1.0f - cosf(sunAngularRadius));
 	float sinTheta = sqrtf(1.0f - cosTheta * cosTheta);
@@ -143,14 +142,14 @@ __device__
 
 __device__
 	LightSample
-	Light::sampleSphereGeom(const float3 &p_point, curandState *rng, const CudaScene& scene) const
+	Light::sampleSphereGeom(const float3 &p_point, RNG *rng, const CudaScene& scene) const
 {
 	const Sphere& s = scene.spheres[geomIndex];
     const Material& m = scene.materials[s.materialIndex];
 
-    float z = 1.f - 2.f * curand_uniform(rng);
+    float z = 1.f - 2.f * rng->nextFloat();
     float r = sqrtf(max(0.f, 1.f - z*z));
-    float phi = 2.f * M_PI * curand_uniform(rng);
+    float phi = 2.f * M_PI * rng->nextFloat();
 
     float3 n = make_float3(r*cos(phi), r*sin(phi), z);
 
@@ -180,7 +179,7 @@ __device__
 
 __device__
 LightSample
-Light::sampleMeshGeom(const float3 &p_point, curandState *rng, const CudaScene& scene) const
+Light::sampleMeshGeom(const float3 &p_point, RNG *rng, const CudaScene& scene) const
 {
     const TriangleMesh& mesh = scene.triangleMeshes[geomIndex];
     const Material& m = scene.materials[mesh.materialIndex];
@@ -189,7 +188,7 @@ Light::sampleMeshGeom(const float3 &p_point, curandState *rng, const CudaScene& 
     if (mesh.triangleCount == 0 || mesh.meshArea <= 0.f)
         return ls;
 
-    float sampleArea = curand_uniform(rng) * mesh.meshArea;
+    float sampleArea = rng->nextFloat() * mesh.meshArea;
     int triIndex = 0;
     while (triIndex < mesh.triangleCount - 1 && mesh.triangleAreaCdf[triIndex] < sampleArea)
         ++triIndex;
@@ -201,8 +200,8 @@ Light::sampleMeshGeom(const float3 &p_point, curandState *rng, const CudaScene& 
     float3 v1 = vertices[tri.i1];
     float3 v2 = vertices[tri.i2];
 
-    float u = curand_uniform(rng);
-    float v = curand_uniform(rng);
+    float u = rng->nextFloat();
+    float v = rng->nextFloat();
 
     if (u + v > 1.f)
     {
@@ -235,7 +234,7 @@ Light::sampleMeshGeom(const float3 &p_point, curandState *rng, const CudaScene& 
 
 __device__
 LightSample
-Light::sample(const float3& p_point, curandState *rng, const CudaScene& scene) const
+Light::sample(const float3& p_point, RNG *rng, const CudaScene& scene) const
 {
 	switch(type)
 	{
@@ -250,7 +249,7 @@ Light::sample(const float3& p_point, curandState *rng, const CudaScene& scene) c
 
 __device__
 	LightSample
-	Light::sample(const float3 &p_point, curandState *rng) const
+	Light::sample(const float3 &p_point, RNG *rng) const
 {
 	switch (type)
 	{

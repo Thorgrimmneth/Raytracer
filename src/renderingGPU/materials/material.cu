@@ -45,10 +45,10 @@ inline float3 Material::evaluateLambert() const
 }
 
 __device__
-float3 Material::samplingLambert(const float3 normal, curandState* rngStates) const
+float3 Material::samplingLambert(const float3 normal, RNG* rngStates) const
 {
-    float e1  = curand_uniform(rngStates);
-    float e2  = curand_uniform(rngStates);
+    float e1  = rngStates->nextFloat();
+    float e2  = rngStates->nextFloat();
     float r   = sqrtf(e1);
     float phi = 2.f * GPUPIf * e2;
     float x   = r * cosf(phi);
@@ -139,7 +139,7 @@ inline float3 Material::evaluateGGX(
 __device__
 float3 Material::samplingGGX(
     const float3& wo, const float3& normal,
-    curandState* rngStates) const
+    RNG* rngStates) const
 {   
     float roughness = this->roughness();
     float alpha = roughness * roughness;
@@ -157,8 +157,8 @@ float3 Material::samplingGGX(
         : make_float3(1.f, 0.f, 0.f);
     float3 T2 = cross(V, T1);
 
-    float e1  = curand_uniform(rngStates);
-    float e2  = curand_uniform(rngStates);
+    float e1  = rngStates->nextFloat();
+    float e2  = rngStates->nextFloat();
     float r   = sqrtf(e1);
     float phi = 2.f * GPUPIf * e2;
 
@@ -222,7 +222,7 @@ __device__
 BSDFVal Material::getBSDF(
     const Ray&      ray,
     const HitRecord& hit,
-    curandState*    rngStates,
+    RNG*    rngStates,
     bool&           isInside) const
 {
     float3   normal = normalize(hit.normal);
@@ -265,7 +265,7 @@ BSDFVal Material::getBSDF(
         float3 F        = fresnelSchlick(cosTheta, F0);
         float  specW    = (F.x + F.y + F.z) / 3.f;
 
-        if (curand_uniform(rngStates) < specW) {
+        if (rngStates->nextFloat() < specW) {
             bsdf.direction = samplingGGX(wo, normal, rngStates);
             if (dot(normal, bsdf.direction) <= 0.f) {
                 bsdf.pdf  = 0.f;
@@ -329,7 +329,7 @@ BSDFVal Material::getBSDF(
         rp *= rp;
 
         float reff = 0.5f * (rs + rp);
-        float xi   = curand_uniform(rngStates);
+        float xi   = rngStates->nextFloat();
 
         if (xi < reff) {
             // Reflection branch

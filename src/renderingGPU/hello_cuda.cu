@@ -49,8 +49,6 @@ public:
 
     unsigned char* d_finalBuffer = nullptr;
 
-    curandState* d_rngStates = nullptr;
-
     dim3 blockSize = dim3(16, 16);
 
     dim3 gridSize;
@@ -160,9 +158,9 @@ __global__
 void renderKernel(
     CudaScene gpuScene,
     float3* d_accumBuffer,
-    curandState* rngStates,
     int width,
-    int height)
+    int height,
+    int sampleCount)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -170,12 +168,13 @@ void renderKernel(
     if (x >= width || y >= height) return;
 
     int pixelIndex = y * width + x;
-    curandState localState = rngStates[pixelIndex];
+    uint seed = pixelIndex ^ (sampleCount * 0x9E3779B9u);
+    RNG localState(seed);
 
     float3 finalColor = make_float3(0.f);
 
-    float sx = (x + curand_uniform(&localState)) / (float)(width  - 1);
-    float sy = (y + curand_uniform(&localState)) / (float)(height - 1);
+    float sx = (x + localState.nextFloat()) / (float)(width  - 1);
+    float sy = (y + localState.nextFloat()) / (float)(height - 1);
 
     float3 rayTarget = toFloat3(camera.topLeft + sx * camera.viewPortU - sy * camera.viewPortV);
     float3 direction = normalize(rayTarget - toFloat3(camera.cameraPos));
@@ -184,8 +183,6 @@ void renderKernel(
     finalColor += WhittedIntegrator::lighting(gpuScene, ray, 0, 1e20f, &localState);
 
     d_accumBuffer[pixelIndex] += finalColor;
-
-    rngStates[pixelIndex] = localState;
 }
 
 __global__
@@ -513,22 +510,11 @@ void Renderer::init(
     // RNG
     // =========================
 
-    cudaMalloc(
-        &impl->d_rngStates,
-        impl->width * impl->height * sizeof(curandState)
-    );
-
     impl->blockSize = dim3(16, 16);
 
     impl->gridSize = dim3(
         (impl->width + impl->blockSize.x - 1) / impl->blockSize.x,
         (impl->height + impl->blockSize.y - 1) / impl->blockSize.y
-    );
-
-    initRNG<<<impl->gridSize, impl->blockSize>>>(
-        impl->d_rngStates,
-        impl->width,
-        impl->height
     );
 
     // =========================
@@ -630,8 +616,6 @@ void Renderer::cleanup()
 
     cudaFree(impl->d_finalBuffer);
 
-    cudaFree(impl->d_rngStates);
-
     cudaFree(impl->d_lvl1);
 
     cudaFree(impl->d_lvl2);
@@ -647,9 +631,9 @@ void Renderer::renderFrame()
     renderKernel<<<impl->gridSize, impl->blockSize>>>(
         impl->gpuScene,
         impl->d_accumBuffer,
-        impl->d_rngStates,
         impl->width,
-        impl->height
+        impl->height,
+        impl->sampleCount
     );
 
     cudaError_t err = cudaGetLastError();

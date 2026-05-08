@@ -3,10 +3,7 @@
 #include "lightsample.cuh"
 #include "../utils/cuda_defines.cuh"
 #include "../utils/op.cuh"
-
-#ifdef __CUDACC__
-#include <curand_kernel.h>
-#endif
+#include "../utils/rng.cuh"
 
 struct CudaScene;
 
@@ -37,15 +34,15 @@ struct Light
     float3 normal;
     int geomIndex;
 
-    __device__ LightSample sampleSphereGeom(const float3&p_point, curandState *rng, const CudaScene& scene) const;
-    __device__ LightSample samplePlaneGeom(const float3&p_point, curandState *rng, const CudaScene& scene) const;
-    __device__ LightSample sampleMeshGeom(const float3&p_point, curandState *rng, const CudaScene& scene) const;
-    __device__ LightSample sampleCylinder(const float3&p_point, curandState *rng) const;
+    __device__ LightSample sampleSphereGeom(const float3&p_point, RNG *rng, const CudaScene& scene) const;
+    __device__ LightSample samplePlaneGeom(const float3&p_point, RNG *rng, const CudaScene& scene) const;
+    __device__ LightSample sampleMeshGeom(const float3&p_point, RNG *rng, const CudaScene& scene) const;
+    __device__ LightSample sampleCylinder(const float3&p_point, RNG *rng) const;
     __device__ LightSample sampleDirectionnal(const float3&p_point) const;
     __device__ LightSample samplePoint(const float3&p_point) const;
-    __device__ LightSample sampleCone(const float3& p_point, curandState *rng) const;
-    __device__ LightSample sampleQuad(const float3&, curandState*) const;
-    __device__ LightSample sample(const float3& p_point, curandState *rng, const CudaScene& scene) const;
-    __device__ LightSample sample(const float3&, curandState*) const;
+    __device__ LightSample sampleCone(const float3& p_point, RNG *rng) const;
+    __device__ LightSample sampleQuad(const float3&, RNG*) const;
+    __device__ LightSample sample(const float3& p_point, RNG *rng, const CudaScene& scene) const;
+    __device__ LightSample sample(const float3&, RNG*) const;
     __device__ LightSample sample(const float3&) const;
 };

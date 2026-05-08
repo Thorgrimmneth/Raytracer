@@ -13,7 +13,7 @@ namespace RT
     {
       public:
         Window() = delete;
-        ~Window() = default;
+        ~Window();
         Window(int width, int height);
         unsigned char* cumulativeRendering(Vec3f sunDir, int width, int height);
 

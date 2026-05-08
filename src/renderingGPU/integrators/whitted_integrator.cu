@@ -8,7 +8,7 @@ float3 WhittedIntegrator::lighting(
         const Ray &primaryRay,
         const float tMin,
         const float tMax,
-        curandState *rng)
+        RNG *rng)
 {
     float3 finalColor = make_float3(0.f);
 
@@ -61,7 +61,7 @@ float3 WhittedIntegrator::lighting(
             throughput *= bsdf.brdf;
         }
         else{
-            int lightIndex = int(curand_uniform(rng) * scene.nbLights);
+            int lightIndex = int(rng->nextFloat() * scene.nbLights);
             lightIndex = min(lightIndex, scene.nbLights - 1);
 
             const Light& light = scene.lights[lightIndex];
@@ -102,7 +102,7 @@ float3 WhittedIntegrator::lighting(
             float p = fmaxf(throughput.x, fmaxf(throughput.y, throughput.z));
             p = clamp(p, 0.05f, 0.95f);
 
-            if (curand_uniform(rng) > p)
+            if (rng->nextFloat() > p)
                 break;
 
             throughput /= p;

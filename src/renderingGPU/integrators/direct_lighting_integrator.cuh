@@ -3,6 +3,8 @@
 #include "../scene.cuh"
 #include "../raytracingUtils/ray.cuh"
 #include "../raytracingUtils/hitrecord.cuh"
+#include "../utils/cuda_defines.cuh"
+#include "../utils/rng.cuh"
 
 struct DirectLightingIntegrator
 {
@@ -14,5 +16,5 @@ struct DirectLightingIntegrator
 					   const HitRecord &p_hitRecord,
 					   const float p_tMin,
 					   const float p_tMax,
-					   curandState *rng);
+					   RNG *rng);
 };
