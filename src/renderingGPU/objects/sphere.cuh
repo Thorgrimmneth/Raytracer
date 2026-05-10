@@ -2,7 +2,7 @@
 
 #include "../raytracingUtils/ray.cuh"
 #include "../raytracingUtils/hitrecord.cuh"
-#include "base_object.cuh"
+
 struct Sphere{
     float3 center1;
     float radius;

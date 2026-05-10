@@ -70,11 +70,10 @@ float3 WhittedIntegrator::lighting(
             if (ls.pdf > 0.f)
             {
                 float3 shadowOrigin = hit.point + hit.normal * 1e-3f;
-                Ray shadowRay(shadowOrigin, ls.direction);
+                Ray shadowRay(shadowOrigin, ls.direction, ray.time);
 
                 if (!scene.intersectAny(shadowRay, 1e-3f, ls.distance - 1e-3f))
                 {
-
                     float cosTheta = fmaxf(dot(hit.normal, ls.direction), 0.0f);
 
                     if (cosTheta > 0.f)

@@ -285,6 +285,76 @@ Light::sampleSphereGeom(
 
 __device__
 LightSample
+Light::sampleImplicitSphereGeom(
+    const float3& p_point,
+    RNG* rng,
+    const CudaScene& scene
+) const
+{
+    const ImplicitSphere& s =
+        scene.implicitSpheres[getGeomIndex()];
+
+    const Material& m =
+        scene.materials[s.materialIndex];
+
+    float z =
+        1.f - 2.f * rng->nextFloat();
+
+    float r =
+        sqrtf(max(0.f, 1.f - z * z));
+
+    float phi =
+        2.f * GPUPIf * rng->nextFloat();
+
+    float3 n =
+        make_float3(
+            r * cosf(phi),
+            r * sinf(phi),
+            z
+        );
+
+    float3 p =
+        s.center1 + s.radius * n;
+
+    float3 wi =
+        normalize(p - p_point);
+
+    float dist2 =
+        length2(p - p_point);
+
+    LightSample ls{};
+
+    float cosThetaLight =
+        max(dot(n, -wi), 0.f);
+
+    if (cosThetaLight <= 0.f)
+        return ls;
+
+    float area =
+        4.f * GPUPIf *
+        s.radius * s.radius;
+
+    float pdf_area =
+        1.f / area;
+
+    float pdf =
+        pdf_area *
+        dist2 /
+        cosThetaLight;
+
+    ls.direction = wi;
+    ls.distance = sqrtf(dist2);
+    ls.radiance =
+        m.color() * m.intensity();
+
+    ls.pdf = pdf;
+    ls.normal = n;
+
+    return ls;
+}
+
+__device__
+LightSample
 Light::sampleMeshGeom(
     const float3& p_point,
     RNG* rng,
@@ -387,8 +457,15 @@ Light::sample(
 {
     switch (getType())
     {
-        case SPHERE_GEOM:
+            case SPHERE_GEOM:
             return sampleSphereGeom(
+                p_point,
+                rng,
+                scene
+            );
+
+        case IMPLICIT_SPHERE_GEOM:
+            return sampleImplicitSphereGeom(
                 p_point,
                 rng,
                 scene

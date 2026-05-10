@@ -6,6 +6,7 @@
 #include "materials/material.cuh"
 #include "objectsUtils/aabb.cuh"
 #include "objectsUtils/bvh_scene.cuh"
+#include "objects/implicitSphere.cuh"
 
 struct Light;
 
@@ -15,6 +16,7 @@ struct CudaScene
     Sphere *spheres;
     Plane *planes;
     TriangleMesh *triangleMeshes;
+    ImplicitSphere *implicitSpheres;
     Material *materials;
     BaseObject *primitives;
     Light *lights;
@@ -25,13 +27,15 @@ struct CudaScene
     int nbTriangleMeshes;
     int nbMaterials;
     int nbLights;
+    int nbImplicitSpheres;
 
     __host__ void uploadObjects(
         std::vector<Sphere> spheresGPU,
         std::vector<Plane> planesGPU,
         std::vector<TriangleMesh> triangleMeshesGPU,
         std::vector<float3> verticesGPU,
-        std::vector<BaseObject> primitivesGPU);
+        std::vector<BaseObject> primitivesGPU,
+        std::vector<ImplicitSphere> implicitSpheresGPU);
 
     __host__ void uploadLights(
         std::vector<Light> lightsGPU);
@@ -49,4 +53,8 @@ struct CudaScene
 
 };
 
+void sceneSize();
+
 CudaScene spheresScene(float4 sunDir);
+
+CudaScene implicitSpheresScene(float4 sunDir);

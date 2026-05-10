@@ -10,7 +10,8 @@ __host__
 BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
                                  std::vector<Sphere>* spheres,
                                  std::vector<Plane>* planes,
-                                 std::vector<TriangleMesh>* meshes)
+                                 std::vector<TriangleMesh>* meshes,
+                                 std::vector<ImplicitSphere>* implicitSpheres)
 {
     BVHScene scene{};
 
@@ -312,6 +313,14 @@ bool BVHScene::intersect(const Ray &ray,
                             hit.objectIndex = prim.getIndex();
                         }
                         break;
+                    case ObjectType::IMPLICIT_SPHERE:
+                        if (d_implicitSpheres[prim.getIndex()].intersect(ray, tMin, tMax, hit))
+                        {
+                            tMax = hit.distance;
+                            hitSomething = true;
+                            hit.objectType = HIT_SPHERE_IMPLICIT;
+                            hit.objectIndex = prim.getIndex();
+                        }
                 }
             }
         }

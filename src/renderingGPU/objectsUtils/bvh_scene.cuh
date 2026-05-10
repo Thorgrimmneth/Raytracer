@@ -6,6 +6,8 @@
 #include "../objects/plane.cuh"
 #include "../materials/material.cuh"
 #include "../objects/triangle_mesh.cuh"
+#include "../objects/implicitSphere.cuh"
+#include "../objects/base_object.cuh"
 
 struct Current{
     uint32_t index;
@@ -49,12 +51,13 @@ struct BVHScene {
     Sphere* d_spheres;
     Plane* d_planes;
     TriangleMesh* d_meshes;
+    ImplicitSphere* d_implicitSpheres;
     int nbNodes;
     int nbObjects;
 
     
     __host__
-    static BVHScene buildBVHScene(std::vector<BaseObject>* primitives,std::vector<Sphere>* spheres,std::vector<Plane>* planes,std::vector<TriangleMesh>* meshes);
+    static BVHScene buildBVHScene(std::vector<BaseObject>* primitives,std::vector<Sphere>* spheres,std::vector<Plane>* planes,std::vector<TriangleMesh>* meshes, std::vector<ImplicitSphere>* implicitSpheres);
 
     __host__
     size_t getDeviceSize() const;
@@ -107,6 +110,11 @@ struct BVHScene {
                         case ObjectType::TRIANGLE:
                             if(materials[d_meshes[prim.getIndex()].materialIndex].type() == MaterialType::TRANSPARENT) continue;
                             if(d_meshes[prim.getIndex()].intersectAny(ray, tMin, tMax, materials))
+                                return true;
+                            break;
+                        case ObjectType::IMPLICIT_SPHERE:
+                            if(materials[d_implicitSpheres[prim.getIndex()].materialIndex].type() == MaterialType::TRANSPARENT) continue;
+                            if(d_implicitSpheres[prim.getIndex()].intersectAny(ray, tMin, tMax))
                                 return true;
                             break;
                     }

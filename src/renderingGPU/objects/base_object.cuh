@@ -5,7 +5,7 @@ enum ObjectType : uint32_t{
     SPHERE,
     TRIANGLE,
     PLANE,
-    IMPLICIT
+    IMPLICIT_SPHERE
 };
 
 struct DataMin{

@@ -466,8 +466,8 @@ void Renderer::init(
 
     RT::setSeed(42);
 
-    impl->gpuScene = spheresScene(sunDir);
-
+    //impl->gpuScene = spheresScene(sunDir);
+    impl->gpuScene = implicitSpheresScene(sunDir);
     impl->hdrBufferSize =
         impl->width * impl->height * sizeof(float3);
 

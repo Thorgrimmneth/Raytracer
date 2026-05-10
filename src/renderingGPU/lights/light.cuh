@@ -16,6 +16,7 @@ enum LightType : uint8_t
     QUAD,
     SUN,
     SPHERE_GEOM,
+    IMPLICIT_SPHERE_GEOM,
     PLANE_GEOM,
     MESH_GEOM
 };
@@ -122,6 +123,13 @@ struct alignas(16) Light
 
     __device__
     LightSample sampleSphereGeom(
+        const float3& p_point,
+        RNG* rng,
+        const CudaScene& scene
+    ) const;
+
+    __device__
+    LightSample sampleImplicitSphereGeom(
         const float3& p_point,
         RNG* rng,
         const CudaScene& scene
