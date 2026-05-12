@@ -17,6 +17,7 @@ float3 WhittedIntegrator::lighting(
     bool isInside = false;
     bool lastBounceWasDelta = true;
     float lastBsdfPdf = 1.f;
+    
     for (int depth = 0; depth < nbBounces; depth++)
     {
         HitRecord hit;
@@ -26,7 +27,6 @@ float3 WhittedIntegrator::lighting(
             finalColor += throughput * getSkyColor(ray);
             break;
         }
-
         const Material &mtl = scene.materials[hit.materialIndex];
         if(mtl.type() == MaterialType::EMISSIVE)
         {

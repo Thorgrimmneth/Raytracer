@@ -32,7 +32,7 @@ float ImplicitSphere::sdf(const float3 & point, const double time = 0) const
         const float threshold = 1e-4f;
         const float minStep = 1e-4f;
 
-        for(int i = 0; i < 64; i++)
+        for(int i = 0; i < 48; i++)
         {
             if(t >= p_tMax) return false;
 
@@ -61,7 +61,7 @@ float ImplicitSphere::sdf(const float3 & point, const double time = 0) const
         const float threshold = 1e-4f;
         const float minStep = 1e-4f;
 
-        for(int i = 0; i < 64; ++i)
+        for(int i = 0; i < 48; ++i)
         {
             if(t >= p_tMax)
                 return false;

@@ -266,7 +266,6 @@ bool BVHScene::intersect(const Ray &ray,
         return false;
 
     stack[stackPtr++] = {0, dist};
-
     while (stackPtr > 0)
     {
         Current current = stack[--stackPtr];
@@ -275,7 +274,7 @@ bool BVHScene::intersect(const Ray &ray,
             continue;
 
         const BVHSceneNode& node = d_nodes[current.index];
-
+        
         if (node.isLeaf())
         {
             for (uint32_t i = node.firstIdx; i < node.firstIdx + node.objectCount; ++i)
@@ -330,7 +329,6 @@ bool BVHScene::intersect(const Ray &ray,
             uint32_t leftIdx = node.getLeftIndex();
             bool hl = d_nodes[leftIdx].bbox.intersectCheck(ray, tMin, tMax, dl);
             bool hr = d_nodes[node.right].bbox.intersectCheck(ray, tMin, tMax, dr);
-
             if (hl && hr)
             {
                 if (dl < dr)

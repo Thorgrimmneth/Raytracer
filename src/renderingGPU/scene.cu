@@ -1,5 +1,9 @@
 #include "lights/light.cuh"
 #include "scene.cuh"
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+#include "objectsUtils/bvh.cuh"
 
 __device__ bool CudaScene::intersect(const Ray &p_ray, const float p_tMin, const float p_tMax, HitRecord &p_hitRecord) const
 {
@@ -23,7 +27,6 @@ void CudaScene::uploadObjects(
     std::vector<Sphere> spheresGPU,
     std::vector<Plane> planesGPU,
     std::vector<TriangleMesh> triangleMeshesGPU,
-    std::vector<float3> verticesGPU,
     std::vector<BaseObject> primitivesGPU,
     std::vector<ImplicitSphere> implicitSpheresGPU)
 {
@@ -260,7 +263,7 @@ float CudaScene::lightPdf(
     return pdf;
 };
 
-void sceneSize(CudaScene gpuScene, std::vector<float3> verticesGPU, std::vector<BaseObject> primitivesGPU)
+void sceneSize(CudaScene gpuScene, std::vector<BaseObject> primitivesGPU)
 {
     printf("Size of one BVH node: %zu bytes\n", sizeof(BVHSceneNode));
     printf("Size of AABB: %zu bytes\n", sizeof(AABB));
@@ -282,8 +285,6 @@ void sceneSize(CudaScene gpuScene, std::vector<float3> verticesGPU, std::vector<
     printf("Size of materials: %zu bytes. %2.2f gain compared to v1\n", gpuScene.nbMaterials * sizeof(Material), (1.f - (gpuScene.nbMaterials * sizeof(Material) / 15360.f)) * 100.f);
     totalSize += gpuScene.nbLights * sizeof(Light);
     printf("Size of lights: %zu bytes. %2.2f gain compared to v1\n", gpuScene.nbLights * sizeof(Light), (1.f - (gpuScene.nbLights * sizeof(Light) / 192.f)) * 100.f);
-    totalSize += verticesGPU.size() * sizeof(float3);
-    printf("Size of vertices: %zu bytes. %2.2f gain compared to v1\n", verticesGPU.size() * sizeof(float3), (1.f - (verticesGPU.size() * sizeof(float3) / 1.f)) * 100.f);
     totalSize += primitivesGPU.size() * sizeof(BaseObject);
     printf("Size of primitives: %zu bytes. %2.2f gain compared to v1\n", primitivesGPU.size() * sizeof(BaseObject), (1.f - (primitivesGPU.size() * sizeof(BaseObject) / 22992.f)) * 100.f);
     totalSize += gpuScene.bvhScene.getDeviceSize();
@@ -442,11 +443,11 @@ CudaScene spheresScene(float4 sunDir)
     lightsGPU.push_back(l);
 
     // ===== UPLOAD =====
-    gpuScene.uploadObjects(spheresGPU, planesGPU, triangleMeshesGPU, verticesGPU, primitivesGPU, std::vector<ImplicitSphere>());
+    gpuScene.uploadObjects(spheresGPU, planesGPU, triangleMeshesGPU, primitivesGPU, std::vector<ImplicitSphere>());
     gpuScene.uploadLights(lightsGPU);
     gpuScene.uploadMaterials(materialsGPU);
 
-    sceneSize(gpuScene, verticesGPU, primitivesGPU);
+    sceneSize(gpuScene, primitivesGPU);
     return gpuScene;
 }
 
@@ -457,7 +458,6 @@ CudaScene implicitSpheresScene(float4 sunDir)
     std::vector<ImplicitSphere> implicitSpheresGPU;
     std::vector<Plane> planesGPU;
     std::vector<TriangleMesh> triangleMeshesGPU;
-    std::vector<float3> verticesGPU;
     std::vector<BaseObject> primitivesGPU;
     std::vector<Material> materialsGPU;
     std::vector<Light> lightsGPU;
@@ -590,7 +590,6 @@ CudaScene implicitSpheresScene(float4 sunDir)
     addBigSphere(make_float3(0.f, 1.f, 0.f), 1.f, transparentIdx);
     addBigSphere(make_float3(-4.f, 1.f, 0.f), 1.f, emissiveIdx);
     addBigSphere(make_float3(4.f, 1.f, 0.f), 1.f, mirrorIdx);
-
     // ===== LIGHT (SUN) =====
     Light l;
     l.color_power = make_float4(1.f, 0.95f, 0.9f, 100.f);
@@ -599,10 +598,162 @@ CudaScene implicitSpheresScene(float4 sunDir)
     lightsGPU.push_back(l);
 
     // ===== UPLOAD =====
-    gpuScene.uploadObjects(std::vector<Sphere>(), planesGPU, triangleMeshesGPU, verticesGPU, primitivesGPU, implicitSpheresGPU);
+    gpuScene.uploadObjects(std::vector<Sphere>(), planesGPU, triangleMeshesGPU, primitivesGPU, implicitSpheresGPU);
     gpuScene.uploadLights(lightsGPU);
     gpuScene.uploadMaterials(materialsGPU);
 
-    sceneSize(gpuScene, verticesGPU, primitivesGPU);
+    sceneSize(gpuScene, primitivesGPU);
     return gpuScene;
+}
+
+CudaScene singleObject(float4 sunDir)
+{
+    CudaScene gpuScene;
+    std::vector<TriangleMesh> triangleMeshesGPU;
+    std::vector<BaseObject> primitivesGPU;
+    std::vector<Material> materialsGPU;
+    std::vector<Light> lightsGPU;
+    Material mat = Material::makeMaterial(
+                    make_float3(
+                        RT::randomFloat(),
+                        RT::randomFloat(),
+                        RT::randomFloat()
+                    ),
+                    LAMBERT,
+                    1.0f
+                );
+    materialsGPU.push_back(mat);
+    MeshAndPrimitive meshAndPrim = loadTriangleMesh("../data/bunny/Bunny.obj", materialsGPU.size() - 1, triangleMeshesGPU.size());
+    triangleMeshesGPU.push_back(meshAndPrim.mesh);
+    primitivesGPU.push_back(meshAndPrim.prim);
+    Light l;
+    l.color_power = make_float4(1.f, 0.95f, 0.9f, 100.f);
+    l.direction = make_float4(sunDir.x, sunDir.y, sunDir.z, 0.f);
+    l.metadata = Light::packMetadata(LightType::SUN, 0);
+    lightsGPU.push_back(l);
+    gpuScene.uploadObjects(std::vector<Sphere>(), std::vector<Plane>(), triangleMeshesGPU, primitivesGPU, std::vector<ImplicitSphere>());
+    gpuScene.uploadLights(lightsGPU);
+    gpuScene.uploadMaterials(materialsGPU);
+    return gpuScene;
+}
+
+
+
+__host__
+MeshAndPrimitive loadTriangleMesh(const std::string& p_path, int materialIndex, int index)
+{
+    std::cout << "Loading: " << p_path << std::endl;
+    
+    Assimp::Importer importer;
+    
+    // Read scene and triangulate meshes
+    const aiScene* const scene = importer.ReadFile(
+        p_path, 
+        aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_GenUVCoords
+    );
+    
+    if (scene == nullptr) {
+        throw std::runtime_error("Failed to load file: " + p_path);
+    }
+    
+    // Aggregate all meshes into one
+    std::vector<float3> vertices;
+    std::vector<float3> normals;
+    std::vector<float2> uvs;
+    std::vector<TriangleMeshGeometry> triangles;
+    
+    unsigned int cptTriangles = 0;
+    unsigned int cptVertices = 0;
+    float3 mini = make_float3(+INFINITY);
+    float3 maxi = make_float3(-INFINITY);
+    float totalArea;
+    std::vector<float> areaCdf;
+    for (unsigned int m = 0; m < scene->mNumMeshes; ++m) {
+        const aiMesh* const mesh = scene->mMeshes[m];
+        if (mesh == nullptr) {
+            throw std::runtime_error("Failed to load file: " + p_path + ": mesh is null");
+        }
+        
+        std::cout << "-- Load mesh " << m + 1 << "/" << scene->mNumMeshes << std::endl;
+        
+        const bool hasUV = mesh->HasTextureCoords(0);
+        int vertexOffset = vertices.size();
+        
+        // Add vertices, normals, and UVs
+        for (unsigned int v = 0; v < mesh->mNumVertices; ++v) {
+            float3 vertex = make_float3(
+                mesh->mVertices[v].x,
+                mesh->mVertices[v].y,
+                mesh->mVertices[v].z
+            );
+            mini = getMin(mini, vertex);
+            maxi = getMax(maxi, vertex);
+            vertices.push_back(vertex);
+            
+            normals.push_back(make_float3(
+                mesh->mNormals[v].x,
+                mesh->mNormals[v].y,
+                mesh->mNormals[v].z
+            ));
+            
+            if (hasUV) {
+                uvs.push_back(make_float2(
+                    mesh->mTextureCoords[0][v].x,
+                    mesh->mTextureCoords[0][v].y
+                ));
+            } else {
+                uvs.push_back(make_float2(0.f, 0.f));
+            }
+        }
+        
+        // Add triangles
+        for (unsigned int f = 0; f < mesh->mNumFaces; ++f) {
+            const aiFace& face = mesh->mFaces[f];
+            TriangleMeshGeometry tri;
+            tri.i0 = vertexOffset + face.mIndices[0];
+            tri.i1 = vertexOffset + face.mIndices[1];
+            tri.i2 = vertexOffset + face.mIndices[2];
+            float area = 0.5f * abs((vertices[tri.i1].x - vertices[tri.i0].x) * (vertices[tri.i2].y - vertices[tri.i0].y) - (vertices[tri.i1].y - vertices[tri.i0].y) * (vertices[tri.i2].x - vertices[tri.i0].x));
+            totalArea += area;
+            areaCdf.push_back(area);
+            triangles.push_back(tri);
+        }
+        
+        cptTriangles += mesh->mNumFaces;
+        cptVertices += mesh->mNumVertices;
+        
+        std::cout << "-- [DONE] " << mesh->mNumFaces << " triangles, " << mesh->mNumVertices << " vertices." << std::endl;
+    }
+    
+    std::cout << "[DONE] " << scene->mNumMeshes << " meshes, " << cptTriangles << " triangles, " << cptVertices << " vertices." << std::endl;
+    
+    // Create TriangleMesh structure
+    TriangleMesh triMesh;
+    triMesh.triangleCount = triangles.size();
+    triMesh.vertexCount = vertices.size();
+    triMesh.materialIndex = materialIndex;
+    
+    triMesh.bvhNodes = buildBVH(triangles.data(), triMesh.triangleCount, vertices.data(), normals.data(), uvs.data(), triMesh.bvhNodeCount);
+    // Allocate and copy triangles to GPU
+    cudaMalloc(&triMesh.triangles, triangles.size() * sizeof(TriangleMeshGeometry));
+    cudaMemcpy(triMesh.triangles, triangles.data(), triangles.size() * sizeof(TriangleMeshGeometry), cudaMemcpyHostToDevice);
+    
+    // Allocate and copy vertices to GPU
+    cudaMalloc(&triMesh.vertices, vertices.size() * sizeof(float3));
+    cudaMemcpy(triMesh.vertices, vertices.data(), vertices.size() * sizeof(float3), cudaMemcpyHostToDevice);
+    
+    // Allocate and copy normals to GPU
+    cudaMalloc(&triMesh.normals, normals.size() * sizeof(float3));
+    cudaMemcpy(triMesh.normals, normals.data(), normals.size() * sizeof(float3), cudaMemcpyHostToDevice);
+    
+    // Allocate and copy UVs to GPU
+    cudaMalloc(&triMesh.uvs, uvs.size() * sizeof(float2));
+    cudaMemcpy(triMesh.uvs, uvs.data(), uvs.size() * sizeof(float2), cudaMemcpyHostToDevice);
+    
+    cudaMalloc(&triMesh.triangleAreaCdf, areaCdf.size() * sizeof(float));
+    cudaMemcpy(triMesh.triangleAreaCdf, areaCdf.data(), areaCdf.size() * sizeof(float), cudaMemcpyHostToDevice);
+
+    triMesh.meshArea = totalArea;
+    
+    return MeshAndPrimitive(triMesh, mini, maxi, ObjectType::TRIANGLE, index);
 }
