@@ -7,6 +7,7 @@
 #include "objectsUtils/aabb.cuh"
 #include "objectsUtils/bvh_scene.cuh"
 #include "objects/implicitSphere.cuh"
+#include "utils/quaternion.cuh"
 
 struct Light;
 
@@ -67,4 +68,4 @@ struct MeshAndPrimitive{
 };
 
 __host__
-MeshAndPrimitive loadTriangleMesh(const std::string& p_path, int materialIndex, int index);
+MeshAndPrimitive loadTriangleMesh(const std::string& p_path, int materialIndex, int index, float3 scale, Quaternion rotation, float3 translation);

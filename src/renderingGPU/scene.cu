@@ -586,6 +586,11 @@ CudaScene implicitSpheresScene(float4 sunDir)
             lightsGPU.push_back(l);
         }
     };
+    /*
+    MeshAndPrimitive meshAndPrim = loadTriangleMesh("../data/bunny/Bunny.obj", materialsGPU.size() - 1, triangleMeshesGPU.size());
+    triangleMeshesGPU.push_back(meshAndPrim.mesh);
+    primitivesGPU.push_back(meshAndPrim.prim);
+    */
 
     addBigSphere(make_float3(0.f, 1.f, 0.f), 1.f, transparentIdx);
     addBigSphere(make_float3(-4.f, 1.f, 0.f), 1.f, emissiveIdx);
@@ -623,7 +628,8 @@ CudaScene singleObject(float4 sunDir)
                     1.0f
                 );
     materialsGPU.push_back(mat);
-    MeshAndPrimitive meshAndPrim = loadTriangleMesh("../data/bunny/Bunny.obj", materialsGPU.size() - 1, triangleMeshesGPU.size());
+    Quaternion rotation = quaternionFromAxisAngle(make_float3(0.f, 1.f, 0.f), 00.f);
+    MeshAndPrimitive meshAndPrim = loadTriangleMesh("../data/bunny/Bunny.obj", materialsGPU.size() - 1, triangleMeshesGPU.size(), make_float3(2.f, 2.f, 2.f), rotation, make_float3(0.f, 0.f, 0.f));
     triangleMeshesGPU.push_back(meshAndPrim.mesh);
     primitivesGPU.push_back(meshAndPrim.prim);
     Light l;
@@ -640,7 +646,7 @@ CudaScene singleObject(float4 sunDir)
 
 
 __host__
-MeshAndPrimitive loadTriangleMesh(const std::string& p_path, int materialIndex, int index)
+MeshAndPrimitive loadTriangleMesh(const std::string& p_path, int materialIndex, int index, float3 scale, Quaternion rotation, float3 translation)
 {
     std::cout << "Loading: " << p_path << std::endl;
     
@@ -681,20 +687,18 @@ MeshAndPrimitive loadTriangleMesh(const std::string& p_path, int materialIndex, 
         
         // Add vertices, normals, and UVs
         for (unsigned int v = 0; v < mesh->mNumVertices; ++v) {
-            float3 vertex = make_float3(
-                mesh->mVertices[v].x,
-                mesh->mVertices[v].y,
-                mesh->mVertices[v].z
-            );
+            float3 vertex = make_float3(mesh->mVertices[v].x, mesh->mVertices[v].y, mesh->mVertices[v].z);
+            vertex = transformPoint(vertex, scale, rotation, translation);
+
             mini = getMin(mini, vertex);
             maxi = getMax(maxi, vertex);
             vertices.push_back(vertex);
             
-            normals.push_back(make_float3(
-                mesh->mNormals[v].x,
-                mesh->mNormals[v].y,
-                mesh->mNormals[v].z
-            ));
+            float3 normal = make_float3(mesh->mNormals[v].x, mesh->mNormals[v].y, mesh->mNormals[v].z);
+
+            normal = transformNormal(normal, rotation);
+
+            normals.push_back(normal);
             
             if (hasUV) {
                 uvs.push_back(make_float2(
@@ -726,7 +730,6 @@ MeshAndPrimitive loadTriangleMesh(const std::string& p_path, int materialIndex, 
     }
     
     std::cout << "[DONE] " << scene->mNumMeshes << " meshes, " << cptTriangles << " triangles, " << cptVertices << " vertices." << std::endl;
-    
     // Create TriangleMesh structure
     TriangleMesh triMesh;
     triMesh.triangleCount = triangles.size();
