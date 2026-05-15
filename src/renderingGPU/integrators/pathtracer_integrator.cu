@@ -1,9 +1,9 @@
 #include "../scene.cuh"
 #include "../lights/light.cuh"
-#include "whitted_integrator.cuh"
+#include "pathtracer_integrator.cuh"
 
 __device__
-float3 WhittedIntegrator::lighting(
+float3 PathtracerIntegrator::lighting(
         const CudaScene &scene,
         const Ray &primaryRay,
         const float tMin,
@@ -115,14 +115,14 @@ float3 WhittedIntegrator::lighting(
 }
 
 __device__ __forceinline__
-float3 WhittedIntegrator::toneMap(const float3 &c)
+float3 PathtracerIntegrator::toneMap(const float3 &c)
 {
     float3 c1 = c * exposure;
     return (c1) / (make_float3(1.f) + c1);
 }
 
 __device__ __noinline__
-float3 WhittedIntegrator::getSkyColor(const Ray &ray)
+float3 PathtracerIntegrator::getSkyColor(const Ray &ray)
 {
     float3 rayDir = ray.direction;
     //float mult = lerp(1.f, 20.f, (max(-0.4f,sunDir.y) + 0.4)/1.4f);

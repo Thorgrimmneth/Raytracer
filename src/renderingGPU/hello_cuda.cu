@@ -3,7 +3,7 @@
 #include <curand_kernel.h>
 #include <fstream>
 #include "scene.cuh"
-#include "integrators/whitted_integrator.cuh"
+#include "integrators/pathtracer_integrator.cuh"
 
 #include "camera/camera.cuh"
 #include "../defines.hpp"
@@ -180,7 +180,7 @@ void renderKernel(
     float3 direction = normalize(rayTarget - toFloat3(camera.cameraPos));
 
     Ray ray(toFloat3(camera.cameraPos), direction);
-    finalColor += WhittedIntegrator::lighting(gpuScene, ray, 0, 1e20f, &localState);
+    finalColor += PathtracerIntegrator::lighting(gpuScene, ray, 0, 1e20f, &localState);
 
     d_accumBuffer[pixelIndex] += finalColor;
 }

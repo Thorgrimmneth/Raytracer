@@ -6,7 +6,7 @@
 #include "../utils/cuda_defines.cuh"
 #include "../utils/rng.cuh"
 
-struct WhittedIntegrator
+struct PathtracerIntegrator
 {
 
     __device__ static float3 lighting(
