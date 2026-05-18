@@ -321,10 +321,18 @@ CudaScene spheresScene(float4 sunDir)
     }
 
     // ===== MATERIALS DE BASE =====
+    Material blueGlass = Material::makeMaterial(
+        make_float3(0.35f, 0.65f, 1.0f),
+        TRANSPARENT,
+        0.f,
+        0.f,
+        1.5f,
+        0.f
+    );
     Material mirror      = Material::makeMaterial(make_float3(0.f), MIRROR);
     Material transparent = Material::makeMaterial(make_float3(1.f), TRANSPARENT, 0.f, 0.f, 1.5f);
     Material emissive    = Material::makeMaterial(make_float3(1.f, 0.f, 0.f), EMISSIVE, 0.f, 0.f, 1.f, 11.f);
-
+    int blueTransparentIdx = materialsGPU.size(); materialsGPU.push_back(blueGlass);
     int mirrorIdx = materialsGPU.size(); materialsGPU.push_back(mirror);
     int transparentIdx = materialsGPU.size(); materialsGPU.push_back(transparent);
     int emissiveIdx = materialsGPU.size(); materialsGPU.push_back(emissive);
@@ -360,33 +368,58 @@ CudaScene spheresScene(float4 sunDir)
             s.radius = 0.2f;
 
             // ===== MATERIAL =====
-            if (choose_mat < 0.6)
+            if (choose_mat < 0.40)
             {
-                Material mat = Material::makeMaterial(
-                    make_float3(
-                        RT::randomFloat(),
-                        RT::randomFloat(),
-                        RT::randomFloat()
-                    ),
-                    LAMBERT,
-                    1.0f
-                );
+                // Lambert coloré
+                Material mat = Material::randomLambert();
+
                 materialsGPU.push_back(mat);
                 s.materialIndex = materialsGPU.size() - 1;
             }
-            else if (choose_mat < 0.8)
+            else if (choose_mat < 0.62)
             {
+                // Métal coloré
                 Material mat = Material::randomMetal();
+
                 materialsGPU.push_back(mat);
                 s.materialIndex = materialsGPU.size() - 1;
             }
-            else if (choose_mat < 0.88)
+            else if (choose_mat < 0.82)
             {
+                // Plastique coloré
+                Material mat = Material::randomPlastic();
+
+                materialsGPU.push_back(mat);
+                s.materialIndex = materialsGPU.size() - 1;
+            }
+            else if (choose_mat < 0.90)
+            {
+                // Miroir légèrement bleuté
                 s.materialIndex = mirrorIdx;
+            }
+            else if (choose_mat < 0.985)
+            {
+                // Verre coloré aléatoire
+                Material mat = Material::randomTransparent();
+
+                materialsGPU.push_back(mat);
+                s.materialIndex = materialsGPU.size() - 1;
             }
             else
             {
-                s.materialIndex = transparentIdx;
+                // Émissif coloré rare
+                Material mat = Material::randomEmissive();
+
+                materialsGPU.push_back(mat);
+                s.materialIndex = materialsGPU.size() - 1;
+
+                Light light;
+                light.metadata = Light::packMetadata(
+                    LightType::SPHERE_GEOM,
+                    (int)spheresGPU.size()
+                );
+
+                lightsGPU.push_back(light);
             }
 
             // ===== AABB =====

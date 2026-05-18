@@ -16,7 +16,10 @@ struct PathtracerIntegrator
         const float tMax,
         RNG *rng);
 
-    __device__ static float3 toneMap(const float3 &c);
+    __device__
+    void intersect(const CudaScene &scene, const Ray &ray, const float tMin, const float tMax, HitRecord &hit);
 
     __device__ static float3 getSkyColor(const Ray &p_ray);
+
+    
 };

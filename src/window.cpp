@@ -426,6 +426,7 @@ unsigned char* Window::cumulativeRendering(
 
     int frames = 0;
 
+
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -441,8 +442,18 @@ unsigned char* Window::cumulativeRendering(
         {
             renderer.resetAccumulation();
         }
+        static bool cWasPressed = false;
 
-        renderer.renderFrame();
+        bool cIsPressed = glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS;
+
+        if (cIsPressed && !cWasPressed)
+        {
+            renderer.changeMode();
+            renderer.resetAccumulation();
+        }
+
+        cWasPressed = cIsPressed;
+        renderer.render();
 
         draw();
 
@@ -466,7 +477,6 @@ unsigned char* Window::cumulativeRendering(
                 std::to_string(
                     renderer.getFrameNumber()
                 );
-
             glfwSetWindowTitle(
                 window,
                 title.c_str()
@@ -498,7 +508,6 @@ unsigned char* Window::cumulativeRendering(
     glfwDestroyWindow(window);
 
     glfwTerminate();
-
     return image;
 }
 

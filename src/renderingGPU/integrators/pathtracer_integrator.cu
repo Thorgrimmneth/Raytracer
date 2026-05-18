@@ -55,6 +55,7 @@ float3 PathtracerIntegrator::lighting(
 
             break;
         }
+
         BSDFVal bsdf = mtl.getBSDF(ray, hit, rng, isInside);
         if(bsdf.pdf <= 1e-4f) break;
         if(bsdf.isDelta){
@@ -112,13 +113,6 @@ float3 PathtracerIntegrator::lighting(
     }
 
     return finalColor;
-}
-
-__device__ __forceinline__
-float3 PathtracerIntegrator::toneMap(const float3 &c)
-{
-    float3 c1 = c * exposure;
-    return (c1) / (make_float3(1.f) + c1);
 }
 
 __device__ __noinline__

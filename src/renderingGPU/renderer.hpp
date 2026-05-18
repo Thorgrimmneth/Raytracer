@@ -10,6 +10,7 @@ public:
 
     ~Renderer();
 
+    void render();
     void init(
         int width,
         int height,
@@ -18,6 +19,8 @@ public:
         float sunDirz
     );
 
+    void changeMode();
+    
     void applyBloom();
 
     int getFrameNumber();
@@ -29,6 +32,8 @@ public:
     void resetAccumulation();
 
     void cleanup();
+
+    void renderFrameWavefront();
 
     void setInteropResource(cudaGraphicsResource* resource);
 
