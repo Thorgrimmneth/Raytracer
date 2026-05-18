@@ -285,6 +285,18 @@ inline bool refract(const float3& a, const float3& b, const float c, float3& out
     return true;
 }
 
+__host__ 
+inline float3 getMin(const float3& a, const float3& b)
+{
+    return make_float3(min(a.x, b.x), min(a.y, b.y), min(a.z, b.z));
+}
+
+__host__ 
+inline float3 getMax(const float3& a, const float3& b)
+{
+    return make_float3(max(a.x, b.x), max(a.y, b.y), max(a.z, b.z));
+}
+
 __host__
 inline float4 getMin(const float4& a, const float4& b){
     return make_float4(min(a.x, b.x), min(a.y, b.y), min(a.z, b.z), 0.f);

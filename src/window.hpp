@@ -4,7 +4,7 @@
 #include <iostream>
 #include <vector>
 #include <cstring>
-#include "renderingGPU/hello_cuda.hpp"
+#include "renderingGPU/renderer.hpp"
 #include "defines.hpp"
 
 namespace RT
@@ -73,5 +73,4 @@ namespace RT
         }
         )";
     };
-
 }

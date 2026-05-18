@@ -50,17 +50,104 @@ struct Material
     static Material randomMetal()
     {
         float3 color = make_float3(
-            0.5f + 0.5f * RT::randomFloat(),
-            0.5f + 0.5f * RT::randomFloat(),
-            0.5f + 0.5f * RT::randomFloat()
+            RT::randomFloat(),
+            RT::randomFloat(),
+            RT::randomFloat()
         );
 
-        float metal = 0.8f + 0.2f * RT::randomFloat();
-        float rough = RT::randomFloat();
+        float rough = 0.03f + 0.35f * RT::randomFloat();
 
-        return makeMaterial(color, METAL, rough, metal);
+        return makeMaterial(
+            color,
+            METAL,
+            rough,
+            1.f,
+            1.5f,
+            0.f
+        );
     }
 
+    __host__
+    static Material randomLambert()
+    {
+        float3 color = make_float3(
+            RT::randomFloat(),
+            RT::randomFloat(),
+            RT::randomFloat()
+        );
+
+        return makeMaterial(
+            color,
+            LAMBERT,
+            1.0f,
+            0.f,
+            1.5f,
+            0.f
+        );
+    }
+
+    __host__
+    static Material randomPlastic()
+    {
+        float3 color = make_float3(
+            RT::randomFloat(),
+            RT::randomFloat(),
+            RT::randomFloat()
+        );
+
+        float rough = 0.05f + 0.25f * RT::randomFloat();
+
+        return makeMaterial(
+            color,
+            PLASTIC,
+            rough,
+            0.f,
+            1.5f,
+            0.f
+        );
+    }
+
+    __host__
+    static Material randomTransparent()
+    {
+        float3 color = make_float3(
+            0.25f + 0.75f * RT::randomFloat(),
+            0.25f + 0.75f * RT::randomFloat(),
+            0.25f + 0.75f * RT::randomFloat()
+        );
+
+        float ior = 1.25f + 0.35f * RT::randomFloat();
+
+        return makeMaterial(
+            color,
+            TRANSPARENT,
+            0.f,
+            0.f,
+            ior,
+            0.f
+        );
+    }
+
+    __host__
+    static Material randomEmissive()
+    {
+        float3 color = make_float3(
+            RT::randomFloat(),
+            RT::randomFloat(),
+            RT::randomFloat()
+        );
+
+        float intensity = 2.f + 9.f * RT::randomFloat();
+
+        return makeMaterial(
+            color,
+            EMISSIVE,
+            0.f,
+            0.f,
+            1.f,
+            intensity
+        );
+    }
     // ==== GETTERS ====
     __host__ __device__
     inline float3 color() const { return make_float3(baseColor); }
@@ -122,30 +209,71 @@ struct Material
 
     __device__ float3 fresnelSchlick(float cosTheta, const float3& F0) const;
     
-    __device__
-    BSDFVal getBSDF(
-        const Ray &ray,
-        const HitRecord &hit,
-        RNG* rngStates,
-        bool &isInside) const;
+    __device__ BSDFVal getLambertBSDF(
+    const Ray& ray,
+    const HitRecord& hit,
+    RNG* rngStates) const;
 
-    __device__
-    BSDFVal getBSDF(
-        const Ray &ray,
-        const HitRecord &hit,
-        RNG* rngStates) const;
+__device__ BSDFVal getMetalBSDF(
+    const Ray& ray,
+    const HitRecord& hit,
+    RNG* rngStates) const;
 
-    __device__
-    float3 evalBSDF(
-        const Ray &ray,
-        const HitRecord &hit,
-        const float3 &wi
-    ) const;
+__device__ BSDFVal getPlasticBSDF(
+    const Ray& ray,
+    const HitRecord& hit,
+    RNG* rngStates) const;
 
-    __device__
-    float pdf(
-        const Ray &ray,
-        const HitRecord &hit,
-        const float3 &wi
-    ) const;
+__device__ BSDFVal getMirrorBSDF(
+    const Ray& ray,
+    const HitRecord& hit) const;
+
+__device__ BSDFVal getTransparentBSDF(
+    const Ray& ray,
+    const HitRecord& hit,
+    RNG* rngStates,
+    bool& isInside) const;
+
+__device__ BSDFVal getBSDF(
+    const Ray& ray,
+    const HitRecord& hit,
+    RNG* rngStates,
+    bool& isInside) const;
+
+__device__ float3 evalLambertBSDF() const;
+
+__device__ float3 evalMetalBSDF(
+    const Ray& ray,
+    const HitRecord& hit,
+    const float3& wi) const;
+
+__device__ float3 evalPlasticBSDF(
+    const Ray& ray,
+    const HitRecord& hit,
+    const float3& wi) const;
+
+__device__ float3 evalBSDF(
+    const Ray& ray,
+    const HitRecord& hit,
+    const float3& wi) const;
+
+__device__ float lambertPDF(
+    const Ray& ray,
+    const HitRecord& hit,
+    const float3& wi) const;
+
+__device__ float metalPDF(
+    const Ray& ray,
+    const HitRecord& hit,
+    const float3& wi) const;
+
+__device__ float plasticPDF(
+    const Ray& ray,
+    const HitRecord& hit,
+    const float3& wi) const;
+
+__device__ float pdf(
+    const Ray& ray,
+    const HitRecord& hit,
+    const float3& wi) const;
 };

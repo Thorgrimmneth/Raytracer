@@ -214,148 +214,274 @@ float3 Material::fresnelSchlick(float cosTheta, const float3& F0) const
     return F0 + (make_float3(1.f) - F0) * m5;
 }
 
-// ------------------------------------------------------------
-//  getBSDF
-// ------------------------------------------------------------
+// ============================================================
+//  getBSDF helpers
+// ============================================================
 
 __device__
-BSDFVal Material::getBSDF(
-    const Ray&      ray,
+BSDFVal Material::getMetalBSDF(
+    const Ray&       ray,
     const HitRecord& hit,
-    RNG*    rngStates,
-    bool&           isInside) const
+    RNG*             rngStates) const
 {
-    float3   normal = normalize(hit.normal);
-    float3   wo     = normalize(-ray.direction);
-    BSDFVal  bsdf;
+    float3  normal = normalize(hit.normal);
+    float3  wo     = normalize(-ray.direction);
+    BSDFVal bsdf;
 
-    switch (type())
-    {
-    // ---- Lambertian ----
-    case LAMBERT:
-        bsdf.direction = samplingLambert(normal, rngStates);
-        bsdf.pdf       = pdfLambert(normal, bsdf.direction);
-        bsdf.brdf      = evaluateLambert();
+    float3 F0 = lerp(make_float3(0.04f), color(), metalness());
+
+    bsdf.direction = samplingGGX(wo, normal, rngStates);
+
+    if (dot(normal, bsdf.direction) <= 0.f) {
+        bsdf.pdf     = 0.f;
+        bsdf.brdf    = make_float3(0.f);
         bsdf.isDelta = false;
-        break;
-
-    // ---- Metal (GGX) ----
-    case METAL:
-    {
-        float3 F0      = lerp(make_float3(0.04f), color(), metalness());
-        bsdf.direction = samplingGGX(wo, normal, rngStates);
-
-        if (dot(normal, bsdf.direction) <= 0.f) {
-            bsdf.pdf  = 0.f;
-            bsdf.brdf = make_float3(0.f);
-            break;
-        }
-
-        bsdf.pdf  = pdfGGX(normal, bsdf.direction, wo);
-        bsdf.brdf = evaluateGGX(wo, normal, bsdf.direction, F0);
-        bsdf.isDelta = false;
-        break;
+        return bsdf;
     }
 
-    // ---- Plastic (diffuse + specular mix) ----
-    case PLASTIC:
-    {
-        float3 F0       = make_float3(0.04f);
-        float  cosTheta = saturate(dot(normal, wo));
-        float3 F        = fresnelSchlick(cosTheta, F0);
-        float  specW    = (F.x + F.y + F.z) / 3.f;
-
-        if (rngStates->nextFloat() < specW) {
-            bsdf.direction = samplingGGX(wo, normal, rngStates);
-            if (dot(normal, bsdf.direction) <= 0.f) {
-                bsdf.pdf  = 0.f;
-                bsdf.brdf = make_float3(0.f);
-                break;
-            }
-            bsdf.brdf = evaluateGGX(wo, normal, bsdf.direction, F0);
-        } else {
-            bsdf.direction = samplingLambert(normal, rngStates);
-            bsdf.brdf      = evaluateLambert();
-        }
-
-        bsdf.pdf = specW       * pdfGGX(normal, bsdf.direction, wo)
-                 + (1.f - specW) * pdfLambert(normal, bsdf.direction);
-        bsdf.isDelta = false;
-        break;
-    }
-
-    // ---- Mirror (perfect specular) ----
-    case MIRROR:
-    {
-        bsdf.direction = reflect(-wo, normal);
-        bsdf.pdf       = 1.f;
-        bsdf.brdf      = color();
-        bsdf.isDelta     = true;
-        break;
-    }
-
-    // ---- Transparent (Fresnel dielectric) ----
-    case TRANSPARENT:
-    {
-        float3 n    = normal;
-        float  cosI = dot(n, wo);
-        if (cosI < 0.f) {
-            n    = -n;
-            cosI = -cosI;
-        }
-        float ior = this->ior();
-        float n1  = isInside ? ior : 1.f;
-        float n2  = isInside ? 1.f : ior;
-        float eta = n1 / n2;
-
-        float k = 1.f - eta * eta * (1.f - cosI * cosI);
-
-        // Total internal reflection
-        if (k < 0.f) {
-            bsdf.direction = reflect(-wo, n);
-            bsdf.pdf       = 1.f;
-            bsdf.brdf      = make_float3(1.f);
-            break;
-        }
-
-        float cosT = sqrtf(k);
-
-        float rs = ((n1 * cosI) - (n2 * cosT)) /
-                   ((n1 * cosI) + (n2 * cosT));
-        rs *= rs;
-
-        float rp = ((n2 * cosI) - (n1 * cosT)) /
-                   ((n2 * cosI) + (n1 * cosT));
-        rp *= rp;
-
-        float reff = 0.5f * (rs + rp);
-        float xi   = rngStates->nextFloat();
-
-        if (xi < reff) {
-            // Reflection branch
-            bsdf.direction = reflect(-wo, n);
-            bsdf.pdf       = reff;
-            bsdf.brdf      = make_float3(1.f);
-        } else {
-            // Refraction branch
-            float3 wi      = eta * (-wo) + (eta * cosI - cosT) * n;
-            bsdf.direction = normalize(wi);
-            bsdf.pdf       = 1.f - reff;
-            float etaSq    = eta * eta;
-            bsdf.brdf      = make_float3(etaSq);
-            isInside       = !isInside;
-        }
-        bsdf.isDelta = true;
-        break;
-    }
-    } // switch
+    bsdf.pdf     = pdfGGX(normal, bsdf.direction, wo);
+    bsdf.brdf    = evaluateGGX(wo, normal, bsdf.direction, F0);
+    bsdf.isDelta = false;
 
     return bsdf;
 }
 
-// ------------------------------------------------------------
-//  evalBSDF  (used by NEE / MIS — delta materials return 0)
-// ------------------------------------------------------------
+__device__
+BSDFVal Material::getLambertBSDF(
+    const Ray&       ray,
+    const HitRecord& hit,
+    RNG*             rngStates) const
+{
+    float3  normal = normalize(hit.normal);
+    BSDFVal bsdf;
+
+    bsdf.direction = samplingLambert(normal, rngStates);
+    bsdf.pdf       = pdfLambert(normal, bsdf.direction);
+    bsdf.brdf      = evaluateLambert();
+    bsdf.isDelta   = false;
+
+    return bsdf;
+}
+
+__device__
+BSDFVal Material::getPlasticBSDF(
+    const Ray&       ray,
+    const HitRecord& hit,
+    RNG*             rngStates) const
+{
+    float3  normal = normalize(hit.normal);
+    float3  wo     = normalize(-ray.direction);
+    BSDFVal bsdf;
+
+    float3 F0       = make_float3(0.04f);
+    float  cosTheta = saturate(dot(normal, wo));
+    float3 F        = fresnelSchlick(cosTheta, F0);
+    float  specW    = (F.x + F.y + F.z) / 3.f;
+
+    if (rngStates->nextFloat() < specW) {
+        bsdf.direction = samplingGGX(wo, normal, rngStates);
+
+        if (dot(normal, bsdf.direction) <= 0.f) {
+            bsdf.pdf     = 0.f;
+            bsdf.brdf    = make_float3(0.f);
+            bsdf.isDelta = false;
+            return bsdf;
+        }
+
+        bsdf.brdf = evaluateGGX(wo, normal, bsdf.direction, F0);
+    }
+    else {
+        bsdf.direction = samplingLambert(normal, rngStates);
+        bsdf.brdf      = evaluateLambert();
+    }
+
+    bsdf.pdf = specW         * pdfGGX(normal, bsdf.direction, wo)
+             + (1.f - specW) * pdfLambert(normal, bsdf.direction);
+
+    bsdf.isDelta = false;
+
+    return bsdf;
+}
+
+__device__
+BSDFVal Material::getMirrorBSDF(
+    const Ray&       ray,
+    const HitRecord& hit) const
+{
+    float3  normal = normalize(hit.normal);
+    float3  wo     = normalize(-ray.direction);
+    BSDFVal bsdf;
+
+    bsdf.direction = reflect(-wo, normal);
+    bsdf.pdf       = 1.f;
+    bsdf.brdf      = color();
+    bsdf.isDelta   = true;
+
+    return bsdf;
+}
+
+__device__
+BSDFVal Material::getTransparentBSDF(
+    const Ray&       ray,
+    const HitRecord& hit,
+    RNG*             rngStates,
+    bool&            isInside) const
+{
+    float3  normal = normalize(hit.normal);
+    float3  wo     = normalize(-ray.direction);
+    BSDFVal bsdf;
+
+    float3 n    = normal;
+    float  cosI = dot(n, wo);
+
+    if (cosI < 0.f) {
+        n    = -n;
+        cosI = -cosI;
+    }
+
+    float ior = this->ior();
+
+    float n1  = isInside ? ior : 1.f;
+    float n2  = isInside ? 1.f : ior;
+    float eta = n1 / n2;
+
+    float k = 1.f - eta * eta * (1.f - cosI * cosI);
+
+    // Total internal reflection
+    if (k < 0.f) {
+        bsdf.direction = reflect(-wo, n);
+        bsdf.pdf       = 1.f;
+        bsdf.brdf      = make_float3(1.f);
+        bsdf.isDelta   = true;
+        return bsdf;
+    }
+
+    float cosT = sqrtf(k);
+
+    float rs = ((n1 * cosI) - (n2 * cosT)) /
+               ((n1 * cosI) + (n2 * cosT));
+    rs *= rs;
+
+    float rp = ((n2 * cosI) - (n1 * cosT)) /
+               ((n2 * cosI) + (n1 * cosT));
+    rp *= rp;
+
+    float reff = 0.5f * (rs + rp);
+    float xi   = rngStates->nextFloat();
+
+    if (xi < reff) {
+        bsdf.direction = reflect(-wo, n);
+        bsdf.pdf       = reff;
+        bsdf.brdf      = make_float3(1.f);
+    }
+    else {
+        float3 wi = eta * (-wo) + (eta * cosI - cosT) * n;
+
+        bsdf.direction = normalize(wi);
+        bsdf.pdf       = 1.f - reff;
+        bsdf.brdf      = make_float3(eta * eta);
+
+        isInside = !isInside;
+    }
+
+    bsdf.isDelta = true;
+
+    return bsdf;
+}
+
+// ============================================================
+//  getBSDF dispatcher
+// ============================================================
+
+__device__
+BSDFVal Material::getBSDF(
+    const Ray&       ray,
+    const HitRecord& hit,
+    RNG*             rngStates,
+    bool&            isInside) const
+{
+    switch (type())
+    {
+    case LAMBERT:
+        return getLambertBSDF(ray, hit, rngStates);
+
+    case METAL:
+        return getMetalBSDF(ray, hit, rngStates);
+
+    case PLASTIC:
+        return getPlasticBSDF(ray, hit, rngStates);
+
+    case MIRROR:
+        return getMirrorBSDF(ray, hit);
+
+    case TRANSPARENT:
+        return getTransparentBSDF(ray, hit, rngStates, isInside);
+
+    default:
+    {
+        BSDFVal bsdf;
+        bsdf.direction = make_float3(0.f);
+        bsdf.pdf       = 0.f;
+        bsdf.brdf      = make_float3(0.f);
+        bsdf.isDelta   = false;
+        return bsdf;
+    }
+    }
+}
+
+// ============================================================
+//  evalBSDF helpers
+//  Used by NEE / MIS — delta materials return 0
+// ============================================================
+
+__device__
+float3 Material::evalLambertBSDF() const
+{
+    return evaluateLambert();
+}
+
+__device__
+float3 Material::evalMetalBSDF(
+    const Ray&       ray,
+    const HitRecord& hit,
+    const float3&    wi) const
+{
+    float3 normal = normalize(hit.normal);
+    float3 wo     = normalize(-ray.direction);
+
+    if (dot(normal, wi) <= 0.f)
+        return make_float3(0.f);
+
+    float3 F0 = lerp(make_float3(0.04f), color(), metalness());
+
+    return evaluateGGX(wo, normal, wi, F0);
+}
+
+__device__
+float3 Material::evalPlasticBSDF(
+    const Ray&       ray,
+    const HitRecord& hit,
+    const float3&    wi) const
+{
+    float3 normal = normalize(hit.normal);
+    float3 wo     = normalize(-ray.direction);
+
+    if (dot(normal, wi) <= 0.f)
+        return make_float3(0.f);
+
+    float3 F0       = make_float3(0.04f);
+    float  cosTheta = saturate(dot(normal, wo));
+    float3 F        = fresnelSchlick(cosTheta, F0);
+
+    float3 diffuse  = evaluateLambert();
+    float3 specular = evaluateGGX(wo, normal, wi, F0);
+
+    return (make_float3(1.f) - F) * diffuse + specular;
+}
+
+// ============================================================
+//  evalBSDF dispatcher
+// ============================================================
 
 __device__
 float3 Material::evalBSDF(
@@ -363,33 +489,18 @@ float3 Material::evalBSDF(
     const HitRecord& hit,
     const float3&    wi) const
 {
-    float3 normal = normalize(hit.normal);
-    float3 wo     = normalize(-ray.direction);
-
     switch (type())
     {
     case LAMBERT:
-        return evaluateLambert();
+        return evalLambertBSDF();
 
     case METAL:
-    {
-        float3 F0 = lerp(make_float3(0.04f), color(), metalness());
-        return evaluateGGX(wo, normal, wi, F0);
-    }
+        return evalMetalBSDF(ray, hit, wi);
 
     case PLASTIC:
-    {
-        float3 F0      = make_float3(0.04f);
-        float  cosTheta = saturate(dot(normal, wo));
-        float3 F       = fresnelSchlick(cosTheta, F0);
+        return evalPlasticBSDF(ray, hit, wi);
 
-        float3 diffuse  = evaluateLambert();
-        float3 specular = evaluateGGX(wo, normal, wi, F0);
-
-        return (make_float3(1.f) - F) * diffuse + F * specular;
-    }
-
-    // Delta materials have no well-defined BSDF for NEE
+    // Delta materials have no continuous BSDF for NEE / MIS
     case MIRROR:
     case TRANSPARENT:
     default:
@@ -397,12 +508,24 @@ float3 Material::evalBSDF(
     }
 }
 
-// ------------------------------------------------------------
-//  pdf  (used by MIS — delta materials return 0)
-// ------------------------------------------------------------
+// ============================================================
+//  pdf helpers
+//  Used by MIS — delta materials return 0
+// ============================================================
 
 __device__
-float Material::pdf(
+float Material::lambertPDF(
+    const Ray&       ray,
+    const HitRecord& hit,
+    const float3&    wi) const
+{
+    float3 normal = normalize(hit.normal);
+
+    return pdfLambert(normal, wi);
+}
+
+__device__
+float Material::metalPDF(
     const Ray&       ray,
     const HitRecord& hit,
     const float3&    wi) const
@@ -410,25 +533,57 @@ float Material::pdf(
     float3 normal = normalize(hit.normal);
     float3 wo     = normalize(-ray.direction);
 
+    if (dot(normal, wi) <= 0.f)
+        return 0.f;
+
+    return pdfGGX(normal, wi, wo);
+}
+
+__device__
+float Material::plasticPDF(
+    const Ray&       ray,
+    const HitRecord& hit,
+    const float3&    wi) const
+{
+    float3 normal = normalize(hit.normal);
+    float3 wo     = normalize(-ray.direction);
+
+    if (dot(normal, wi) <= 0.f)
+        return 0.f;
+
+    float3 F0       = make_float3(0.04f);
+    float  cosTheta = saturate(dot(normal, wo));
+    float3 F        = fresnelSchlick(cosTheta, F0);
+    float  specW    = (F.x + F.y + F.z) / 3.f;
+
+    return specW         * pdfGGX(normal, wi, wo)
+         + (1.f - specW) * pdfLambert(normal, wi);
+}
+
+// ============================================================
+//  pdf dispatcher
+// ============================================================
+
+__device__
+float Material::pdf(
+    const Ray&       ray,
+    const HitRecord& hit,
+    const float3&    wi) const
+{
     switch (type())
     {
     case LAMBERT:
-        return pdfLambert(normal, wi);
+        return lambertPDF(ray, hit, wi);
 
     case METAL:
-        return pdfGGX(normal, wi, wo);
+        return metalPDF(ray, hit, wi);
 
     case PLASTIC:
-    {
-        float3 F0      = make_float3(0.04f);
-        float  cosTheta = saturate(dot(normal, wo));
-        float3 F       = fresnelSchlick(cosTheta, F0);
-        float  specW   = (F.x + F.y + F.z) / 3.f;
+        return plasticPDF(ray, hit, wi);
 
-        return specW         * pdfGGX(normal, wi, wo)
-             + (1.f - specW) * pdfLambert(normal, wi);
-    }
-
+    // Delta materials are sampled discretely, so no continuous PDF here
+    case MIRROR:
+    case TRANSPARENT:
     default:
         return 0.f;
     }

@@ -1,9 +1,9 @@
 #include "../scene.cuh"
 #include "../lights/light.cuh"
-#include "whitted_integrator.cuh"
+#include "pathtracer_integrator.cuh"
 
 __device__
-float3 WhittedIntegrator::lighting(
+float3 PathtracerIntegrator::lighting(
         const CudaScene &scene,
         const Ray &primaryRay,
         const float tMin,
@@ -17,6 +17,7 @@ float3 WhittedIntegrator::lighting(
     bool isInside = false;
     bool lastBounceWasDelta = true;
     float lastBsdfPdf = 1.f;
+    
     for (int depth = 0; depth < nbBounces; depth++)
     {
         HitRecord hit;
@@ -26,7 +27,6 @@ float3 WhittedIntegrator::lighting(
             finalColor += throughput * getSkyColor(ray);
             break;
         }
-
         const Material &mtl = scene.materials[hit.materialIndex];
         if(mtl.type() == MaterialType::EMISSIVE)
         {
@@ -55,6 +55,7 @@ float3 WhittedIntegrator::lighting(
 
             break;
         }
+
         BSDFVal bsdf = mtl.getBSDF(ray, hit, rng, isInside);
         if(bsdf.pdf <= 1e-4f) break;
         if(bsdf.isDelta){
@@ -70,11 +71,10 @@ float3 WhittedIntegrator::lighting(
             if (ls.pdf > 0.f)
             {
                 float3 shadowOrigin = hit.point + hit.normal * 1e-3f;
-                Ray shadowRay(shadowOrigin, ls.direction);
+                Ray shadowRay(shadowOrigin, ls.direction, ray.time);
 
                 if (!scene.intersectAny(shadowRay, 1e-3f, ls.distance - 1e-3f))
                 {
-
                     float cosTheta = fmaxf(dot(hit.normal, ls.direction), 0.0f);
 
                     if (cosTheta > 0.f)
@@ -115,15 +115,8 @@ float3 WhittedIntegrator::lighting(
     return finalColor;
 }
 
-__device__ __forceinline__
-float3 WhittedIntegrator::toneMap(const float3 &c)
-{
-    float3 c1 = c * exposure;
-    return (c1) / (make_float3(1.f) + c1);
-}
-
 __device__ __noinline__
-float3 WhittedIntegrator::getSkyColor(const Ray &ray)
+float3 PathtracerIntegrator::getSkyColor(const Ray &ray)
 {
     float3 rayDir = ray.direction;
     //float mult = lerp(1.f, 20.f, (max(-0.4f,sunDir.y) + 0.4)/1.4f);

@@ -6,28 +6,40 @@
 #include "../objects/plane.cuh"
 #include "../materials/material.cuh"
 #include "../objects/triangle_mesh.cuh"
+#include "../objects/implicitSphere.cuh"
+#include "../objects/base_object.cuh"
 
 struct Current{
-    int index;
+    uint32_t index;
     float distance;
 };
 
 struct BuildTask {
-    int nodeIndex;
-    int first;
-    int last;
-    int depth;
+    uint32_t nodeIndex;
+    uint32_t first;
+    uint32_t last;
+    uint8_t depth;
 };
 
 struct BVHSceneNode{
     AABB bbox;
-    int left = -1;
-    int right = -1;
-    int firstObjectIndex = -1;
-    int lastObjectIndex = -1;
+    uint32_t left;          // 4 bytes (bit 31 = leaf flag, bits 0-30 = left index)
+    uint32_t right;
+    uint32_t firstIdx;
+    uint32_t objectCount;
+    // uint32_t version
+    __device__ __forceinline__
+    bool isLeaf() const { return (left & 0x80000000u) != 0; }
+    
+    __device__ __forceinline__
+    uint32_t getLeftIndex() const { return left & 0x7FFFFFFFu; }
 
-    __device__
-    inline bool isLeaf() const { return ( left == -1); }
+    // uint16_t version
+    /*__device__ __forceinline__
+    bool isLeaf() const { return (left & 0x8000u) != 0; }
+    
+    __device__ __forceinline__
+    uint32_t getLeftIndex() const { return left & 0x7FFFu; }*/
 };
 
 struct BVHScene {
@@ -39,12 +51,13 @@ struct BVHScene {
     Sphere* d_spheres;
     Plane* d_planes;
     TriangleMesh* d_meshes;
+    ImplicitSphere* d_implicitSpheres;
     int nbNodes;
     int nbObjects;
 
     
     __host__
-    static BVHScene buildBVHScene(std::vector<BaseObject>* primitives,std::vector<Sphere>* spheres,std::vector<Plane>* planes,std::vector<TriangleMesh>* meshes);
+    static BVHScene buildBVHScene(std::vector<BaseObject>* primitives,std::vector<Sphere>* spheres,std::vector<Plane>* planes,std::vector<TriangleMesh>* meshes, std::vector<ImplicitSphere>* implicitSpheres);
 
     __host__
     size_t getDeviceSize() const;
@@ -74,29 +87,34 @@ struct BVHScene {
 
             if (node.isLeaf())
             {
-                for(int i = node.firstObjectIndex;
-                    i < node.lastObjectIndex;
+                for(uint32_t i = node.firstIdx;
+                    i < node.firstIdx + node.objectCount;
                     ++i)
                 {
                     BaseObject& prim = d_primitives[d_indices[i]];
 
-                    switch(prim.type)
+                    switch(prim.getType())
                     {
                         case ObjectType::SPHERE:
-                            if(materials[d_spheres[prim.index].materialIndex].type() == MaterialType::TRANSPARENT) continue;
-                            if (d_spheres[prim.index].intersectAny(ray, tMin, tMax))
+                            if(materials[d_spheres[prim.getIndex()].materialIndex].type() == MaterialType::TRANSPARENT) continue;
+                            if (d_spheres[prim.getIndex()].intersectAny(ray, tMin, tMax))
                                 return true;
                             break;
 
                         case ObjectType::PLANE:
-                            if(materials[d_planes[prim.index].materialIndex].type() == MaterialType::TRANSPARENT) continue;
-                            if(d_planes[prim.index].intersectAny(ray, tMin, tMax, materials))
+                            if(materials[d_planes[prim.getIndex()].materialIndex].type() == MaterialType::TRANSPARENT) continue;
+                            if(d_planes[prim.getIndex()].intersectAny(ray, tMin, tMax, materials))
                                 return true;
                             break;
 
                         case ObjectType::TRIANGLE:
-                            if(materials[d_meshes[prim.index].materialIndex].type() == MaterialType::TRANSPARENT) continue;
-                            if(d_meshes[prim.index].intersectAny(ray, tMin, tMax, materials))
+                            if(materials[d_meshes[prim.getIndex()].materialIndex].type() == MaterialType::TRANSPARENT) continue;
+                            if(d_meshes[prim.getIndex()].intersectAny(ray, tMin, tMax, materials))
+                                return true;
+                            break;
+                        case ObjectType::IMPLICIT_SPHERE:
+                            if(materials[d_implicitSpheres[prim.getIndex()].materialIndex].type() == MaterialType::TRANSPARENT) continue;
+                            if(d_implicitSpheres[prim.getIndex()].intersectAny(ray, tMin, tMax))
                                 return true;
                             break;
                     }
@@ -104,7 +122,7 @@ struct BVHScene {
             }
             else
             {
-                stack[stackPtr++] = node.left;
+                stack[stackPtr++] = node.getLeftIndex();
                 stack[stackPtr++] = node.right;
             }
         }

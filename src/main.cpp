@@ -1,7 +1,7 @@
 
 #include "texture.hpp"
 #include "utils/chrono.hpp"
-#include "renderingGPU/hello_cuda.hpp"
+#include "renderingGPU/renderer.hpp"
 #include "window.hpp"
 
 namespace RT
@@ -52,7 +52,6 @@ namespace RT
 				return 0;
 			}
 		}
-
 		int			 temp_height  = int( width / aspect_ratio );
 		height	  = ( temp_height < 1 ) ? 1 : temp_height;
 
@@ -91,6 +90,33 @@ namespace RT
 		else if (testing == 1){
 			// setup for cumulative rendering
 			Window win(width, height);
+
+			float t = 0.5f;
+			float theta = 1.1 * PIf * t;
+			float az = 20.f * PIf / 180.f;
+			Vec3f base = Vec3f(
+				cos(theta),
+				sin(theta),
+				0.0f
+			);
+			Vec3f sunDir = normalize(Vec3f(
+				base.x * cos(az) - base.z * sin(az),
+				base.y,
+				base.x * sin(az) + base.z * cos(az)
+			));
+			
+
+			unsigned char* img_cuda_raw = win.cumulativeRendering(sunDir, width, height);
+
+			// end of rendering
+			imgCuda.createFromRaw(img_cuda_raw, width, height);
+			const std::string imgCudaName = "profiling.jpg";
+			imgCuda.saveJPG(RESULTS_PATH + imgCudaName);
+			std::cout << "saved" << std::endl;
+		}
+		else if (testing == 2){
+			// setup for cumulative rendering
+			Window win(width, height);
 			float t = 0.5f;
 			float theta = 1.1 * PIf * t;
 			float az = 20.f * PIf / 180.f;
@@ -113,9 +139,6 @@ namespace RT
 			const std::string imgCudaName = "cumulative.jpg";
 			imgCuda.saveJPG(RESULTS_PATH + imgCudaName);
 			std::cout << "saved" << std::endl;
-		}
-		else if (testing == 2){
-
 		}
 		chrono.stop();
 		float time = chrono.elapsedTime();
