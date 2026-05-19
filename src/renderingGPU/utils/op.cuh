@@ -17,6 +17,10 @@
 #define H_INLINE __host__ inline
 #endif
 
+#ifndef HD_FORCEINLINE
+#define HD_FORCEINLINE __host__ __device__ __forceinline__
+#endif
+
 // ============================================================
 // Constructors / conversions
 // ============================================================
@@ -55,7 +59,7 @@ HD_INLINE float4 make_float4(const float3& a, const float& b)
 // float3 operators
 // ============================================================
 
-HD_INLINE float3 operator+(const float3& a, const float3& b)
+HD_FORCEINLINE float3 operator+(const float3& a, const float3& b)
 {
     return make_float3(
         a.x + b.x,
@@ -64,7 +68,7 @@ HD_INLINE float3 operator+(const float3& a, const float3& b)
     );
 }
 
-HD_INLINE float3 operator+=(float3& a, const float3& b)
+HD_FORCEINLINE float3 operator+=(float3& a, const float3& b)
 {
     a.x += b.x;
     a.y += b.y;
@@ -72,7 +76,7 @@ HD_INLINE float3 operator+=(float3& a, const float3& b)
     return a;
 }
 
-HD_INLINE float3 operator-(const float3& a, const float3& b)
+HD_FORCEINLINE float3 operator-(const float3& a, const float3& b)
 {
     return make_float3(
         a.x - b.x,
@@ -81,13 +85,13 @@ HD_INLINE float3 operator-(const float3& a, const float3& b)
     );
 }
 
-HD_INLINE float3 operator-(const float3& a)
+HD_FORCEINLINE float3 operator-(const float3& a)
 {
     return make_float3(-a.x, -a.y, -a.z);
 }
 
 // Garde l'overload original non-const pour ne pas changer la résolution d'overload.
-HD_INLINE float3 operator*(const float3& a, float3& b)
+HD_FORCEINLINE float3 operator*(const float3& a, float3& b)
 {
     return make_float3(
         a.x * b.x,
@@ -96,17 +100,15 @@ HD_INLINE float3 operator*(const float3& a, float3& b)
     );
 }
 
-// Garde le comportement original : ce n'est pas un vrai *= in-place.
-HD_INLINE float3 operator*=(const float3& a, const float3& b)
+HD_FORCEINLINE float3& operator*=(float3& a, const float3& b)
 {
-    return make_float3(
-        a.x * b.x,
-        a.y * b.y,
-        a.z * b.z
-    );
+    a.x *= b.x;
+    a.y *= b.y;
+    a.z *= b.z;
+    return a;
 }
 
-HD_INLINE float3 operator*(const float3& a, const float b)
+HD_FORCEINLINE float3 operator*(const float3& a, const float b)
 {
     return make_float3(
         a.x * b,
@@ -115,7 +117,7 @@ HD_INLINE float3 operator*(const float3& a, const float b)
     );
 }
 
-HD_INLINE float3 operator*(const float3& a, const float3& b)
+HD_FORCEINLINE float3 operator*(const float3& a, const float3& b)
 {
     return make_float3(
         a.x * b.x,
@@ -124,7 +126,7 @@ HD_INLINE float3 operator*(const float3& a, const float3& b)
     );
 }
 
-HD_INLINE float3 operator*(const float a, const float3& b)
+HD_FORCEINLINE float3 operator*(const float a, const float3& b)
 {
     return make_float3(
         a * b.x,
@@ -133,29 +135,32 @@ HD_INLINE float3 operator*(const float a, const float3& b)
     );
 }
 
-HD_INLINE float3 operator/(const float3& a, const float b)
+HD_FORCEINLINE float3 operator/(const float3& a, const float b)
 {
+    const float inv = 1.0f / b;
+
     return make_float3(
-        a.x / b,
-        a.y / b,
-        a.z / b
+        a.x * inv,
+        a.y * inv,
+        a.z * inv
     );
 }
 
-HD_INLINE float3 operator/(const float3& a, const float3& b)
+HD_FORCEINLINE float3 operator/(const float3& a, const float3& b)
 {
     return make_float3(
-        a.x / b.x,
-        a.y / b.y,
-        a.z / b.z
+        a.x * (1.0f / b.x),
+        a.y * (1.0f / b.y),
+        a.z * (1.0f / b.z)
     );
 }
 
-HD_INLINE float3 operator/=(float3& a, const float b)
+HD_FORCEINLINE float3 operator/=(float3& a, const float b)
 {
-    a.x /= b;
-    a.y /= b;
-    a.z /= b;
+    const float inv = 1.0f / b;
+    a.x *= inv;
+    a.y *= inv;
+    a.z *= inv;
     return a;
 }
 
@@ -213,12 +218,12 @@ HD_INLINE float4 operator*(const float a, const float4& b)
 // Vector math
 // ============================================================
 
-HD_INLINE float dot(const float3& a, const float3& b)
+HD_FORCEINLINE float dot(const float3& a, const float3& b)
 {
     return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
-HD_INLINE float3 cross(const float3& a, const float3& b)
+HD_FORCEINLINE float3 cross(const float3& a, const float3& b)
 {
     return make_float3(
         a.y * b.z - a.z * b.y,
@@ -227,38 +232,45 @@ HD_INLINE float3 cross(const float3& a, const float3& b)
     );
 }
 
-HD_INLINE float3 normalize(const float3& a)
+HD_FORCEINLINE float3 normalize(const float3& a)
 {
-    float len = sqrtf(dot(a, a));
-    return (len > 0.f) ? a * (1.f / len) : make_float3(0.f);
+    const float len2 = dot(a, a);
+
+    if (len2 > 0.0f)
+    {
+        return a * rsqrtf(len2);
+    }
+
+    return make_float3(0.0f);
 }
 
-HD_INLINE float length(const float3& a)
+HD_FORCEINLINE float length2(const float3& a)
 {
-    return sqrtf(a.x * a.x + a.y * a.y + a.z * a.z);
+    return dot(a, a);
 }
 
-HD_INLINE float length2(const float3& a)
+HD_FORCEINLINE float length(const float3& a)
 {
-    return a.x * a.x + a.y * a.y + a.z * a.z;
+    return sqrtf(length2(a));
 }
 
-HD_INLINE float distance(const float3& a, const float3& b)
+HD_FORCEINLINE float distance2(const float3& a, const float3& b)
 {
-    return sqrtf(
-        (a.x - b.x) * (a.x - b.x) +
-        (a.y - b.y) * (a.y - b.y) +
-        (a.z - b.z) * (a.z - b.z)
-    );
+    return length2(a - b);
+}
+
+HD_FORCEINLINE float distance(const float3& a, const float3& b)
+{
+    return length(a - b);
 }
 
 // ============================================================
 // Scalar helpers
 // ============================================================
 
-HD_INLINE float clamp(const float a, const float b, const float c)
+HD_FORCEINLINE float clamp(const float x, const float lo, const float hi)
 {
-    return min(max(a, b), c);
+    return fminf(fmaxf(x, lo), hi);
 }
 
 HD_INLINE float3 lerp(const float3& a, const float3& b, const float c)
@@ -283,29 +295,33 @@ HD_INLINE float getAxis(const float4& v, int axis)
 // reflect garde normalize(), indispensable avec ton code actuel
 // ============================================================
 
-HD_INLINE float3 reflect(const float3& a, const float3& b)
+HD_FORCEINLINE float3 reflect(const float3& a, const float3& b)
 {
-    return normalize(a - 2 * (dot(a, b)) * b);
+    return a - 2.0f * dot(a, b) * b;
 }
 
-HD_INLINE float3 refract(const float3& a, const float3& b, const float c)
+HD_FORCEINLINE float3 refract(const float3& a, const float3& b, const float c)
 {
-    float cosi = -dot(a, b);
-    float k = 1.f - c * c * (1.f - cosi * cosi);
+    const float cosi = -dot(a, b);
+    const float k = 1.0f - c * c * (1.0f - cosi * cosi);
 
-    if (k < 0.f)
+    if (k < 0.0f)
+    {
         return make_float3(0.0f);
+    }
 
     return c * a + (c * cosi - sqrtf(k)) * b;
 }
 
-HD_INLINE bool refract(const float3& a, const float3& b, const float c, float3& out)
+HD_FORCEINLINE bool refract(const float3& a, const float3& b, const float c, float3& out)
 {
-    float cosi = -dot(a, b);
-    float k = 1.f - c * c * (1.f - cosi * cosi);
+    const float cosi = -dot(a, b);
+    const float k = 1.0f - c * c * (1.0f - cosi * cosi);
 
-    if (k < 0.f)
+    if (k < 0.0f)
+    {
         return false;
+    }
 
     out = c * a + (c * cosi - sqrtf(k)) * b;
     return true;
@@ -364,16 +380,18 @@ D_FORCEINLINE float smoothstep(float edge0, float edge1, float x)
     return t * t * (3.0f - 2.0f * t);
 }
 
-static inline __device__ float saturate(float x)
+D_FORCEINLINE float saturate(float x)
 {
-    return fminf(fmaxf(x, 0.f), 1.f);
+    return fminf(fmaxf(x, 0.0f), 1.0f);
 }
 
-static inline __device__ float powerHeuristic(float pdfA, float pdfB)
+D_FORCEINLINE float powerHeuristic(float pdfA, float pdfB)
 {
-    float a = pdfA * pdfA;
-    float b = pdfB * pdfB;
-    return a / (a + b);
+    const float a = pdfA * pdfA;
+    const float b = pdfB * pdfB;
+    const float sum = a + b;
+
+    return sum > 0.0f ? a / sum : 0.0f;
 }
 
 D_FORCEINLINE float dot3f4(const float4& a, const float3& b)

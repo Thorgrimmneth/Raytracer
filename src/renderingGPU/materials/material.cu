@@ -378,7 +378,7 @@ BSDFVal Material::getTransparentBSDF(
 
         bsdf.direction = normalize(wi);
         bsdf.pdf       = 1.f - reff;
-        bsdf.brdf      = make_float3(eta * eta);
+        bsdf.brdf      = color() * make_float3(eta * eta);
 
         isInside = !isInside;
     }
