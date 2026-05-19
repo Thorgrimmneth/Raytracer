@@ -57,77 +57,334 @@ struct BVHScene {
 
     
     __host__
-    static BVHScene buildBVHScene(std::vector<BaseObject>* primitives,std::vector<Sphere>* spheres,std::vector<Plane>* planes,std::vector<TriangleMesh>* meshes, std::vector<ImplicitSphere>* implicitSpheres);
+    static BVHScene buildBVHScene(std::vector<BaseObject>* primitives,std::vector<Sphere>* spheres,std::vector<TriangleMesh>* meshes, std::vector<ImplicitSphere>* implicitSpheres);
 
     __host__
     size_t getDeviceSize() const;
-    __device__ 
-    bool intersect(const Ray& ray,
-                   float tMin,
-                   float tMax,
-                   HitRecord& hit) const;
 
     __device__ __forceinline__
-    bool intersectAny(const Ray& ray,
-                  float tMin,
-                  float tMax,
-                  const Material* materials) const
+    bool intersect(
+    const Ray& ray,
+    const float tMin,
+    const float tMaxInit,
+    HitRecord& hit) const
+{
+    constexpr int STACK_SIZE = 32;
+
+    Current stack[STACK_SIZE];
+    int stackPtr = 0;
+
+    float tMax = tMaxInit;
+    bool hitSomething = false;
+
+
+
+    float rootTNear;
+
+    if (!d_nodes[0].bbox.intersectCheck(ray, tMin, tMax, rootTNear))
+        return false;
+
+    stack[stackPtr++] = { 0, rootTNear };
+
+    while (stackPtr > 0)
     {
-        int stack[32];
-        int stackPtr = 0;
-        stack[stackPtr++] = 0;
+        const Current current = stack[--stackPtr];
 
-        while(stackPtr > 0)
+        if (current.distance > tMax)
+            continue;
+
+
+
+        const BVHSceneNode& node = d_nodes[current.index];
+
+        if (node.isLeaf())
         {
-            int nodeIndex = stack[--stackPtr];
-            const BVHSceneNode& node = d_nodes[nodeIndex];
+            const uint32_t first = node.firstIdx;
+            const uint32_t count = node.objectCount;
 
-            if (!node.bbox.intersect(ray, tMin, tMax))
-                continue;
 
-            if (node.isLeaf())
+
+            for (uint32_t i = first; i < first + count; ++i)
             {
-                for(uint32_t i = node.firstIdx;
-                    i < node.firstIdx + node.objectCount;
-                    ++i)
+                const int primArrayIndex = d_indices[i];
+
+
+
+                const BaseObject& prim = d_primitives[primArrayIndex];
+                const int objectIndex = prim.getIndex();
+
+                switch (prim.getType())
                 {
-                    BaseObject& prim = d_primitives[d_indices[i]];
-
-                    switch(prim.getType())
+                    case ObjectType::SPHERE:
                     {
-                        case ObjectType::SPHERE:
-                            if(materials[d_spheres[prim.getIndex()].materialIndex].type() == MaterialType::TRANSPARENT) continue;
-                            if (d_spheres[prim.getIndex()].intersectAny(ray, tMin, tMax))
-                                return true;
-                            break;
 
-                        case ObjectType::PLANE:
-                            if(materials[d_planes[prim.getIndex()].materialIndex].type() == MaterialType::TRANSPARENT) continue;
-                            if(d_planes[prim.getIndex()].intersectAny(ray, tMin, tMax, materials))
-                                return true;
-                            break;
-
-                        case ObjectType::TRIANGLE:
-                            if(materials[d_meshes[prim.getIndex()].materialIndex].type() == MaterialType::TRANSPARENT) continue;
-                            if(d_meshes[prim.getIndex()].intersectAny(ray, tMin, tMax, materials))
-                                return true;
-                            break;
-                        case ObjectType::IMPLICIT_SPHERE:
-                            if(materials[d_implicitSpheres[prim.getIndex()].materialIndex].type() == MaterialType::TRANSPARENT) continue;
-                            if(d_implicitSpheres[prim.getIndex()].intersectAny(ray, tMin, tMax))
-                                return true;
-                            break;
+                        if (d_spheres[objectIndex].intersect(ray, tMin, tMax, hit))
+                        {
+                            tMax = hit.distance;
+                            hitSomething = true;
+                            hit.objectType = HIT_SPHERE;
+                            hit.objectIndex = objectIndex;
+                        }
+                        break;
                     }
+
+                    case ObjectType::TRIANGLE:
+                    {
+
+                        if (d_meshes[objectIndex].intersect(ray, tMin, tMax, hit))
+                        {
+                            tMax = hit.distance;
+                            hitSomething = true;
+                            hit.objectType = HIT_TRIANGLE_MESH;
+                            hit.objectIndex = objectIndex;
+                        }
+                        break;
+                    }
+
+                    case ObjectType::IMPLICIT_SPHERE:
+                    {
+
+                        if (d_implicitSpheres[objectIndex].intersect(ray, tMin, tMax, hit))
+                        {
+                            tMax = hit.distance;
+                            hitSomething = true;
+                            hit.objectType = HIT_SPHERE_IMPLICIT;
+                            hit.objectIndex = objectIndex;
+                        }
+                        break;
+                    }
+
+                    default:
+                        break;
                 }
             }
-            else
+        }
+        else
+        {
+            const uint32_t leftIdx = node.getLeftIndex();
+            const uint32_t rightIdx = node.right;
+
+
+
+            float leftTNear;
+            float rightTNear;
+
+            const bool hitLeft = d_nodes[leftIdx].bbox.intersectCheck(
+                ray,
+                tMin,
+                tMax,
+                leftTNear
+            );
+
+            const bool hitRight = d_nodes[rightIdx].bbox.intersectCheck(
+                ray,
+                tMin,
+                tMax,
+                rightTNear
+            );
+
+            if (hitLeft && hitRight)
             {
-                stack[stackPtr++] = node.getLeftIndex();
-                stack[stackPtr++] = node.right;
+                if (stackPtr + 2 > STACK_SIZE)
+                    return hitSomething;
+
+                // Stack LIFO : push le plus loin d'abord.
+                if (leftTNear < rightTNear)
+                {
+                    stack[stackPtr++] = { rightIdx, rightTNear };
+                    stack[stackPtr++] = { leftIdx, leftTNear };
+                }
+                else
+                {
+                    stack[stackPtr++] = { leftIdx, leftTNear };
+                    stack[stackPtr++] = { rightIdx, rightTNear };
+                }
+            }
+            else if (hitLeft)
+            {
+                if (stackPtr + 1 > STACK_SIZE)
+                    return hitSomething;
+
+                stack[stackPtr++] = { leftIdx, leftTNear };
+            }
+            else if (hitRight)
+            {
+                if (stackPtr + 1 > STACK_SIZE)
+                    return hitSomething;
+
+                stack[stackPtr++] = { rightIdx, rightTNear };
             }
         }
-
-        return false;
     }
+
+    return hitSomething;
+}
+
+    __device__ __forceinline__
+bool intersectAny(
+    const Ray& ray,
+    float tMin,
+    float tMax,
+    const Material* materials) const
+{
+    constexpr int STACK_SIZE = 32;
+
+    Current stack[STACK_SIZE];
+    int stackPtr = 0;
+
+
+
+    float rootTNear;
+
+    if (!d_nodes[0].bbox.intersectCheck(ray, tMin, tMax, rootTNear))
+        return false;
+
+    stack[stackPtr++] = { 0, rootTNear };
+
+    while (stackPtr > 0)
+    {
+        const Current current = stack[--stackPtr];
+
+        if (current.distance > tMax)
+            continue;
+
+
+
+        const BVHSceneNode& node = d_nodes[current.index];
+
+        if (node.isLeaf())
+        {
+            const uint32_t first = node.firstIdx;
+            const uint32_t count = node.objectCount;
+
+
+
+            for (uint32_t i = first; i < first + count; ++i)
+            {
+                const int primArrayIndex = d_indices[i];
+
+
+
+                const BaseObject& prim = d_primitives[primArrayIndex];
+                const int objectIndex = prim.getIndex();
+
+                switch (prim.getType())
+                {
+                    case ObjectType::SPHERE:
+                    {
+
+                        const int matIdx = d_spheres[objectIndex].materialIndex;
+
+                        if (
+                            materials[matIdx].type() == MaterialType::TRANSPARENT)
+                        {
+                            break;
+                        }
+
+                        if (d_spheres[objectIndex].intersectAny(ray, tMin, tMax))
+                            return true;
+
+                        break;
+                    }
+
+                    case ObjectType::TRIANGLE:
+                    {
+
+                        const int matIdx = d_meshes[objectIndex].materialIndex;
+
+                        if (
+                            materials[matIdx].type() == MaterialType::TRANSPARENT)
+                        {
+                            break;
+                        }
+
+                        if (d_meshes[objectIndex].intersectAny(ray, tMin, tMax, materials))
+                            return true;
+
+                        break;
+                    }
+
+                    case ObjectType::IMPLICIT_SPHERE:
+                    {
+
+                        const int matIdx = d_implicitSpheres[objectIndex].materialIndex;
+
+                        if (
+                            materials[matIdx].type() == MaterialType::TRANSPARENT)
+                        {
+                            break;
+                        }
+
+                        if (d_implicitSpheres[objectIndex].intersectAny(ray, tMin, tMax))
+                            return true;
+
+                        break;
+                    }
+
+                    default:
+                        break;
+                }
+            }
+        }
+        else
+        {
+            const uint32_t leftIdx = node.getLeftIndex();
+            const uint32_t rightIdx = node.right;
+
+
+
+            float leftTNear;
+            float rightTNear;
+
+            const bool hitLeft = d_nodes[leftIdx].bbox.intersectCheck(
+                ray,
+                tMin,
+                tMax,
+                leftTNear
+            );
+
+            const bool hitRight = d_nodes[rightIdx].bbox.intersectCheck(
+                ray,
+                tMin,
+                tMax,
+                rightTNear
+            );
+
+            if (hitLeft && hitRight)
+            {
+                if (stackPtr + 2 > STACK_SIZE)
+                    return true;
+
+                if (leftTNear < rightTNear)
+                {
+                    stack[stackPtr++] = { rightIdx, rightTNear };
+                    stack[stackPtr++] = { leftIdx, leftTNear };
+                }
+                else
+                {
+                    stack[stackPtr++] = { leftIdx, leftTNear };
+                    stack[stackPtr++] = { rightIdx, rightTNear };
+                }
+            }
+            else if (hitLeft)
+            {
+                if (stackPtr + 1 > STACK_SIZE)
+                    return true;
+
+                stack[stackPtr++] = { leftIdx, leftTNear };
+            }
+            else if (hitRight)
+            {
+                if (stackPtr + 1 > STACK_SIZE)
+                    return true;
+
+                stack[stackPtr++] = { rightIdx, rightTNear };
+            }
+        }
+    }
+
+    return false;
+}
+
 };
 

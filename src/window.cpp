@@ -487,7 +487,6 @@ unsigned char* Window::cumulativeRendering(
             lastTime = currentTime;
         }
     }
-
     // Read the final rendered image from the texture
     glBindTexture(GL_TEXTURE_2D, texture);
     glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, image);

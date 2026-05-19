@@ -4,6 +4,7 @@
 #include <iostream>
 #include <cstdint>
 #include <cstring>
+
 __host__
 BVH* buildBVH(
     TriangleMeshGeometry* triangles,
@@ -11,10 +12,13 @@ BVH* buildBVH(
     float3* vertices,
     float3* normals,
     float2* uvs,
-    int& outNodeCount)
+    int& outNodeCount,
+    int*& outTriangleRefIndices,
+    int& outRefCount)
 {
     std::vector<BVH> bvhNodes;
     bvhNodes.push_back(BVH());
+
     std::vector<int> triangleIndices(triangleCount);
 
     for (int i = 0; i < triangleCount; ++i)
@@ -42,8 +46,8 @@ BVH* buildBVH(
 
         BVH& node = bvhNodes[nodeIdx];
 
-        node.firstTriangleIndex = triStart;
-        node.lastTriangleIndex = triEnd - 1;
+        node.firstRefIndex = triStart;
+        node.refCount = triEnd - triStart;
 
         node.bbox = AABB();
 
@@ -129,25 +133,17 @@ BVH* buildBVH(
         bvhNodes[nodeIdx].left = leftChild;
         bvhNodes[nodeIdx].right = rightChild;
 
+        // Ce n'est plus une feuille, donc pas de plage de refs utile ici.
+        bvhNodes[nodeIdx].firstRefIndex = -1;
+        bvhNodes[nodeIdx].refCount = 0;
+
         taskStack.push_back({rightChild, leftEnd, triEnd});
         taskStack.push_back({leftChild, triStart, leftEnd});
     }
 
-    // Important: reorder triangles according to BVH leaf layout
-    std::vector<TriangleMeshGeometry> orderedTriangles(triangleCount);
-
-    for (int i = 0; i < triangleCount; ++i) {
-        orderedTriangles[i] = triangles[triangleIndices[i]];
-    }
-
-    std::memcpy(
-        triangles,
-        orderedTriangles.data(),
-        triangleCount * sizeof(TriangleMeshGeometry)
-    );
-
     BVH* d_bvhNodes = nullptr;
     cudaMalloc(&d_bvhNodes, bvhNodes.size() * sizeof(BVH));
+
     cudaMemcpy(
         d_bvhNodes,
         bvhNodes.data(),
@@ -155,6 +151,22 @@ BVH* buildBVH(
         cudaMemcpyHostToDevice
     );
 
+    int* d_triangleRefIndices = nullptr;
+    cudaMalloc(
+        &d_triangleRefIndices,
+        triangleIndices.size() * sizeof(int)
+    );
+
+    cudaMemcpy(
+        d_triangleRefIndices,
+        triangleIndices.data(),
+        triangleIndices.size() * sizeof(int),
+        cudaMemcpyHostToDevice
+    );
+
     outNodeCount = (int)bvhNodes.size();
+    outTriangleRefIndices = d_triangleRefIndices;
+    outRefCount = (int)triangleIndices.size();
+
     return d_bvhNodes;
 }

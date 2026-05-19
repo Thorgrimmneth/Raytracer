@@ -1,7 +1,4 @@
-#pragma once
-
-#include "wavefront_state.cu"
-#include "lights/light.cuh"
+#include "shading_kernels.cuh"
 
 __global__
 void shadeWavefrontKernel(

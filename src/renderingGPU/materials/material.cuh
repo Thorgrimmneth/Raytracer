@@ -33,8 +33,8 @@ struct Material
 
     __host__
     static Material makeMaterial(
-        float3 color,
-        MaterialType type,
+        float3 color = make_float3(1.f),
+        MaterialType type = LAMBERT,
         float rough = 0.5f,
         float metal = 0.f,
         float ior = 1.5f,

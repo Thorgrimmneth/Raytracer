@@ -27,6 +27,7 @@ float3 PathtracerIntegrator::lighting(
             finalColor += throughput * getSkyColor(ray);
             break;
         }
+        //return finalColor;
         const Material &mtl = scene.materials[hit.materialIndex];
         if(mtl.type() == MaterialType::EMISSIVE)
         {

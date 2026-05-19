@@ -1,5 +1,12 @@
 #pragma once
 
+#include "objectsUtils/aabb.cuh"
+#include "objects/triangle_mesh_geometry.cuh"
+#include "raytracingUtils/ray.cuh"
+#include "utils/rng.cuh"
+#include "raytracingUtils/hitrecord.cuh"
+#include "materials/material.cuh"
+
 enum WavefrontQueueType
 {
     QUEUE_LAMBERT = 0,

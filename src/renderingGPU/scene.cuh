@@ -8,7 +8,9 @@
 #include "objectsUtils/bvh_scene.cuh"
 #include "objects/implicitSphere.cuh"
 #include "utils/quaternion.cuh"
-
+#include "objectsUtils/bvh_scene.cuh"
+#include "raytracingUtils/ray.cuh"
+#include "raytracingUtils/hitrecord.cuh"
 struct Light;
 
 struct CudaScene
@@ -41,14 +43,120 @@ struct CudaScene
 
     __host__ void uploadMaterials(std::vector<Material> materialsGPU);
 
-    __device__ bool intersect(const Ray &, float, float, HitRecord &) const;
+    __device__ __forceinline__ 
+    bool intersect(const Ray &p_ray, const float p_tMin, const float p_tMax, HitRecord &p_hitRecord) const
+    {
+        float tMax = p_tMax;
+        bool hit = false;
+        for(int i = 0; i < nbPlanes; ++i)
+        {
+            HitRecord planeHit;
 
-    __device__ bool intersectAny(const Ray &, float, float) const;
+            if (planes[i].intersect(p_ray, p_tMin, tMax, planeHit))
+            {
+                tMax = planeHit.distance;
+                p_hitRecord = planeHit;
 
-    __device__
+                p_hitRecord.objectType = HIT_PLANE;
+                p_hitRecord.objectIndex = i;
+
+                hit = true;
+            }
+        }
+        if (bvhScene.intersect(p_ray, p_tMin, tMax, p_hitRecord))
+        {
+            tMax = p_hitRecord.distance; // update tMax to conserve the nearest hit
+            hit = true;
+        }
+        
+        return hit;
+    }
+
+    __device__ __forceinline__ 
+    bool intersectAny(const Ray &p_ray, const float p_tMin, const float p_tMax) const
+    {
+        for(int i = 0; i < nbPlanes; ++i)
+        {
+            if (planes[i].intersectAny(p_ray, p_tMin, p_tMax, materials))
+            {
+                return true;
+            }
+        }
+        if(bvhScene.intersectAny(p_ray, p_tMin, p_tMax, materials))
+        {
+            return true;
+        }
+        return false;
+    }
+
+    __device__ __forceinline__
     float lightPdf(
     const float3& origin,
-    const float3& dir) const;
+    const float3& dir) const
+    {
+        Ray ray(origin, dir);
+
+        HitRecord hit;
+
+        if (!intersect(ray, 1e-4f, 1e30f, hit))
+            return 0.0f;
+
+        const MaterialType matType = materials[hit.materialIndex].type();
+
+        if (matType != MaterialType::EMISSIVE)
+            return 0.0f;
+
+        const float dist2 = hit.distance * hit.distance;
+        float pdf = 0.0f;
+
+        if (hit.objectType == HIT_SPHERE)
+        {
+            const Sphere& s = spheres[hit.objectIndex];
+
+            const float3 toSurface = hit.point - s.center1;
+            const float invRadius = 1.0f / s.radius;
+
+            const float cosTheta = fmaxf(dot(toSurface, -dir) * invRadius, 0.0f);
+
+            if (cosTheta <= 0.0f)
+                return 0.0f;
+
+            const float area = 4.0f * GPUPIf * s.radius * s.radius;
+            pdf = dist2 / (area * cosTheta);
+        }
+        else if (hit.objectType == HIT_SPHERE_IMPLICIT)
+        {
+            const ImplicitSphere& s = implicitSpheres[hit.objectIndex];
+
+            const float3 toSurface = hit.point - s.center1;
+            const float invRadius = 1.0f / s.radius;
+
+            const float cosTheta = fmaxf(dot(toSurface, -dir) * invRadius, 0.0f);
+
+            if (cosTheta <= 0.0f)
+                return 0.0f;
+
+            const float area = 4.0f * GPUPIf * s.radius * s.radius;
+            pdf = dist2 / (area * cosTheta);
+        }
+        else if (hit.objectType == HIT_TRIANGLE_MESH)
+        {
+            const TriangleMesh& mesh = triangleMeshes[hit.objectIndex];
+
+            const float cosTheta = fmaxf(dot(hit.normal, -dir), 0.0f);
+
+            if (cosTheta <= 0.0f)
+                return 0.0f;
+
+            pdf = dist2 / (mesh.meshArea * cosTheta);
+        }
+        else
+        {
+            return 0.0f;
+        }
+
+        return pdf * (1.0f / nbLights);
+    };
 
 };
 

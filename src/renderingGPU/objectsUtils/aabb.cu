@@ -7,7 +7,7 @@ float4 AABB::centroid() const
 }
 
 __host__ __device__ 
-float AABB::area()
+float AABB::area() const
 {
 	float3 minT = toFloat3(min);
 	float3 maxT = toFloat3(max);
@@ -15,37 +15,39 @@ float AABB::area()
 	return 2.0f * (size.x * size.y + size.x * size.z + size.y * size.z);
 }
 
-__device__ __noinline__
-bool AABB::intersect(const Ray &ray, const float p_tMin, const float p_tMax) const
+
+__host__
+bool AABB::intersect(
+    const Ray& ray,
+    float tMin,
+    float tMax,
+    float& outTNear) const
 {
-    float tmin = p_tMin;
-    float tmax = p_tMax;
+    const float tx1 = (min.x - ray.origin.x) * ray.invdir.x;
+    const float tx2 = (max.x - ray.origin.x) * ray.invdir.x;
 
-    // X
-    float tx1 = (min.x - ray.origin.x) * ray.invdir.x;
-    float tx2 = (max.x - ray.origin.x) * ray.invdir.x;
+    const float ty1 = (min.y - ray.origin.y) * ray.invdir.y;
+    const float ty2 = (max.y - ray.origin.y) * ray.invdir.y;
 
-    tmin = fmaxf(tmin, fminf(tx1, tx2));
-    tmax = fminf(tmax, fmaxf(tx1, tx2));
+    const float tz1 = (min.z - ray.origin.z) * ray.invdir.z;
+    const float tz2 = (max.z - ray.origin.z) * ray.invdir.z;
 
-    // Y
-    float ty1 = (min.y - ray.origin.y) * ray.invdir.y;
-    float ty2 = (max.y - ray.origin.y) * ray.invdir.y;
+    const float txMin = fminf(tx1, tx2);
+    const float txMax = fmaxf(tx1, tx2);
 
-    tmin = fmaxf(tmin, fminf(ty1, ty2));
-    tmax = fminf(tmax, fmaxf(ty1, ty2));
+    const float tyMin = fminf(ty1, ty2);
+    const float tyMax = fmaxf(ty1, ty2);
 
-    // Z
-    float tz1 = (min.z - ray.origin.z) * ray.invdir.z;
-    float tz2 = (max.z - ray.origin.z) * ray.invdir.z;
+    const float tzMin = fminf(tz1, tz2);
+    const float tzMax = fmaxf(tz1, tz2);
 
-    tmin = fmaxf(tmin, fminf(tz1, tz2));
-    tmax = fminf(tmax, fmaxf(tz1, tz2));
+    const float nearT = fmaxf(tMin, fmaxf(txMin, fmaxf(tyMin, tzMin)));
+    const float farT  = fminf(tMax, fminf(txMax, fminf(tyMax, tzMax)));
 
-    return tmax >= tmin;
+    outTNear = nearT;
+
+    return farT >= nearT;
 }
-
-
     
 
 __host__
@@ -64,4 +66,10 @@ __host__
 void AABB::extend(const float4& a){
     min = getMin(min, a);
     max = getMax(max, a);
+}
+
+__host__
+bool AABB::isValid()
+{
+    return min.x <= max.x && min.y <= max.y && min.z <= max.z;
 }

@@ -10,7 +10,7 @@ public:
 
     ~Renderer();
 
-    void render();
+    void render(bool outputImage=true);
     void init(
         int width,
         int height,
@@ -25,15 +25,15 @@ public:
 
     int getFrameNumber();
 
-    void renderFrame();
+    void renderFrame(bool outputImage);
 
     unsigned char* getFramebuffer();
 
     void resetAccumulation();
 
-    void cleanup();
+    void cleanUp();
 
-    void renderFrameWavefront();
+    void renderFrameWavefront(bool outputImage);
 
     void setInteropResource(cudaGraphicsResource* resource);
 
