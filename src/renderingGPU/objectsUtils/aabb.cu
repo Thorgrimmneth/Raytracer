@@ -16,59 +16,37 @@ float AABB::area() const
 }
 
 
-__host__ __device__
+__host__
 bool AABB::intersect(
     const Ray& ray,
     float tMin,
     float tMax,
-    float& outTNear,
-    float& outTFar) const
+    float& outTNear) const
 {
-    outTNear = tMin;
-    outTFar = tMax;
+    const float tx1 = (min.x - ray.origin.x) * ray.invdir.x;
+    const float tx2 = (max.x - ray.origin.x) * ray.invdir.x;
 
-    for (int axis = 0; axis < 3; ++axis)
-    {
-        float origin =
-            axis == 0 ? ray.origin.x :
-            axis == 1 ? ray.origin.y :
-                        ray.origin.z;
+    const float ty1 = (min.y - ray.origin.y) * ray.invdir.y;
+    const float ty2 = (max.y - ray.origin.y) * ray.invdir.y;
 
-        float direction =
-            axis == 0 ? ray.direction.x :
-            axis == 1 ? ray.direction.y :
-                        ray.direction.z;
+    const float tz1 = (min.z - ray.origin.z) * ray.invdir.z;
+    const float tz2 = (max.z - ray.origin.z) * ray.invdir.z;
 
-        float minA =
-            axis == 0 ? min.x :
-            axis == 1 ? min.y :
-                        min.z;
+    const float txMin = fminf(tx1, tx2);
+    const float txMax = fmaxf(tx1, tx2);
 
-        float maxA =
-            axis == 0 ? max.x :
-            axis == 1 ? max.y :
-                        max.z;
+    const float tyMin = fminf(ty1, ty2);
+    const float tyMax = fmaxf(ty1, ty2);
 
-        float invD = 1.0f / direction;
+    const float tzMin = fminf(tz1, tz2);
+    const float tzMax = fmaxf(tz1, tz2);
 
-        float t0 = (minA - origin) * invD;
-        float t1 = (maxA - origin) * invD;
+    const float nearT = fmaxf(tMin, fmaxf(txMin, fmaxf(tyMin, tzMin)));
+    const float farT  = fminf(tMax, fminf(txMax, fminf(tyMax, tzMax)));
 
-        if (invD < 0.0f)
-        {
-            float tmp = t0;
-            t0 = t1;
-            t1 = tmp;
-        }
+    outTNear = nearT;
 
-        outTNear = fmaxf(outTNear, t0);
-        outTFar = fminf(outTFar, t1);
-
-        if (outTFar <= outTNear)
-            return false;
-    }
-
-    return true;
+    return farT >= nearT;
 }
     
 

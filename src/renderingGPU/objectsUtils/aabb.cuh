@@ -13,12 +13,11 @@ struct AABB{
     __host__ __device__
     float area() const;
 
-    __host__ __device__
+    __host__
     bool intersect( const Ray& ray,
     float tMin,
     float tMax,
-    float& outTNear,
-    float& outTFar) const;
+    float& outTNear) const;
 
     __device__ __forceinline__
 bool intersectCheck(
@@ -27,28 +26,30 @@ bool intersectCheck(
     float tMax,
     float& outTMin) const
 {
-    for (int axis = 0; axis < 3; axis++)
-    {
-        float origin = (&ray.origin.x)[axis];
-        float invDir = (&ray.invdir.x)[axis];
-        float minVal = (&min.x)[axis];
-        float maxVal = (&max.x)[axis];
+    const float tx1 = (min.x - ray.origin.x) * ray.invdir.x;
+    const float tx2 = (max.x - ray.origin.x) * ray.invdir.x;
 
-        float t1 = (minVal - origin) * invDir;
-        float t2 = (maxVal - origin) * invDir;
+    const float ty1 = (min.y - ray.origin.y) * ray.invdir.y;
+    const float ty2 = (max.y - ray.origin.y) * ray.invdir.y;
 
-        float tNear = fminf(t1, t2);
-        float tFar  = fmaxf(t1, t2);
+    const float tz1 = (min.z - ray.origin.z) * ray.invdir.z;
+    const float tz2 = (max.z - ray.origin.z) * ray.invdir.z;
 
-        tMin = fmaxf(tMin, tNear);
-        tMax = fminf(tMax, tFar);
+    const float txMin = fminf(tx1, tx2);
+    const float txMax = fmaxf(tx1, tx2);
 
-        if (tMax < tMin)
-            return false;
-    }
+    const float tyMin = fminf(ty1, ty2);
+    const float tyMax = fmaxf(ty1, ty2);
 
-    outTMin = tMin;
-    return true;
+    const float tzMin = fminf(tz1, tz2);
+    const float tzMax = fmaxf(tz1, tz2);
+
+    const float nearT = fmaxf(tMin, fmaxf(txMin, fmaxf(tyMin, tzMin)));
+    const float farT  = fminf(tMax, fminf(txMax, fminf(tyMax, tzMax)));
+
+    outTMin = nearT;
+
+    return farT >= nearT;
 }
     __host__
     void extend(const AABB& a);

@@ -90,9 +90,8 @@ struct BVHScene {
 #endif
 
     float rootTNear;
-    float rootTFar;
 
-    if (!d_nodes[0].bbox.intersect(ray, tMin, tMax, rootTNear, rootTFar))
+    if (!d_nodes[0].bbox.intersectCheck(ray, tMin, tMax, rootTNear))
         return false;
 
     stack[stackPtr++] = { 0, rootTNear };
@@ -202,24 +201,20 @@ struct BVHScene {
 #endif
 
             float leftTNear;
-            float leftTFar;
             float rightTNear;
-            float rightTFar;
 
-            const bool hitLeft = d_nodes[leftIdx].bbox.intersect(
+            const bool hitLeft = d_nodes[leftIdx].bbox.intersectCheck(
                 ray,
                 tMin,
                 tMax,
-                leftTNear,
-                leftTFar
+                leftTNear
             );
 
-            const bool hitRight = d_nodes[rightIdx].bbox.intersect(
+            const bool hitRight = d_nodes[rightIdx].bbox.intersectCheck(
                 ray,
                 tMin,
                 tMax,
-                rightTNear,
-                rightTFar
+                rightTNear
             );
 
             if (hitLeft && hitRight)
@@ -284,9 +279,8 @@ bool intersectAny(
 #endif
 
     float rootTNear;
-    float rootTFar;
 
-    if (!d_nodes[0].bbox.intersect(ray, tMin, tMax, rootTNear, rootTFar))
+    if (!d_nodes[0].bbox.intersectCheck(ray, tMin, tMax, rootTNear))
         return false;
 
     stack[stackPtr++] = { 0, rootTNear };
@@ -408,24 +402,20 @@ bool intersectAny(
 #endif
 
             float leftTNear;
-            float leftTFar;
             float rightTNear;
-            float rightTFar;
 
-            const bool hitLeft = d_nodes[leftIdx].bbox.intersect(
+            const bool hitLeft = d_nodes[leftIdx].bbox.intersectCheck(
                 ray,
                 tMin,
                 tMax,
-                leftTNear,
-                leftTFar
+                leftTNear
             );
 
-            const bool hitRight = d_nodes[rightIdx].bbox.intersect(
+            const bool hitRight = d_nodes[rightIdx].bbox.intersectCheck(
                 ray,
                 tMin,
                 tMax,
-                rightTNear,
-                rightTFar
+                rightTNear
             );
 
             if (hitLeft && hitRight)

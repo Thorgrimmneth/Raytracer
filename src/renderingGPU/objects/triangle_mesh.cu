@@ -49,14 +49,12 @@ bool TriangleMesh::intersect(
         const BVH& node = bvhNodes[nodeIndex];
 
         float nodeTNear;
-        float nodeTFar;
 
-        if (!node.bbox.intersect(
+        if (!node.bbox.intersectCheck(
                 p_ray,
                 p_tMin,
                 tClosest,
-                nodeTNear,
-                nodeTFar))
+                nodeTNear))
         {
             continue;
         }
@@ -137,24 +135,20 @@ bool TriangleMesh::intersect(
 #endif
 
             float leftTNear;
-            float leftTFar;
             float rightTNear;
-            float rightTFar;
 
-            const bool hitLeft = bvhNodes[left].bbox.intersect(
+            const bool hitLeft = bvhNodes[left].bbox.intersectCheck(
                 p_ray,
                 p_tMin,
                 tClosest,
-                leftTNear,
-                leftTFar
+                leftTNear
             );
 
-            const bool hitRight = bvhNodes[right].bbox.intersect(
+            const bool hitRight = bvhNodes[right].bbox.intersectCheck(
                 p_ray,
                 p_tMin,
                 tClosest,
-                rightTNear,
-                rightTFar
+                rightTNear
             );
 
             if (hitLeft && hitRight)
@@ -242,14 +236,12 @@ bool TriangleMesh::intersectAny(
         const BVH& node = bvhNodes[nodeIndex];
 
         float nodeTNear;
-        float nodeTFar;
 
-        if (!node.bbox.intersect(
+        if (!node.bbox.intersectCheck(
                 p_ray,
                 p_tMin,
                 p_tMax,
-                nodeTNear,
-                nodeTFar))
+                nodeTNear))
         {
             continue;
         }
@@ -323,24 +315,20 @@ bool TriangleMesh::intersectAny(
 #endif
 
             float leftTNear;
-            float leftTFar;
             float rightTNear;
-            float rightTFar;
 
-            const bool hitLeft = bvhNodes[left].bbox.intersect(
+            const bool hitLeft = bvhNodes[left].bbox.intersectCheck(
                 p_ray,
                 p_tMin,
                 p_tMax,
-                leftTNear,
-                leftTFar
+                leftTNear
             );
 
-            const bool hitRight = bvhNodes[right].bbox.intersect(
+            const bool hitRight = bvhNodes[right].bbox.intersectCheck(
                 p_ray,
                 p_tMin,
                 p_tMax,
-                rightTNear,
-                rightTFar
+                rightTNear
             );
 
             if (hitLeft && hitRight)
