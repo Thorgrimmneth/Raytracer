@@ -107,8 +107,7 @@ bool TriangleMesh::intersect(
                         p_tMin,
                         tClosest,
                         t,
-                        uv,
-                        vertices))
+                        uv))
                 {
                     tClosest = t;
                     hit = true;
@@ -294,8 +293,7 @@ bool TriangleMesh::intersectAny(
                         p_tMin,
                         p_tMax,
                         t,
-                        uv,
-                        vertices))
+                        uv))
                 {
                     return true;
                 }

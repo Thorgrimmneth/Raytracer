@@ -77,17 +77,7 @@ struct BVHScene {
     float tMax = tMaxInit;
     bool hitSomething = false;
 
-#ifdef DEBUG_BVH
-    if (d_nodes == nullptr ||
-        d_primitives == nullptr ||
-        d_indices == nullptr)
-    {
-        return false;
-    }
 
-    if (nbNodes <= 0 || nbObjects <= 0)
-        return false;
-#endif
 
     float rootTNear;
 
@@ -103,10 +93,7 @@ struct BVHScene {
         if (current.distance > tMax)
             continue;
 
-#ifdef DEBUG_BVH
-        if ((unsigned)current.index >= (unsigned)nbNodes)
-            continue;
-#endif
+
 
         const BVHSceneNode& node = d_nodes[current.index];
 
@@ -115,19 +102,13 @@ struct BVHScene {
             const uint32_t first = node.firstIdx;
             const uint32_t count = node.objectCount;
 
-#ifdef DEBUG_BVH
-            if (first + count > nbObjects)
-                continue;
-#endif
+
 
             for (uint32_t i = first; i < first + count; ++i)
             {
                 const int primArrayIndex = d_indices[i];
 
-#ifdef DEBUG_BVH
-                if ((unsigned)primArrayIndex >= (unsigned)nbObjects)
-                    continue;
-#endif
+
 
                 const BaseObject& prim = d_primitives[primArrayIndex];
                 const int objectIndex = prim.getIndex();
@@ -136,10 +117,7 @@ struct BVHScene {
                 {
                     case ObjectType::SPHERE:
                     {
-#ifdef DEBUG_BVH
-                        if (d_spheres == nullptr)
-                            break;
-#endif
+
                         if (d_spheres[objectIndex].intersect(ray, tMin, tMax, hit))
                         {
                             tMax = hit.distance;
@@ -152,10 +130,7 @@ struct BVHScene {
 
                     case ObjectType::TRIANGLE:
                     {
-#ifdef DEBUG_BVH
-                        if (d_meshes == nullptr)
-                            break;
-#endif
+
                         if (d_meshes[objectIndex].intersect(ray, tMin, tMax, hit))
                         {
                             tMax = hit.distance;
@@ -168,10 +143,7 @@ struct BVHScene {
 
                     case ObjectType::IMPLICIT_SPHERE:
                     {
-#ifdef DEBUG_BVH
-                        if (d_implicitSpheres == nullptr)
-                            break;
-#endif
+
                         if (d_implicitSpheres[objectIndex].intersect(ray, tMin, tMax, hit))
                         {
                             tMax = hit.distance;
@@ -192,13 +164,7 @@ struct BVHScene {
             const uint32_t leftIdx = node.getLeftIndex();
             const uint32_t rightIdx = node.right;
 
-#ifdef DEBUG_BVH
-            if (leftIdx >= (uint32_t)nbNodes ||
-                rightIdx >= (uint32_t)nbNodes)
-            {
-                continue;
-            }
-#endif
+
 
             float leftTNear;
             float rightTNear;
@@ -266,17 +232,7 @@ bool intersectAny(
     Current stack[STACK_SIZE];
     int stackPtr = 0;
 
-#ifdef DEBUG_BVH
-    if (d_nodes == nullptr ||
-        d_primitives == nullptr ||
-        d_indices == nullptr)
-    {
-        return false;
-    }
 
-    if (nbNodes <= 0 || nbObjects <= 0)
-        return false;
-#endif
 
     float rootTNear;
 
@@ -292,10 +248,7 @@ bool intersectAny(
         if (current.distance > tMax)
             continue;
 
-#ifdef DEBUG_BVH
-        if ((unsigned)current.index >= (unsigned)nbNodes)
-            continue;
-#endif
+
 
         const BVHSceneNode& node = d_nodes[current.index];
 
@@ -304,19 +257,13 @@ bool intersectAny(
             const uint32_t first = node.firstIdx;
             const uint32_t count = node.objectCount;
 
-#ifdef DEBUG_BVH
-            if (first + count > nbObjects)
-                continue;
-#endif
+
 
             for (uint32_t i = first; i < first + count; ++i)
             {
                 const int primArrayIndex = d_indices[i];
 
-#ifdef DEBUG_BVH
-                if ((unsigned)primArrayIndex >= (unsigned)nbObjects)
-                    continue;
-#endif
+
 
                 const BaseObject& prim = d_primitives[primArrayIndex];
                 const int objectIndex = prim.getIndex();
@@ -325,10 +272,7 @@ bool intersectAny(
                 {
                     case ObjectType::SPHERE:
                     {
-#ifdef DEBUG_BVH
-                        if (d_spheres == nullptr)
-                            break;
-#endif
+
                         const int matIdx = d_spheres[objectIndex].materialIndex;
 
                         if (
@@ -345,10 +289,7 @@ bool intersectAny(
 
                     case ObjectType::TRIANGLE:
                     {
-#ifdef DEBUG_BVH
-                        if (d_meshes == nullptr)
-                            break;
-#endif
+
                         const int matIdx = d_meshes[objectIndex].materialIndex;
 
                         if (
@@ -365,10 +306,7 @@ bool intersectAny(
 
                     case ObjectType::IMPLICIT_SPHERE:
                     {
-#ifdef DEBUG_BVH
-                        if (d_implicitSpheres == nullptr)
-                            break;
-#endif
+
                         const int matIdx = d_implicitSpheres[objectIndex].materialIndex;
 
                         if (
@@ -393,13 +331,7 @@ bool intersectAny(
             const uint32_t leftIdx = node.getLeftIndex();
             const uint32_t rightIdx = node.right;
 
-#ifdef DEBUG_BVH
-            if (leftIdx >= (uint32_t)nbNodes ||
-                rightIdx >= (uint32_t)nbNodes)
-            {
-                continue;
-            }
-#endif
+
 
             float leftTNear;
             float rightTNear;

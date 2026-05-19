@@ -6,50 +6,6 @@
 #include "objectsUtils/bvh.cuh"
 #include "objectsUtils/sbvh.cuh"
 
-__device__ bool CudaScene::intersect(const Ray &p_ray, const float p_tMin, const float p_tMax, HitRecord &p_hitRecord) const
-{
-	float tMax = p_tMax;
-	bool hit = false;
-    for(int i = 0; i < nbPlanes; ++i)
-    {
-        HitRecord planeHit;
-
-        if (planes[i].intersect(p_ray, p_tMin, tMax, planeHit))
-        {
-            tMax = planeHit.distance;
-            p_hitRecord = planeHit;
-
-            p_hitRecord.objectType = HIT_PLANE;
-            p_hitRecord.objectIndex = i;
-
-            hit = true;
-        }
-    }
-	if (bvhScene.intersect(p_ray, p_tMin, tMax, p_hitRecord))
-	{
-		tMax = p_hitRecord.distance; // update tMax to conserve the nearest hit
-		hit = true;
-	}
-    
-	return hit;
-}
-
-__device__ bool CudaScene::intersectAny(const Ray &p_ray, const float p_tMin, const float p_tMax) const
-{
-    for(int i = 0; i < nbPlanes; ++i)
-    {
-        if (planes[i].intersectAny(p_ray, p_tMin, p_tMax, materials))
-        {
-            return true;
-        }
-    }
-	if(bvhScene.intersectAny(p_ray, p_tMin, p_tMax, materials))
-	{
-		return true;
-	}
-	return false;
-}
-
 __host__
 void CudaScene::uploadObjects(
     std::vector<Sphere> spheresGPU,
@@ -199,96 +155,6 @@ void CudaScene::uploadMaterials(std::vector<Material> materialsGPU)
 		materials = nullptr;
 	}
 }
-
-__device__
-float CudaScene::lightPdf(
-    const float3& origin,
-    const float3& dir) const
-{
-    Ray ray(origin, dir);
-
-    HitRecord hit;
-
-    if(!intersect(ray, 1e-4f, 1e30f, hit))
-        return 0.f;
-
-    const Material& mtl =
-        materials[hit.materialIndex];
-
-    if(mtl.type() != MaterialType::EMISSIVE)
-        return 0.f;
-
-    float pdf = 0.f;
-
-    // sphere emissive
-    if(hit.objectType == HIT_SPHERE || hit.objectType == HIT_SPHERE_IMPLICIT)
-    {
-        float3 lightCenter;
-        float radius;
-
-        if (hit.objectType == HIT_SPHERE)
-        {
-            const Sphere& s = spheres[hit.objectIndex];
-            lightCenter = s.center1;
-            radius = s.radius;
-        }
-        else
-        {
-            const ImplicitSphere& s = implicitSpheres[hit.objectIndex];
-            lightCenter = s.center1;
-            radius = s.radius;
-        }
-
-        float dist2 =
-            length2(hit.point - origin);
-
-        float3 n =
-            normalize(hit.point - lightCenter);
-
-        float cosTheta =
-            max(dot(n, -dir), 0.f);
-
-        if(cosTheta <= 0.f)
-            return 0.f;
-
-        float area =
-            4.f * GPUPIf * radius * radius;
-
-        float pdfArea = 1.f / area;
-
-        pdf =
-            pdfArea * dist2 / cosTheta;
-    }
-
-    // triangle mesh emissive
-    else if(hit.objectType == HIT_TRIANGLE_MESH)
-    {
-        const TriangleMesh& mesh =
-            triangleMeshes[hit.objectIndex];
-
-        float3 n = hit.normal;
-
-        float dist2 =
-            length2(hit.point - origin);
-
-        float cosTheta =
-            max(dot(n, -dir), 0.f);
-
-        if(cosTheta <= 0.f)
-            return 0.f;
-
-        float pdfArea =
-            1.f / mesh.meshArea;
-
-        pdf =
-            pdfArea * dist2 / cosTheta;
-    }
-
-    // lumière choisie uniformément
-    pdf *= (1.f / nbLights);
-
-    return pdf;
-};
 
 void sceneSize(CudaScene gpuScene, std::vector<BaseObject> primitivesGPU)
 {
@@ -771,10 +637,7 @@ MeshAndPrimitive loadTriangleMesh(const std::string& p_path, int materialIndex, 
         // Add triangles
         for (unsigned int f = 0; f < mesh->mNumFaces; ++f) {
             const aiFace& face = mesh->mFaces[f];
-            TriangleMeshGeometry tri;
-            tri.i0 = vertexOffset + face.mIndices[0];
-            tri.i1 = vertexOffset + face.mIndices[1];
-            tri.i2 = vertexOffset + face.mIndices[2];
+            TriangleMeshGeometry tri(vertexOffset + face.mIndices[0], vertexOffset + face.mIndices[1], vertexOffset + face.mIndices[2], vertices.data());
             float area = 0.5f * abs((vertices[tri.i1].x - vertices[tri.i0].x) * (vertices[tri.i2].y - vertices[tri.i0].y) - (vertices[tri.i1].y - vertices[tri.i0].y) * (vertices[tri.i2].x - vertices[tri.i0].x));
             totalArea += area;
             areaCdf.push_back(area);

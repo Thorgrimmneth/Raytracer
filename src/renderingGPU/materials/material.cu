@@ -309,10 +309,9 @@ BSDFVal Material::getMirrorBSDF(
     const HitRecord& hit) const
 {
     float3  normal = hit.normal;
-    float3  wo     = -ray.direction;
     BSDFVal bsdf;
 
-    bsdf.direction = reflect(-wo, normal);
+    bsdf.direction = reflect(ray.direction, normal);
     bsdf.pdf       = 1.f;
     bsdf.brdf      = color();
     bsdf.isDelta   = true;
@@ -328,11 +327,11 @@ BSDFVal Material::getTransparentBSDF(
     bool&            isInside) const
 {
     float3  normal = hit.normal;
-    float3  wo     = -ray.direction;
+    float3  wo     = ray.direction;
     BSDFVal bsdf;
 
     float3 n    = normal;
-    float  cosI = dot(n, wo);
+    float  cosI = dot(n, -ray.direction);
 
     if (cosI < 0.f) {
         n    = -n;
@@ -349,7 +348,7 @@ BSDFVal Material::getTransparentBSDF(
 
     // Total internal reflection
     if (k < 0.f) {
-        bsdf.direction = reflect(-wo, n);
+        bsdf.direction = reflect(wo, n);
         bsdf.pdf       = 1.f;
         bsdf.brdf      = make_float3(1.f);
         bsdf.isDelta   = true;
@@ -370,12 +369,12 @@ BSDFVal Material::getTransparentBSDF(
     float xi   = rngStates->nextFloat();
 
     if (xi < reff) {
-        bsdf.direction = reflect(-wo, n);
+        bsdf.direction = reflect(wo, n);
         bsdf.pdf       = reff;
         bsdf.brdf      = make_float3(1.f);
     }
     else {
-        float3 wi = eta * (-wo) + (eta * cosI - cosT) * n;
+        float3 wi = eta * (wo) + (eta * cosI - cosT) * n;
 
         bsdf.direction = normalize(wi);
         bsdf.pdf       = 1.f - reff;
