@@ -19,12 +19,40 @@ struct AABB{
     float tMax,
     float& outTNear) const;
 
-    __device__ __forceinline__
+__device__ __forceinline__
 bool intersectCheck(
     const Ray& ray,
     float tMin,
     float tMax,
     float& outTMin) const
+{
+    float nearT = tMin;
+    float farT  = tMax;
+
+    float t1 = (min.x - ray.origin.x) * ray.invdir.x;
+    float t2 = (max.x - ray.origin.x) * ray.invdir.x;
+    nearT = fmaxf(nearT, fminf(t1, t2));
+    farT  = fminf(farT,  fmaxf(t1, t2));
+
+    t1 = (min.y - ray.origin.y) * ray.invdir.y;
+    t2 = (max.y - ray.origin.y) * ray.invdir.y;
+    nearT = fmaxf(nearT, fminf(t1, t2));
+    farT  = fminf(farT,  fmaxf(t1, t2));
+
+    t1 = (min.z - ray.origin.z) * ray.invdir.z;
+    t2 = (max.z - ray.origin.z) * ray.invdir.z;
+    nearT = fmaxf(nearT, fminf(t1, t2));
+    farT  = fminf(farT,  fmaxf(t1, t2));
+
+    outTMin = nearT;
+    return farT >= nearT;
+}
+
+    __device__ __forceinline__
+bool intersectAnyGPU(
+    const Ray& ray,
+    float tMin,
+    float tMax) const
 {
     const float tx1 = (min.x - ray.origin.x) * ray.invdir.x;
     const float tx2 = (max.x - ray.origin.x) * ray.invdir.x;
@@ -46,8 +74,6 @@ bool intersectCheck(
 
     const float nearT = fmaxf(tMin, fmaxf(txMin, fmaxf(tyMin, tzMin)));
     const float farT  = fminf(tMax, fminf(txMax, fminf(tyMax, tzMax)));
-
-    outTMin = nearT;
 
     return farT >= nearT;
 }

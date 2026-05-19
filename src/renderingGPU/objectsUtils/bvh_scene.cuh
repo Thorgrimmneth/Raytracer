@@ -62,14 +62,14 @@ struct BVHScene {
     __host__
     size_t getDeviceSize() const;
 
-    __device__ __noinline__
+    __device__ __forceinline__
     bool intersect(
     const Ray& ray,
     const float tMin,
     const float tMaxInit,
     HitRecord& hit) const
 {
-    constexpr int STACK_SIZE = 64;
+    constexpr int STACK_SIZE = 32;
 
     Current stack[STACK_SIZE];
     int stackPtr = 0;
@@ -254,14 +254,14 @@ struct BVHScene {
     return hitSomething;
 }
 
-    __device__
+    __device__ __forceinline__
 bool intersectAny(
     const Ray& ray,
     float tMin,
     float tMax,
     const Material* materials) const
 {
-    constexpr int STACK_SIZE = 64;
+    constexpr int STACK_SIZE = 32;
 
     Current stack[STACK_SIZE];
     int stackPtr = 0;
@@ -331,7 +331,7 @@ bool intersectAny(
 #endif
                         const int matIdx = d_spheres[objectIndex].materialIndex;
 
-                        if (materials != nullptr &&
+                        if (
                             materials[matIdx].type() == MaterialType::TRANSPARENT)
                         {
                             break;
@@ -351,7 +351,7 @@ bool intersectAny(
 #endif
                         const int matIdx = d_meshes[objectIndex].materialIndex;
 
-                        if (materials != nullptr &&
+                        if (
                             materials[matIdx].type() == MaterialType::TRANSPARENT)
                         {
                             break;
@@ -371,7 +371,7 @@ bool intersectAny(
 #endif
                         const int matIdx = d_implicitSpheres[objectIndex].materialIndex;
 
-                        if (materials != nullptr &&
+                        if (
                             materials[matIdx].type() == MaterialType::TRANSPARENT)
                         {
                             break;
@@ -421,7 +421,7 @@ bool intersectAny(
             if (hitLeft && hitRight)
             {
                 if (stackPtr + 2 > STACK_SIZE)
-                    return false;
+                    return true;
 
                 if (leftTNear < rightTNear)
                 {
@@ -437,14 +437,14 @@ bool intersectAny(
             else if (hitLeft)
             {
                 if (stackPtr + 1 > STACK_SIZE)
-                    return false;
+                    return true;
 
                 stack[stackPtr++] = { leftIdx, leftTNear };
             }
             else if (hitRight)
             {
                 if (stackPtr + 1 > STACK_SIZE)
-                    return false;
+                    return true;
 
                 stack[stackPtr++] = { rightIdx, rightTNear };
             }

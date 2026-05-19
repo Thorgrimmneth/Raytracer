@@ -13,11 +13,53 @@ struct Plane
 
 	Plane() = default;
 	Plane(float3 pos, float3 n) : normal(n), delta(dot(-n, pos)) {}
-	__device__
-    bool intersectGeometry( const Ray & ray, float & p_t1 ) const;
+	
+    __device__ __forceinline__
+bool intersect(
+    const Ray& ray,
+    const float tMin,
+    const float tMax,
+    HitRecord& hitRecord) const
+{
+    float t;
 
-	__device__
-	bool intersect( const Ray & p_ray, const float p_tMin, const float p_tMax, HitRecord & p_hitRecord ) const;
+    // Fast path pour le sol horizontal y = 0
+    if (normal.x == 0.0f &&
+        normal.y == 1.0f &&
+        normal.z == 0.0f &&
+        delta == 0.0f)
+    {
+        const float dy = ray.direction.y;
+
+        if (fabsf(dy) < 1e-6f)
+            return false;
+
+        t = -ray.origin.y / dy;
+    }
+    else
+    {
+        const float nd = dot(normal, ray.direction);
+
+        if (fabsf(nd) < 1e-6f)
+            return false;
+
+        t = -(dot(normal, ray.origin) + delta) / nd;
+    }
+
+    if (t <= tMin || t >= tMax)
+        return false;
+
+    const float3 p = ray.origin + t * ray.direction;
+    float3 n = normal;
+
+    hitRecord.point = p;
+    hitRecord.normal = n;
+    hitRecord.faceNormal(ray.direction);
+    hitRecord.distance = t;
+    hitRecord.materialIndex = materialIndex;
+
+    return true;
+}
 
 	__device__ __forceinline__
 bool intersectAny(

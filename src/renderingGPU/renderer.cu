@@ -96,7 +96,7 @@ Renderer::Renderer()
 
 Renderer::~Renderer()
 {
-    cleanup();
+    cleanUp();
     delete impl;
 }
 
@@ -490,12 +490,8 @@ void Renderer::applyBloom()
     );
 }
 
-void Renderer::renderFrame()
+void Renderer::renderFrame(bool outputImage)
 {
-    // =========================
-    // Accumulate one sample
-    // =========================
-
     renderKernel<<<impl->gridSize, impl->blockSize>>>(
         impl->gpuScene,
         impl->d_accumBuffer,
@@ -512,10 +508,6 @@ void Renderer::renderFrame()
 
     impl->sampleCount++;
 
-    // =========================
-    // Normalize accumulation
-    // =========================
-
     normalizeKernel<<<impl->gridSize, impl->blockSize>>>(
         impl->d_accumBuffer,
         impl->d_normalizedBuffer,
@@ -530,15 +522,10 @@ void Renderer::renderFrame()
         std::cout << "normalizeKernel error: " << cudaGetErrorString(err) << std::endl;
     }
 
-    // =========================
-    // Bloom
-    // =========================
-
     applyBloom();
 
-    // =========================
-    // MAP OPENGL TEXTURE
-    // =========================
+    if (!outputImage)
+        return;
 
     cudaGraphicsMapResources(
         1,
@@ -554,10 +541,6 @@ void Renderer::renderFrame()
         0
     );
 
-    // =========================
-    // CREATE CUDA SURFACE
-    // =========================
-
     cudaResourceDesc desc = {};
     desc.resType = cudaResourceTypeArray;
     desc.res.array.array = textureArray;
@@ -569,10 +552,6 @@ void Renderer::renderFrame()
         &desc
     );
 
-    // =========================
-    // Tonemap + RGB8 conversion
-    // =========================
-
     finalizeImage<<<impl->gridSize, impl->blockSize>>>(
         impl->d_finalHDRBuffer,
         surface,
@@ -580,10 +559,6 @@ void Renderer::renderFrame()
         impl->height,
         impl->exposure
     );
-    
-    // =========================
-    // CLEANUP
-    // =========================
 
     cudaDestroySurfaceObject(surface);
 
@@ -591,10 +566,9 @@ void Renderer::renderFrame()
         1,
         &impl->cudaTextureResource
     );
-    
 }
 
-void Renderer::renderFrameWavefront()
+void Renderer::renderFrameWavefront(bool outputImage)
 {
     int pixelCount = impl->width * impl->height;
 
@@ -784,6 +758,8 @@ void Renderer::renderFrameWavefront()
 
     applyBloom();
 
+    if (!outputImage)
+    return;
     // -------------------------------------------------------------------------
     // 7. Mapping OpenGL / CUDA
     // -------------------------------------------------------------------------
@@ -890,17 +866,17 @@ void Renderer::renderFrameWavefront()
     }
 }
 
-void Renderer::render(){
+void Renderer::render(bool outputImage){
     switch(impl->renderMode){
         case RenderMode::Megakernel:
-            renderFrame();
+            renderFrame(outputImage);
             break;
         case RenderMode::Wavefront:
-            renderFrameWavefront();
+            renderFrameWavefront(outputImage);
             break;
     }
 }
-void Renderer::cleanup()
+void Renderer::cleanUp()
 {
     cudaFree(impl->d_accumBuffer);
 

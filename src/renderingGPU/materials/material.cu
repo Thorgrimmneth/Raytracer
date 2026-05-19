@@ -224,8 +224,8 @@ BSDFVal Material::getMetalBSDF(
     const HitRecord& hit,
     RNG*             rngStates) const
 {
-    float3  normal = normalize(hit.normal);
-    float3  wo     = normalize(-ray.direction);
+    float3  normal = hit.normal;
+    float3  wo     = -ray.direction;
     BSDFVal bsdf;
 
     float3 F0 = lerp(make_float3(0.04f), color(), metalness());
@@ -252,7 +252,7 @@ BSDFVal Material::getLambertBSDF(
     const HitRecord& hit,
     RNG*             rngStates) const
 {
-    float3  normal = normalize(hit.normal);
+    float3  normal = hit.normal;
     BSDFVal bsdf;
 
     bsdf.direction = samplingLambert(normal, rngStates);
@@ -269,8 +269,8 @@ BSDFVal Material::getPlasticBSDF(
     const HitRecord& hit,
     RNG*             rngStates) const
 {
-    float3  normal = normalize(hit.normal);
-    float3  wo     = normalize(-ray.direction);
+    float3  normal = hit.normal;
+    float3  wo     = -ray.direction;
     BSDFVal bsdf;
 
     float3 F0       = make_float3(0.04f);
@@ -308,8 +308,8 @@ BSDFVal Material::getMirrorBSDF(
     const Ray&       ray,
     const HitRecord& hit) const
 {
-    float3  normal = normalize(hit.normal);
-    float3  wo     = normalize(-ray.direction);
+    float3  normal = hit.normal;
+    float3  wo     = -ray.direction;
     BSDFVal bsdf;
 
     bsdf.direction = reflect(-wo, normal);
@@ -327,8 +327,8 @@ BSDFVal Material::getTransparentBSDF(
     RNG*             rngStates,
     bool&            isInside) const
 {
-    float3  normal = normalize(hit.normal);
-    float3  wo     = normalize(-ray.direction);
+    float3  normal = hit.normal;
+    float3  wo     = -ray.direction;
     BSDFVal bsdf;
 
     float3 n    = normal;
@@ -446,8 +446,8 @@ float3 Material::evalMetalBSDF(
     const HitRecord& hit,
     const float3&    wi) const
 {
-    float3 normal = normalize(hit.normal);
-    float3 wo     = normalize(-ray.direction);
+    float3 normal = hit.normal;
+    float3 wo     = -ray.direction;
 
     if (dot(normal, wi) <= 0.f)
         return make_float3(0.f);
@@ -463,8 +463,8 @@ float3 Material::evalPlasticBSDF(
     const HitRecord& hit,
     const float3&    wi) const
 {
-    float3 normal = normalize(hit.normal);
-    float3 wo     = normalize(-ray.direction);
+    float3 normal = hit.normal;
+    float3 wo     = -ray.direction;
 
     if (dot(normal, wi) <= 0.f)
         return make_float3(0.f);
@@ -519,7 +519,7 @@ float Material::lambertPDF(
     const HitRecord& hit,
     const float3&    wi) const
 {
-    float3 normal = normalize(hit.normal);
+    float3 normal = hit.normal;
 
     return pdfLambert(normal, wi);
 }
@@ -530,8 +530,8 @@ float Material::metalPDF(
     const HitRecord& hit,
     const float3&    wi) const
 {
-    float3 normal = normalize(hit.normal);
-    float3 wo     = normalize(-ray.direction);
+    float3 normal = hit.normal;
+    float3 wo     = -ray.direction;
 
     if (dot(normal, wi) <= 0.f)
         return 0.f;
@@ -545,8 +545,8 @@ float Material::plasticPDF(
     const HitRecord& hit,
     const float3&    wi) const
 {
-    float3 normal = normalize(hit.normal);
-    float3 wo     = normalize(-ray.direction);
+    float3 normal = hit.normal;
+    float3 wo     = -ray.direction;
 
     if (dot(normal, wi) <= 0.f)
         return 0.f;
