@@ -9,7 +9,6 @@
 __host__
 BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
                                  std::vector<Sphere>* spheres,
-                                 std::vector<Plane>* planes,
                                  std::vector<TriangleMesh>* meshes,
                                  std::vector<ImplicitSphere>* implicitSpheres)
 {
@@ -249,119 +248,28 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
 // INTERSECT (closest hit)
 // ============================================================
 
-__device__ __noinline__
-bool BVHScene::intersect(const Ray &ray,
-                         const float tMin,
-                         const float tMaxInit,
-                         HitRecord &hit) const
-{
-    Current stack[64];
-    int stackPtr = 0;
 
-    float tMax = tMaxInit;
-    bool hitSomething = false;
 
-    float dist;
-    if (!d_nodes[0].bbox.intersectCheck(ray, tMin, tMax, dist))
-        return false;
 
-    stack[stackPtr++] = {0, dist};
-    while (stackPtr > 0)
-    {
-        Current current = stack[--stackPtr];
-
-        if (current.distance > tMax)
-            continue;
-
-        const BVHSceneNode& node = d_nodes[current.index];
-        
-        if (node.isLeaf())
-        {
-            for (uint32_t i = node.firstIdx; i < node.firstIdx + node.objectCount; ++i)
-            {
-                BaseObject& prim = d_primitives[d_indices[i]];
-
-                switch (prim.getType())
-                {
-                    case ObjectType::SPHERE:
-                        if (d_spheres[prim.getIndex()].intersect(ray, tMin, tMax, hit))
-                        {
-                            tMax = hit.distance;
-                            hitSomething = true;
-                            hit.objectType = HIT_SPHERE;
-                            hit.objectIndex = prim.getIndex();
-                        }
-                        break;
-
-                    case ObjectType::PLANE:
-                        if (d_planes[prim.getIndex()].intersect(ray, tMin, tMax, hit))
-                        {
-                            tMax = hit.distance;
-                            hitSomething = true;
-                            hit.objectType = HIT_PLANE;
-                            hit.objectIndex = prim.getIndex();
-                        }
-                        break;
-
-                    case ObjectType::TRIANGLE:
-                        if (d_meshes[prim.getIndex()].intersect(ray, tMin, tMax, hit))
-                        {
-                            tMax = hit.distance;
-                            hitSomething = true;
-                            hit.objectType = HIT_TRIANGLE_MESH;
-                            hit.objectIndex = prim.getIndex();
-                        }
-                        break;
-                    case ObjectType::IMPLICIT_SPHERE:
-                        if (d_implicitSpheres[prim.getIndex()].intersect(ray, tMin, tMax, hit))
-                        {
-                            tMax = hit.distance;
-                            hitSomething = true;
-                            hit.objectType = HIT_SPHERE_IMPLICIT;
-                            hit.objectIndex = prim.getIndex();
-                        }
-                }
-            }
-        }
-        else
-        {
-            float dl, dr;
-            uint32_t leftIdx = node.getLeftIndex();
-            bool hl = d_nodes[leftIdx].bbox.intersectCheck(ray, tMin, tMax, dl);
-            bool hr = d_nodes[node.right].bbox.intersectCheck(ray, tMin, tMax, dr);
-            if (hl && hr)
-            {
-                if (dl < dr)
-                {
-                    stack[stackPtr++] = {node.right, dr};
-                    stack[stackPtr++] = {leftIdx, dl};
-                }
-                else
-                {
-                    stack[stackPtr++] = {leftIdx, dl};
-                    stack[stackPtr++] = {node.right, dr};
-                }
-            }
-            else if (hl)
-                stack[stackPtr++] = {leftIdx, dl};
-            else if (hr)
-                stack[stackPtr++] = {node.right, dr};
-        }
-    }
-
-    return hitSomething;
-}
-
+__host__
 size_t BVHScene::getDeviceSize() const
 {
     size_t size = 0;
-    
-    size_t nodesSize = (size_t)nbNodes * sizeof(BVHSceneNode);
-    size += nodesSize;
-    
-    // Indices array: one int per primitive
-    size_t indicesSize = (size_t)nbObjects * sizeof(int);
-    size += indicesSize;
-    
+
+    if (d_nodes != nullptr && nbNodes > 0)
+    {
+        size += static_cast<size_t>(nbNodes) * sizeof(*d_nodes);
+    }
+
+    if (d_indices != nullptr && nbObjects > 0)
+    {
+        size += static_cast<size_t>(nbObjects) * sizeof(*d_indices);
+    }
+
+    if (d_primitives != nullptr && nbObjects > 0)
+    {
+        size += static_cast<size_t>(nbObjects) * sizeof(*d_primitives);
+    }
+
     return size;
 }

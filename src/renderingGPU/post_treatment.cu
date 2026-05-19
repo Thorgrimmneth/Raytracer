@@ -1,7 +1,4 @@
-#pragma once
-
-#include "utils/op.cuh"
-#include <curand_kernel.h>
+#include "post_treatment.cuh"
 
 __global__
 void extractBright(float3* hdr,

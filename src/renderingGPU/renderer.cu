@@ -6,9 +6,9 @@
 #include "integrators/pathtracer_integrator.cuh"
 
 
-#include "shading_kernels.cu"
-#include "wavefront_state.cu"
-#include "post_treatment.cu"
+#include "shading_kernels.cuh"
+#include "wavefront_state.cuh"
+#include "post_treatment.cuh"
 #include "camera/camera.cuh"
 #include "../defines.hpp"
 #include "renderer.hpp"

@@ -4,22 +4,50 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include "objectsUtils/bvh.cuh"
+#include "objectsUtils/sbvh.cuh"
 
 __device__ bool CudaScene::intersect(const Ray &p_ray, const float p_tMin, const float p_tMax, HitRecord &p_hitRecord) const
 {
 	float tMax = p_tMax;
 	bool hit = false;
+    for(int i = 0; i < nbPlanes; ++i)
+    {
+        HitRecord planeHit;
+
+        if (planes[i].intersect(p_ray, p_tMin, tMax, planeHit))
+        {
+            tMax = planeHit.distance;
+            p_hitRecord = planeHit;
+
+            p_hitRecord.objectType = HIT_PLANE;
+            p_hitRecord.objectIndex = i;
+
+            hit = true;
+        }
+    }
 	if (bvhScene.intersect(p_ray, p_tMin, tMax, p_hitRecord))
 	{
 		tMax = p_hitRecord.distance; // update tMax to conserve the nearest hit
 		hit = true;
 	}
+    
 	return hit;
 }
 
 __device__ bool CudaScene::intersectAny(const Ray &p_ray, const float p_tMin, const float p_tMax) const
 {
-	return bvhScene.intersectAny(p_ray, p_tMin, p_tMax, materials);
+    for(int i = 0; i < nbPlanes; ++i)
+    {
+        if (planes[i].intersectAny(p_ray, p_tMin, p_tMax, materials))
+        {
+            return true;
+        }
+    }
+	if(bvhScene.intersectAny(p_ray, p_tMin, p_tMax, materials))
+	{
+		return true;
+	}
+	return false;
 }
 
 __host__
@@ -53,7 +81,6 @@ void CudaScene::uploadObjects(
     // =========================
     bvhScene = BVHScene::buildBVHScene(&primitivesGPU,
                                        &spheresGPU,
-                                       &planesGPU,
                                        &triangleMeshesGPU,
                                        &implicitSpheresGPU);
 
@@ -316,7 +343,6 @@ CudaScene spheresScene(float4 sunDir)
         materialsGPU.push_back(ground);
         p.materialIndex = materialsGPU.size() - 1;
 
-        primitivesGPU.push_back(BaseObject{make_float3(-1e3f, 0.f, -1e3f), make_float3(1e3f, 0.f, 1e3f),ObjectType::PLANE, (int)planesGPU.size()});
         planesGPU.push_back(p);
     }
 
@@ -505,7 +531,6 @@ CudaScene implicitSpheresScene(float4 sunDir)
         materialsGPU.push_back(ground);
         p.materialIndex = materialsGPU.size() - 1;
 
-        primitivesGPU.push_back(BaseObject{make_float3(-1e3f, 0.f, -1e3f), make_float3(1e3f, 0.f, 1e3f),ObjectType::PLANE, (int)planesGPU.size()});
         planesGPU.push_back(p);
     }
 
@@ -705,7 +730,7 @@ MeshAndPrimitive loadTriangleMesh(const std::string& p_path, int materialIndex, 
     unsigned int cptVertices = 0;
     float3 mini = make_float3(+INFINITY);
     float3 maxi = make_float3(-INFINITY);
-    float totalArea;
+    float totalArea = 0.f;
     std::vector<float> areaCdf;
     for (unsigned int m = 0; m < scene->mNumMeshes; ++m) {
         const aiMesh* const mesh = scene->mMeshes[m];
@@ -765,29 +790,121 @@ MeshAndPrimitive loadTriangleMesh(const std::string& p_path, int materialIndex, 
     std::cout << "[DONE] " << scene->mNumMeshes << " meshes, " << cptTriangles << " triangles, " << cptVertices << " vertices." << std::endl;
     // Create TriangleMesh structure
     TriangleMesh triMesh;
-    triMesh.triangleCount = triangles.size();
-    triMesh.vertexCount = vertices.size();
+
+    // Basic mesh metadata
+    triMesh.triangleCount = static_cast<int>(triangles.size());
+    triMesh.vertexCount = static_cast<int>(vertices.size());
     triMesh.materialIndex = materialIndex;
-    
-    triMesh.bvhNodes = buildBVH(triangles.data(), triMesh.triangleCount, vertices.data(), normals.data(), uvs.data(), triMesh.bvhNodeCount);
+
+    // GPU pointers
+    triMesh.triangles = nullptr;
+    triMesh.vertices = nullptr;
+    triMesh.normals = nullptr;
+    triMesh.uvs = nullptr;
+    triMesh.triangleAreaCdf = nullptr;
+
+    // Mesh BVH
+    triMesh.bvhNodes = nullptr;
+    triMesh.bvhNodeCount = 0;
+
+    // BVH/SBVH triangle references
+    triMesh.triangleRefIndices = nullptr;
+    triMesh.refCount = 0;
+
+    // Sampling data
+    triMesh.meshArea = totalArea;
+
+    // Build mesh BVH on host, allocate BVH nodes and triangle refs on device
+    triMesh.bvhNodes = buildBVH(
+        triangles.data(),
+        triMesh.triangleCount,
+        vertices.data(),
+        normals.data(),
+        uvs.data(),
+        triMesh.bvhNodeCount,
+        triMesh.triangleRefIndices,
+        triMesh.refCount
+    );
+
     // Allocate and copy triangles to GPU
-    cudaMalloc(&triMesh.triangles, triangles.size() * sizeof(TriangleMeshGeometry));
-    cudaMemcpy(triMesh.triangles, triangles.data(), triangles.size() * sizeof(TriangleMeshGeometry), cudaMemcpyHostToDevice);
-    
+    if (!triangles.empty())
+    {
+        cudaMalloc(
+            &triMesh.triangles,
+            triangles.size() * sizeof(TriangleMeshGeometry)
+        );
+
+        cudaMemcpy(
+            triMesh.triangles,
+            triangles.data(),
+            triangles.size() * sizeof(TriangleMeshGeometry),
+            cudaMemcpyHostToDevice
+        );
+    }
+
     // Allocate and copy vertices to GPU
-    cudaMalloc(&triMesh.vertices, vertices.size() * sizeof(float3));
-    cudaMemcpy(triMesh.vertices, vertices.data(), vertices.size() * sizeof(float3), cudaMemcpyHostToDevice);
-    
+    if (!vertices.empty())
+    {
+        cudaMalloc(
+            &triMesh.vertices,
+            vertices.size() * sizeof(float3)
+        );
+
+        cudaMemcpy(
+            triMesh.vertices,
+            vertices.data(),
+            vertices.size() * sizeof(float3),
+            cudaMemcpyHostToDevice
+        );
+    }
+
     // Allocate and copy normals to GPU
-    cudaMalloc(&triMesh.normals, normals.size() * sizeof(float3));
-    cudaMemcpy(triMesh.normals, normals.data(), normals.size() * sizeof(float3), cudaMemcpyHostToDevice);
-    
+    if (!normals.empty())
+    {
+        cudaMalloc(
+            &triMesh.normals,
+            normals.size() * sizeof(float3)
+        );
+
+        cudaMemcpy(
+            triMesh.normals,
+            normals.data(),
+            normals.size() * sizeof(float3),
+            cudaMemcpyHostToDevice
+        );
+    }
+
     // Allocate and copy UVs to GPU
-    cudaMalloc(&triMesh.uvs, uvs.size() * sizeof(float2));
-    cudaMemcpy(triMesh.uvs, uvs.data(), uvs.size() * sizeof(float2), cudaMemcpyHostToDevice);
-    
-    cudaMalloc(&triMesh.triangleAreaCdf, areaCdf.size() * sizeof(float));
-    cudaMemcpy(triMesh.triangleAreaCdf, areaCdf.data(), areaCdf.size() * sizeof(float), cudaMemcpyHostToDevice);
+    if (!uvs.empty())
+    {
+        cudaMalloc(
+            &triMesh.uvs,
+            uvs.size() * sizeof(float2)
+        );
+
+        cudaMemcpy(
+            triMesh.uvs,
+            uvs.data(),
+            uvs.size() * sizeof(float2),
+            cudaMemcpyHostToDevice
+        );
+    }
+
+    // Allocate and copy triangle area CDF to GPU
+    if (!areaCdf.empty())
+    {
+        cudaMalloc(
+            &triMesh.triangleAreaCdf,
+            areaCdf.size() * sizeof(float)
+        );
+
+        cudaMemcpy(
+            triMesh.triangleAreaCdf,
+            areaCdf.data(),
+            areaCdf.size() * sizeof(float),
+            cudaMemcpyHostToDevice
+        );
+    }
 
     triMesh.meshArea = totalArea;
     

@@ -1,16 +1,18 @@
 #include "triangle_mesh.cuh"
 
 
-__device__ __noinline__
+__device__
 bool TriangleMesh::intersect(
     const Ray& p_ray,
     const float p_tMin,
     const float p_tMax,
     HitRecord& p_hitRecord) const
 {
-    constexpr int STACK_SIZE = 256;
+    constexpr int STACK_SIZE = 128;
 
+#ifdef DEBUG_BVH
     if (bvhNodes == nullptr ||
+        triangleRefIndices == nullptr ||
         triangles == nullptr ||
         vertices == nullptr ||
         normals == nullptr)
@@ -20,10 +22,12 @@ bool TriangleMesh::intersect(
 
     if (bvhNodeCount <= 0 ||
         triangleCount <= 0 ||
+        refCount <= 0 ||
         vertexCount <= 0)
     {
         return false;
     }
+#endif
 
     int stack[STACK_SIZE];
     int stackPtr = 0;
@@ -35,77 +39,154 @@ bool TriangleMesh::intersect(
 
     while (stackPtr > 0)
     {
-        int nodeIndex = stack[--stackPtr];
+        const int nodeIndex = stack[--stackPtr];
 
-        if (nodeIndex < 0 || nodeIndex >= bvhNodeCount)
-        {
-            return hit;
-        }
+#ifdef DEBUG_BVH
+        if ((unsigned)nodeIndex >= (unsigned)bvhNodeCount)
+            continue;
+#endif
 
         const BVH& node = bvhNodes[nodeIndex];
 
-        if (!node.bbox.intersect(p_ray, p_tMin, tClosest))
+        float nodeTNear;
+        float nodeTFar;
+
+        if (!node.bbox.intersect(
+                p_ray,
+                p_tMin,
+                tClosest,
+                nodeTNear,
+                nodeTFar))
+        {
             continue;
+        }
 
         if (node.isLeaf())
         {
-            int first = node.firstTriangleIndex;
-            int last = node.lastTriangleIndex;
+            const int first = node.firstRefIndex;
+            const int count = node.refCount;
 
-            if (first < 0 || first >= triangleCount)
+#ifdef DEBUG_BVH
+            if (first < 0 || count <= 0)
                 continue;
 
-            if (last < 0 || last >= triangleCount)
+            if (first + count > refCount)
                 continue;
+#endif
 
-            if (last < first)
-                continue;
-
-            for (int i = first; i <= last; ++i)
+            for (int localIdx = 0; localIdx < count; ++localIdx)
             {
-                const TriangleMeshGeometry& tri = triangles[i];
+                const int refIndex = first + localIdx;
 
-                if (tri.i0 < 0 || tri.i0 >= vertexCount ||
-                    tri.i1 < 0 || tri.i1 >= vertexCount ||
-                    tri.i2 < 0 || tri.i2 >= vertexCount)
+#ifdef DEBUG_BVH
+                if ((unsigned)refIndex >= (unsigned)refCount)
+                    continue;
+#endif
+
+                const int triIndex = triangleRefIndices[refIndex];
+
+#ifdef DEBUG_BVH
+                if ((unsigned)triIndex >= (unsigned)triangleCount)
+                    continue;
+#endif
+
+                const TriangleMeshGeometry& tri = triangles[triIndex];
+
+#ifdef DEBUG_BVH
+                if ((unsigned)tri.i0 >= (unsigned)vertexCount ||
+                    (unsigned)tri.i1 >= (unsigned)vertexCount ||
+                    (unsigned)tri.i2 >= (unsigned)vertexCount)
                 {
                     continue;
                 }
+#endif
 
                 float t;
                 float2 uv;
 
-                if (tri.intersect(p_ray, t, uv, vertices))
+                if (tri.intersect(
+                        p_ray,
+                        p_tMin,
+                        tClosest,
+                        t,
+                        uv,
+                        vertices))
                 {
-                    if (t >= p_tMin && t < tClosest)
-                    {
-                        tClosest = t;
-                        hit = true;
+                    tClosest = t;
+                    hit = true;
 
-                        p_hitRecord.point = p_ray.pointAtT(t);
-                        p_hitRecord.normal = tri.computeSmoothNormal(uv, normals);
-                        p_hitRecord.faceNormal(p_ray.direction);
-                        p_hitRecord.distance = t;
-                        p_hitRecord.materialIndex = materialIndex;
-                    }
+                    p_hitRecord.point = p_ray.pointAtT(t);
+                    p_hitRecord.normal = tri.computeSmoothNormal(uv, normals);
+                    p_hitRecord.faceNormal(p_ray.direction);
+                    p_hitRecord.distance = t;
+                    p_hitRecord.materialIndex = materialIndex;
                 }
             }
         }
         else
         {
-            if (node.left < 0 || node.left >= bvhNodeCount)
-                continue;
+            const int left = node.left;
+            const int right = node.right;
 
-            if (node.right < 0 || node.right >= bvhNodeCount)
-                continue;
-
-            if (stackPtr + 2 > STACK_SIZE)
+#ifdef DEBUG_BVH
+            if ((unsigned)left >= (unsigned)bvhNodeCount ||
+                (unsigned)right >= (unsigned)bvhNodeCount)
             {
-                return hit;
+                continue;
             }
+#endif
 
-            stack[stackPtr++] = node.left;
-            stack[stackPtr++] = node.right;
+            float leftTNear;
+            float leftTFar;
+            float rightTNear;
+            float rightTFar;
+
+            const bool hitLeft = bvhNodes[left].bbox.intersect(
+                p_ray,
+                p_tMin,
+                tClosest,
+                leftTNear,
+                leftTFar
+            );
+
+            const bool hitRight = bvhNodes[right].bbox.intersect(
+                p_ray,
+                p_tMin,
+                tClosest,
+                rightTNear,
+                rightTFar
+            );
+
+            if (hitLeft && hitRight)
+            {
+                if (stackPtr + 2 > STACK_SIZE)
+                    return hit;
+
+                if (leftTNear < rightTNear)
+                {
+                    stack[stackPtr++] = right;
+                    stack[stackPtr++] = left;
+                }
+                else
+                {
+                    stack[stackPtr++] = left;
+                    stack[stackPtr++] = right;
+                }
+            }
+            else if (hitLeft)
+            {
+                if (stackPtr + 1 > STACK_SIZE)
+                    return hit;
+
+                stack[stackPtr++] = left;
+            }
+            else if (hitRight)
+            {
+                if (stackPtr + 1 > STACK_SIZE)
+                    return hit;
+
+                stack[stackPtr++] = right;
+            }
         }
     }
 
@@ -113,16 +194,18 @@ bool TriangleMesh::intersect(
 }
 
 
-__device__ __noinline__
+__device__
 bool TriangleMesh::intersectAny(
     const Ray& p_ray,
     const float p_tMin,
     const float p_tMax,
     const Material* materials) const
 {
-    constexpr int STACK_SIZE = 256;
+    constexpr int STACK_SIZE = 128;
 
+#ifdef DEBUG_BVH
     if (bvhNodes == nullptr ||
+        triangleRefIndices == nullptr ||
         triangles == nullptr ||
         vertices == nullptr)
     {
@@ -131,14 +214,16 @@ bool TriangleMesh::intersectAny(
 
     if (bvhNodeCount <= 0 ||
         triangleCount <= 0 ||
+        refCount <= 0 ||
         vertexCount <= 0)
     {
         return false;
     }
+#endif
 
-    // Temporarily comment this out unless you can prove materialIndex is valid.
-    // if (materials[materialIndex].type() == MaterialType::TRANSPARENT)
-    //     return false;
+    // Si tu veux gérer les matériaux transparents plus tard,
+    // il faudra probablement tester par triangle / matériau réel.
+    // Pour l'instant, on ne skip pas le mesh entier ici.
 
     int stack[STACK_SIZE];
     int stackPtr = 0;
@@ -147,64 +232,149 @@ bool TriangleMesh::intersectAny(
 
     while (stackPtr > 0)
     {
-        int nodeIndex = stack[--stackPtr];
+        const int nodeIndex = stack[--stackPtr];
 
-        if (nodeIndex < 0 || nodeIndex >= bvhNodeCount)
-            return false;
+#ifdef DEBUG_BVH
+        if ((unsigned)nodeIndex >= (unsigned)bvhNodeCount)
+            continue;
+#endif
 
         const BVH& node = bvhNodes[nodeIndex];
 
-        if (!node.bbox.intersect(p_ray, p_tMin, p_tMax))
+        float nodeTNear;
+        float nodeTFar;
+
+        if (!node.bbox.intersect(
+                p_ray,
+                p_tMin,
+                p_tMax,
+                nodeTNear,
+                nodeTFar))
+        {
             continue;
+        }
 
         if (node.isLeaf())
         {
-            int first = node.firstTriangleIndex;
-            int last = node.lastTriangleIndex;
+            const int first = node.firstRefIndex;
+            const int count = node.refCount;
 
-            if (first < 0 || first >= triangleCount)
+#ifdef DEBUG_BVH
+            if (first < 0 || count <= 0)
                 continue;
 
-            if (last < 0 || last >= triangleCount)
+            if (first + count > refCount)
                 continue;
+#endif
 
-            if (last < first)
-                continue;
-
-            for (int i = first; i <= last; ++i)
+            for (int localIdx = 0; localIdx < count; ++localIdx)
             {
-                const TriangleMeshGeometry& tri = triangles[i];
+                const int refIndex = first + localIdx;
 
-                if (tri.i0 < 0 || tri.i0 >= vertexCount ||
-                    tri.i1 < 0 || tri.i1 >= vertexCount ||
-                    tri.i2 < 0 || tri.i2 >= vertexCount)
+#ifdef DEBUG_BVH
+                if ((unsigned)refIndex >= (unsigned)refCount)
+                    continue;
+#endif
+
+                const int triIndex = triangleRefIndices[refIndex];
+
+#ifdef DEBUG_BVH
+                if ((unsigned)triIndex >= (unsigned)triangleCount)
+                    continue;
+#endif
+
+                const TriangleMeshGeometry& tri = triangles[triIndex];
+
+#ifdef DEBUG_BVH
+                if ((unsigned)tri.i0 >= (unsigned)vertexCount ||
+                    (unsigned)tri.i1 >= (unsigned)vertexCount ||
+                    (unsigned)tri.i2 >= (unsigned)vertexCount)
                 {
                     continue;
                 }
+#endif
 
                 float t;
                 float2 uv;
 
-                if (tri.intersect(p_ray, t, uv, vertices))
+                if (tri.intersect(
+                        p_ray,
+                        p_tMin,
+                        p_tMax,
+                        t,
+                        uv,
+                        vertices))
                 {
-                    if (t >= p_tMin && t < p_tMax)
-                        return true;
+                    return true;
                 }
             }
         }
         else
         {
-            if (node.left < 0 || node.left >= bvhNodeCount)
+            const int left = node.left;
+            const int right = node.right;
+
+#ifdef DEBUG_BVH
+            if ((unsigned)left >= (unsigned)bvhNodeCount ||
+                (unsigned)right >= (unsigned)bvhNodeCount)
+            {
                 continue;
+            }
+#endif
 
-            if (node.right < 0 || node.right >= bvhNodeCount)
-                continue;
+            float leftTNear;
+            float leftTFar;
+            float rightTNear;
+            float rightTFar;
 
-            if (stackPtr + 2 > STACK_SIZE)
-                return false;
+            const bool hitLeft = bvhNodes[left].bbox.intersect(
+                p_ray,
+                p_tMin,
+                p_tMax,
+                leftTNear,
+                leftTFar
+            );
 
-            stack[stackPtr++] = node.left;
-            stack[stackPtr++] = node.right;
+            const bool hitRight = bvhNodes[right].bbox.intersect(
+                p_ray,
+                p_tMin,
+                p_tMax,
+                rightTNear,
+                rightTFar
+            );
+
+            if (hitLeft && hitRight)
+            {
+                if (stackPtr + 2 > STACK_SIZE)
+                    return false;
+
+                // Stack LIFO :
+                // on push le plus loin d'abord pour visiter le plus proche en premier.
+                if (leftTNear < rightTNear)
+                {
+                    stack[stackPtr++] = right;
+                    stack[stackPtr++] = left;
+                }
+                else
+                {
+                    stack[stackPtr++] = left;
+                    stack[stackPtr++] = right;
+                }
+            }
+            else if (hitLeft)
+            {
+                if (stackPtr + 1 > STACK_SIZE)
+                    return false;
+
+                stack[stackPtr++] = left;
+            }
+            else if (hitRight)
+            {
+                if (stackPtr + 1 > STACK_SIZE)
+                    return false;
+
+                stack[stackPtr++] = right;
+            }
         }
     }
 

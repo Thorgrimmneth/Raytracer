@@ -1,54 +1,54 @@
 #include "plane.cuh"
 #include <stdio.h>
 
-__device__
-bool Plane::intersectGeometry(const Ray &ray, float &t) const
+__device__ __forceinline__
+bool Plane::intersectGeometry(const Ray& ray, float& t) const
 {
-    float ND = dot(normal, ray.direction);
+    // Fast path pour le sol horizontal y = 0
+    // Ton plan dans spheresScene :
+    // normal = (0, 1, 0), delta = 0
+    if (normal.x == 0.0f && normal.y == 1.0f && normal.z == 0.0f && delta == 0.0f)
+    {
+        const float dy = ray.direction.y;
+
+        if (fabsf(dy) < 1e-6f)
+            return false;
+
+        t = -ray.origin.y / dy;
+        return t >= 0.0f;
+    }
+
+    const float ND = dot(normal, ray.direction);
+
     if (fabsf(ND) < 1e-6f)
         return false;
 
     t = -(dot(normal, ray.origin) + delta) / ND;
-    return t >= 0.f;
+
+    return t >= 0.0f;
 }
 
 __device__
-bool Plane::intersect(const Ray &p_ray, const float p_tMin, const float p_tMax, HitRecord &p_hitRecord) const
+bool Plane::intersect(
+    const Ray& ray,
+    const float tMin,
+    const float tMax,
+    HitRecord& hitRecord) const
 {
-	float t1;
-	if (intersectGeometry(p_ray, t1))
-	{
-		if (t1 < p_tMin || t1 > p_tMax)
-		{
-			return false;
-		} // not in range
+    float t;
 
-		// Intersection found, fill p_hitRecord.
-		p_hitRecord.point = p_ray.pointAtT(t1);
-		p_hitRecord.normal = normal;
-		p_hitRecord.faceNormal(p_ray.direction);
-		p_hitRecord.distance = t1;
-		p_hitRecord.materialIndex = materialIndex;
+    if (!intersectGeometry(ray, t))
+        return false;
 
-		return true;
-	}
-	return false;
+    if (t <= tMin || t >= tMax)
+        return false;
+
+    hitRecord.point = ray.pointAtT(t);
+    hitRecord.normal = normal;
+    hitRecord.faceNormal(ray.direction);
+    hitRecord.distance = t;
+    hitRecord.materialIndex = materialIndex;
+
+    return true;
 }
 
-__device__
-bool Plane::intersectAny(const Ray &p_ray, const float p_tMin, const float p_tMax, const Material* materials) const
-{
-	if(materials[materialIndex].type() == MaterialType::TRANSPARENT){
-		return false;
-	}
-	float t1;
-	if (intersectGeometry(p_ray, t1))
-	{
-		if (t1 < p_tMin || t1 > p_tMax)
-		{
-			return false;
-		} // not in range
-		return true;
-	}
-	return false;
-}

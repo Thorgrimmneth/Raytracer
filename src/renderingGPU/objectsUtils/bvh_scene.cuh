@@ -57,77 +57,412 @@ struct BVHScene {
 
     
     __host__
-    static BVHScene buildBVHScene(std::vector<BaseObject>* primitives,std::vector<Sphere>* spheres,std::vector<Plane>* planes,std::vector<TriangleMesh>* meshes, std::vector<ImplicitSphere>* implicitSpheres);
+    static BVHScene buildBVHScene(std::vector<BaseObject>* primitives,std::vector<Sphere>* spheres,std::vector<TriangleMesh>* meshes, std::vector<ImplicitSphere>* implicitSpheres);
 
     __host__
     size_t getDeviceSize() const;
-    __device__ 
-    bool intersect(const Ray& ray,
-                   float tMin,
-                   float tMax,
-                   HitRecord& hit) const;
 
-    __device__ __forceinline__
-    bool intersectAny(const Ray& ray,
-                  float tMin,
-                  float tMax,
-                  const Material* materials) const
+    __device__ __noinline__
+    bool intersect(
+    const Ray& ray,
+    const float tMin,
+    const float tMaxInit,
+    HitRecord& hit) const
+{
+    constexpr int STACK_SIZE = 64;
+
+    Current stack[STACK_SIZE];
+    int stackPtr = 0;
+
+    float tMax = tMaxInit;
+    bool hitSomething = false;
+
+#ifdef DEBUG_BVH
+    if (d_nodes == nullptr ||
+        d_primitives == nullptr ||
+        d_indices == nullptr)
     {
-        int stack[32];
-        int stackPtr = 0;
-        stack[stackPtr++] = 0;
-
-        while(stackPtr > 0)
-        {
-            int nodeIndex = stack[--stackPtr];
-            const BVHSceneNode& node = d_nodes[nodeIndex];
-
-            if (!node.bbox.intersect(ray, tMin, tMax))
-                continue;
-
-            if (node.isLeaf())
-            {
-                for(uint32_t i = node.firstIdx;
-                    i < node.firstIdx + node.objectCount;
-                    ++i)
-                {
-                    BaseObject& prim = d_primitives[d_indices[i]];
-
-                    switch(prim.getType())
-                    {
-                        case ObjectType::SPHERE:
-                            if(materials[d_spheres[prim.getIndex()].materialIndex].type() == MaterialType::TRANSPARENT) continue;
-                            if (d_spheres[prim.getIndex()].intersectAny(ray, tMin, tMax))
-                                return true;
-                            break;
-
-                        case ObjectType::PLANE:
-                            if(materials[d_planes[prim.getIndex()].materialIndex].type() == MaterialType::TRANSPARENT) continue;
-                            if(d_planes[prim.getIndex()].intersectAny(ray, tMin, tMax, materials))
-                                return true;
-                            break;
-
-                        case ObjectType::TRIANGLE:
-                            if(materials[d_meshes[prim.getIndex()].materialIndex].type() == MaterialType::TRANSPARENT) continue;
-                            if(d_meshes[prim.getIndex()].intersectAny(ray, tMin, tMax, materials))
-                                return true;
-                            break;
-                        case ObjectType::IMPLICIT_SPHERE:
-                            if(materials[d_implicitSpheres[prim.getIndex()].materialIndex].type() == MaterialType::TRANSPARENT) continue;
-                            if(d_implicitSpheres[prim.getIndex()].intersectAny(ray, tMin, tMax))
-                                return true;
-                            break;
-                    }
-                }
-            }
-            else
-            {
-                stack[stackPtr++] = node.getLeftIndex();
-                stack[stackPtr++] = node.right;
-            }
-        }
-
         return false;
     }
+
+    if (nbNodes <= 0 || nbObjects <= 0)
+        return false;
+#endif
+
+    float rootTNear;
+    float rootTFar;
+
+    if (!d_nodes[0].bbox.intersect(ray, tMin, tMax, rootTNear, rootTFar))
+        return false;
+
+    stack[stackPtr++] = { 0, rootTNear };
+
+    while (stackPtr > 0)
+    {
+        const Current current = stack[--stackPtr];
+
+        if (current.distance > tMax)
+            continue;
+
+#ifdef DEBUG_BVH
+        if ((unsigned)current.index >= (unsigned)nbNodes)
+            continue;
+#endif
+
+        const BVHSceneNode& node = d_nodes[current.index];
+
+        if (node.isLeaf())
+        {
+            const uint32_t first = node.firstIdx;
+            const uint32_t count = node.objectCount;
+
+#ifdef DEBUG_BVH
+            if (first + count > nbObjects)
+                continue;
+#endif
+
+            for (uint32_t i = first; i < first + count; ++i)
+            {
+                const int primArrayIndex = d_indices[i];
+
+#ifdef DEBUG_BVH
+                if ((unsigned)primArrayIndex >= (unsigned)nbObjects)
+                    continue;
+#endif
+
+                const BaseObject& prim = d_primitives[primArrayIndex];
+                const int objectIndex = prim.getIndex();
+
+                switch (prim.getType())
+                {
+                    case ObjectType::SPHERE:
+                    {
+#ifdef DEBUG_BVH
+                        if (d_spheres == nullptr)
+                            break;
+#endif
+                        if (d_spheres[objectIndex].intersect(ray, tMin, tMax, hit))
+                        {
+                            tMax = hit.distance;
+                            hitSomething = true;
+                            hit.objectType = HIT_SPHERE;
+                            hit.objectIndex = objectIndex;
+                        }
+                        break;
+                    }
+
+                    case ObjectType::TRIANGLE:
+                    {
+#ifdef DEBUG_BVH
+                        if (d_meshes == nullptr)
+                            break;
+#endif
+                        if (d_meshes[objectIndex].intersect(ray, tMin, tMax, hit))
+                        {
+                            tMax = hit.distance;
+                            hitSomething = true;
+                            hit.objectType = HIT_TRIANGLE_MESH;
+                            hit.objectIndex = objectIndex;
+                        }
+                        break;
+                    }
+
+                    case ObjectType::IMPLICIT_SPHERE:
+                    {
+#ifdef DEBUG_BVH
+                        if (d_implicitSpheres == nullptr)
+                            break;
+#endif
+                        if (d_implicitSpheres[objectIndex].intersect(ray, tMin, tMax, hit))
+                        {
+                            tMax = hit.distance;
+                            hitSomething = true;
+                            hit.objectType = HIT_SPHERE_IMPLICIT;
+                            hit.objectIndex = objectIndex;
+                        }
+                        break;
+                    }
+
+                    default:
+                        break;
+                }
+            }
+        }
+        else
+        {
+            const uint32_t leftIdx = node.getLeftIndex();
+            const uint32_t rightIdx = node.right;
+
+#ifdef DEBUG_BVH
+            if (leftIdx >= (uint32_t)nbNodes ||
+                rightIdx >= (uint32_t)nbNodes)
+            {
+                continue;
+            }
+#endif
+
+            float leftTNear;
+            float leftTFar;
+            float rightTNear;
+            float rightTFar;
+
+            const bool hitLeft = d_nodes[leftIdx].bbox.intersect(
+                ray,
+                tMin,
+                tMax,
+                leftTNear,
+                leftTFar
+            );
+
+            const bool hitRight = d_nodes[rightIdx].bbox.intersect(
+                ray,
+                tMin,
+                tMax,
+                rightTNear,
+                rightTFar
+            );
+
+            if (hitLeft && hitRight)
+            {
+                if (stackPtr + 2 > STACK_SIZE)
+                    return hitSomething;
+
+                // Stack LIFO : push le plus loin d'abord.
+                if (leftTNear < rightTNear)
+                {
+                    stack[stackPtr++] = { rightIdx, rightTNear };
+                    stack[stackPtr++] = { leftIdx, leftTNear };
+                }
+                else
+                {
+                    stack[stackPtr++] = { leftIdx, leftTNear };
+                    stack[stackPtr++] = { rightIdx, rightTNear };
+                }
+            }
+            else if (hitLeft)
+            {
+                if (stackPtr + 1 > STACK_SIZE)
+                    return hitSomething;
+
+                stack[stackPtr++] = { leftIdx, leftTNear };
+            }
+            else if (hitRight)
+            {
+                if (stackPtr + 1 > STACK_SIZE)
+                    return hitSomething;
+
+                stack[stackPtr++] = { rightIdx, rightTNear };
+            }
+        }
+    }
+
+    return hitSomething;
+}
+
+    __device__
+bool intersectAny(
+    const Ray& ray,
+    float tMin,
+    float tMax,
+    const Material* materials) const
+{
+    constexpr int STACK_SIZE = 64;
+
+    Current stack[STACK_SIZE];
+    int stackPtr = 0;
+
+#ifdef DEBUG_BVH
+    if (d_nodes == nullptr ||
+        d_primitives == nullptr ||
+        d_indices == nullptr)
+    {
+        return false;
+    }
+
+    if (nbNodes <= 0 || nbObjects <= 0)
+        return false;
+#endif
+
+    float rootTNear;
+    float rootTFar;
+
+    if (!d_nodes[0].bbox.intersect(ray, tMin, tMax, rootTNear, rootTFar))
+        return false;
+
+    stack[stackPtr++] = { 0, rootTNear };
+
+    while (stackPtr > 0)
+    {
+        const Current current = stack[--stackPtr];
+
+        if (current.distance > tMax)
+            continue;
+
+#ifdef DEBUG_BVH
+        if ((unsigned)current.index >= (unsigned)nbNodes)
+            continue;
+#endif
+
+        const BVHSceneNode& node = d_nodes[current.index];
+
+        if (node.isLeaf())
+        {
+            const uint32_t first = node.firstIdx;
+            const uint32_t count = node.objectCount;
+
+#ifdef DEBUG_BVH
+            if (first + count > nbObjects)
+                continue;
+#endif
+
+            for (uint32_t i = first; i < first + count; ++i)
+            {
+                const int primArrayIndex = d_indices[i];
+
+#ifdef DEBUG_BVH
+                if ((unsigned)primArrayIndex >= (unsigned)nbObjects)
+                    continue;
+#endif
+
+                const BaseObject& prim = d_primitives[primArrayIndex];
+                const int objectIndex = prim.getIndex();
+
+                switch (prim.getType())
+                {
+                    case ObjectType::SPHERE:
+                    {
+#ifdef DEBUG_BVH
+                        if (d_spheres == nullptr)
+                            break;
+#endif
+                        const int matIdx = d_spheres[objectIndex].materialIndex;
+
+                        if (materials != nullptr &&
+                            materials[matIdx].type() == MaterialType::TRANSPARENT)
+                        {
+                            break;
+                        }
+
+                        if (d_spheres[objectIndex].intersectAny(ray, tMin, tMax))
+                            return true;
+
+                        break;
+                    }
+
+                    case ObjectType::TRIANGLE:
+                    {
+#ifdef DEBUG_BVH
+                        if (d_meshes == nullptr)
+                            break;
+#endif
+                        const int matIdx = d_meshes[objectIndex].materialIndex;
+
+                        if (materials != nullptr &&
+                            materials[matIdx].type() == MaterialType::TRANSPARENT)
+                        {
+                            break;
+                        }
+
+                        if (d_meshes[objectIndex].intersectAny(ray, tMin, tMax, materials))
+                            return true;
+
+                        break;
+                    }
+
+                    case ObjectType::IMPLICIT_SPHERE:
+                    {
+#ifdef DEBUG_BVH
+                        if (d_implicitSpheres == nullptr)
+                            break;
+#endif
+                        const int matIdx = d_implicitSpheres[objectIndex].materialIndex;
+
+                        if (materials != nullptr &&
+                            materials[matIdx].type() == MaterialType::TRANSPARENT)
+                        {
+                            break;
+                        }
+
+                        if (d_implicitSpheres[objectIndex].intersectAny(ray, tMin, tMax))
+                            return true;
+
+                        break;
+                    }
+
+                    default:
+                        break;
+                }
+            }
+        }
+        else
+        {
+            const uint32_t leftIdx = node.getLeftIndex();
+            const uint32_t rightIdx = node.right;
+
+#ifdef DEBUG_BVH
+            if (leftIdx >= (uint32_t)nbNodes ||
+                rightIdx >= (uint32_t)nbNodes)
+            {
+                continue;
+            }
+#endif
+
+            float leftTNear;
+            float leftTFar;
+            float rightTNear;
+            float rightTFar;
+
+            const bool hitLeft = d_nodes[leftIdx].bbox.intersect(
+                ray,
+                tMin,
+                tMax,
+                leftTNear,
+                leftTFar
+            );
+
+            const bool hitRight = d_nodes[rightIdx].bbox.intersect(
+                ray,
+                tMin,
+                tMax,
+                rightTNear,
+                rightTFar
+            );
+
+            if (hitLeft && hitRight)
+            {
+                if (stackPtr + 2 > STACK_SIZE)
+                    return false;
+
+                if (leftTNear < rightTNear)
+                {
+                    stack[stackPtr++] = { rightIdx, rightTNear };
+                    stack[stackPtr++] = { leftIdx, leftTNear };
+                }
+                else
+                {
+                    stack[stackPtr++] = { leftIdx, leftTNear };
+                    stack[stackPtr++] = { rightIdx, rightTNear };
+                }
+            }
+            else if (hitLeft)
+            {
+                if (stackPtr + 1 > STACK_SIZE)
+                    return false;
+
+                stack[stackPtr++] = { leftIdx, leftTNear };
+            }
+            else if (hitRight)
+            {
+                if (stackPtr + 1 > STACK_SIZE)
+                    return false;
+
+                stack[stackPtr++] = { rightIdx, rightTNear };
+            }
+        }
+    }
+
+    return false;
+}
+
 };
 

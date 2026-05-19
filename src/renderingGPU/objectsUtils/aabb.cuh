@@ -11,10 +11,14 @@ struct AABB{
     float4 centroid() const;
 
     __host__ __device__
-    float area();
+    float area() const;
 
-    __device__ __noinline__
-    bool intersect( const Ray & ray,  float p_tMin,  float p_tMax ) const;
+    __host__ __device__
+    bool intersect( const Ray& ray,
+    float tMin,
+    float tMax,
+    float& outTNear,
+    float& outTFar) const;
 
     __device__ __forceinline__
 bool intersectCheck(
@@ -54,4 +58,7 @@ bool intersectCheck(
 
     __host__
     void extend(const float4& a);
+
+    __host__
+    bool isValid();
 };

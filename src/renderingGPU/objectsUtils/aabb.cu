@@ -7,7 +7,7 @@ float4 AABB::centroid() const
 }
 
 __host__ __device__ 
-float AABB::area()
+float AABB::area() const
 {
 	float3 minT = toFloat3(min);
 	float3 maxT = toFloat3(max);
@@ -15,37 +15,61 @@ float AABB::area()
 	return 2.0f * (size.x * size.y + size.x * size.z + size.y * size.z);
 }
 
-__device__ __noinline__
-bool AABB::intersect(const Ray &ray, const float p_tMin, const float p_tMax) const
+
+__host__ __device__
+bool AABB::intersect(
+    const Ray& ray,
+    float tMin,
+    float tMax,
+    float& outTNear,
+    float& outTFar) const
 {
-    float tmin = p_tMin;
-    float tmax = p_tMax;
+    outTNear = tMin;
+    outTFar = tMax;
 
-    // X
-    float tx1 = (min.x - ray.origin.x) * ray.invdir.x;
-    float tx2 = (max.x - ray.origin.x) * ray.invdir.x;
+    for (int axis = 0; axis < 3; ++axis)
+    {
+        float origin =
+            axis == 0 ? ray.origin.x :
+            axis == 1 ? ray.origin.y :
+                        ray.origin.z;
 
-    tmin = fmaxf(tmin, fminf(tx1, tx2));
-    tmax = fminf(tmax, fmaxf(tx1, tx2));
+        float direction =
+            axis == 0 ? ray.direction.x :
+            axis == 1 ? ray.direction.y :
+                        ray.direction.z;
 
-    // Y
-    float ty1 = (min.y - ray.origin.y) * ray.invdir.y;
-    float ty2 = (max.y - ray.origin.y) * ray.invdir.y;
+        float minA =
+            axis == 0 ? min.x :
+            axis == 1 ? min.y :
+                        min.z;
 
-    tmin = fmaxf(tmin, fminf(ty1, ty2));
-    tmax = fminf(tmax, fmaxf(ty1, ty2));
+        float maxA =
+            axis == 0 ? max.x :
+            axis == 1 ? max.y :
+                        max.z;
 
-    // Z
-    float tz1 = (min.z - ray.origin.z) * ray.invdir.z;
-    float tz2 = (max.z - ray.origin.z) * ray.invdir.z;
+        float invD = 1.0f / direction;
 
-    tmin = fmaxf(tmin, fminf(tz1, tz2));
-    tmax = fminf(tmax, fmaxf(tz1, tz2));
+        float t0 = (minA - origin) * invD;
+        float t1 = (maxA - origin) * invD;
 
-    return tmax >= tmin;
+        if (invD < 0.0f)
+        {
+            float tmp = t0;
+            t0 = t1;
+            t1 = tmp;
+        }
+
+        outTNear = fmaxf(outTNear, t0);
+        outTFar = fminf(outTFar, t1);
+
+        if (outTFar <= outTNear)
+            return false;
+    }
+
+    return true;
 }
-
-
     
 
 __host__
@@ -64,4 +88,10 @@ __host__
 void AABB::extend(const float4& a){
     min = getMin(min, a);
     max = getMax(max, a);
+}
+
+__host__
+bool AABB::isValid()
+{
+    return min.x <= max.x && min.y <= max.y && min.z <= max.z;
 }

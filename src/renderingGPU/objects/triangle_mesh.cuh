@@ -5,31 +5,34 @@
 #include "triangle_mesh_geometry.cuh"
 #include "../materials/material.cuh"
 
-struct TriangleMesh{
-    BVH* bvhNodes;
-    int bvhNodeCount;
+struct TriangleMesh {
+    TriangleMeshGeometry* triangles = nullptr;
+    float3* vertices = nullptr;
+    float3* normals = nullptr;
+    float2* uvs = nullptr;
 
-    TriangleMeshGeometry* triangles;
-    int triangleCount;
-    float* triangleAreaCdf; // cumulative distribution function
-    float meshArea;
+    int triangleCount = 0;
+    int vertexCount = 0;
 
-    float3* vertices;
-    float3* normals;
-    float2* uvs;
+    BVH* bvhNodes = nullptr;
+    int bvhNodeCount = 0;
 
-    int vertexCount;
-    int materialIndex;
+    int* triangleRefIndices = nullptr;
+    int refCount = 0;
 
-    __device__ __noinline__
-    bool intersect( const Ray & p_ray,
-					const float p_tMin,
-					const float p_tMax,
-					HitRecord & p_hitRecord) const;
+    float meshArea = 0.0f;
+    float* triangleAreaCdf = nullptr;
+    int materialIndex = 0;
 
-    __device__ __noinline__
-    bool intersectAny( const Ray & p_ray,
-					   const float p_tMin,
-					   const float p_tMax,
-                    const Material* materials) const;
+    __device__ bool intersect(
+        const Ray& p_ray,
+        float p_tMin,
+        float p_tMax,
+        HitRecord& p_hitRecord) const;
+
+    __device__ bool intersectAny(
+        const Ray& p_ray,
+        float p_tMin,
+        float p_tMax,
+        const Material* materials) const;
 };

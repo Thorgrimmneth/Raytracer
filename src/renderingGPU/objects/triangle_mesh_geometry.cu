@@ -2,41 +2,54 @@
 #include "triangle_mesh.cuh"
 
 __device__
-bool TriangleMeshGeometry::intersect(const Ray &p_ray, float &p_t, float2 &p_uv, float3* vertices) const
+bool TriangleMeshGeometry::intersect(
+    const Ray& ray,
+    float tMin,
+    float tMax,
+    float& t,
+    float2& uv,
+    const float3* __restrict__ vertices) const
 {
-    // [MT97] Tomas Moller and Ben Trumbore. Fast, minimum storage ray-triangle intersection. J. Graph. Tools, 2( 1
-    // ) : 21 28, October 1997.
-    const float3 &o = p_ray.origin;
-    const float3 &d = p_ray.direction;
-    const float3 &v0 = vertices[i0];
-    const float3 &v1 = vertices[i1];
-    const float3 &v2 = vertices[i2];
+    const float3 o = ray.origin;
+    const float3 d = ray.direction;
 
-    float det;
-    float inv_det;
-    float epsilon = 1.e-6f;
+    const float3 v0 = vertices[i0];
+    const float3 v1 = vertices[i1];
+    const float3 v2 = vertices[i2];
 
-    float3 edge1 = v1 - v0;
-    float3 edge2 = v2 - v0;
-    float3 pvec = cross(d, edge2);
-    det = dot(edge1, pvec);
-    if (det > -epsilon && det < epsilon)
+    const float3 edge1 = v1 - v0;
+    const float3 edge2 = v2 - v0;
+
+    const float3 pvec = cross(d, edge2);
+    const float det = dot(edge1, pvec);
+
+    constexpr float epsilon = 1.e-8f;
+
+    if (fabsf(det) < epsilon)
         return false;
 
-    inv_det = 1.0 / det;
-    float3 tvec = o - v0;
-    float u = dot(tvec, pvec) * inv_det;
-    if (u < 0.f || u > 1.f)
+    const float invDet = 1.0f / det;
+
+    const float3 tvec = o - v0;
+    const float u = dot(tvec, pvec) * invDet;
+
+    if (u < 0.0f || u > 1.0f)
         return false;
 
-    float3 qvec = cross(tvec, edge1);
-    float v = dot(d, qvec) * inv_det;
-    if (v < 0.f || (u + v) > 1.f)
+    const float3 qvec = cross(tvec, edge1);
+    const float v = dot(d, qvec) * invDet;
+
+    if (v < 0.0f || u + v > 1.0f)
         return false;
 
-    p_t = dot(edge2, qvec) * inv_det;
+    const float candidateT = dot(edge2, qvec) * invDet;
 
-    p_uv = make_float2(u, v);
+    if (candidateT <= tMin || candidateT >= tMax)
+        return false;
+
+    t = candidateT;
+    uv = make_float2(u, v);
+
     return true;
 }
 
