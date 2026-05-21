@@ -3,6 +3,7 @@
 #include "wavefront_state.cuh"
 #include "lights/light.cuh"
 #include "scene.cuh"
+#include "utils/constant.cuh"
 
 __global__
 void shadeWavefrontKernel(

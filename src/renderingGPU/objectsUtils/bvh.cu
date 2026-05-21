@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <cstring>
 
-__host__
+HOST
 BVH* buildBVH(
     TriangleMeshGeometry* triangles,
     int triangleCount,

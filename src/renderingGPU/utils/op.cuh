@@ -5,21 +5,7 @@
 // Version conservative : garde le comportement du fichier original
 // ============================================================
 
-#ifndef HD_INLINE
-#define HD_INLINE __host__ __device__ inline
-#endif
-
-#ifndef D_FORCEINLINE
-#define D_FORCEINLINE __device__ __forceinline__
-#endif
-
-#ifndef H_INLINE
-#define H_INLINE __host__ inline
-#endif
-
-#ifndef HD_FORCEINLINE
-#define HD_FORCEINLINE __host__ __device__ __forceinline__
-#endif
+#include "macro.cuh"
 
 // ============================================================
 // Constructors / conversions

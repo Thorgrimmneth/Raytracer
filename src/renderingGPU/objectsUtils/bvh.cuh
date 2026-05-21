@@ -4,6 +4,7 @@
 #include "../raytracingUtils/hitrecord.cuh"
 #include "../objects/triangle_mesh_geometry.cuh"
 #include "../raytracingUtils/ray.cuh"
+#include "../utils/macro.cuh"
 
 struct BVH {
     AABB bbox;
@@ -14,12 +15,11 @@ struct BVH {
     int firstRefIndex = -1;
     int refCount = 0;
 
-    __host__ __device__
-    inline bool isLeaf() const { return left == -1; }
+    D_FORCEINLINE
+    bool isLeaf() const { return left == -1; }
 };
 
-// Forward declarations for BVH functions
-__host__
+HOST
 BVH* buildBVH(
     TriangleMeshGeometry* triangles,
     int triangleCount,

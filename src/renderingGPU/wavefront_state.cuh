@@ -1,11 +1,12 @@
 #pragma once
 
-#include "objectsUtils/aabb.cuh"
+#include "materials/material.cuh"
 #include "objects/triangle_mesh_geometry.cuh"
+#include "objectsUtils/aabb.cuh"
+#include "raytracingUtils/hitrecord.cuh"
 #include "raytracingUtils/ray.cuh"
 #include "utils/rng.cuh"
-#include "raytracingUtils/hitrecord.cuh"
-#include "materials/material.cuh"
+#include "utils/macro.cuh"
 
 enum WavefrontQueueType
 {
@@ -36,26 +37,11 @@ struct WavefrontState
     int lastBounceWasDelta;
     float lastBsdfPdf;
 
-    __host__ __device__
-    WavefrontState(
-        const Ray& r,
-        const RNG& random,
-        int pixel)
-        : ray(r),
-          throughput(make_float3(1.f)),
-          radiance(make_float3(0.f)),
-          rng(random),
-          pixelIndex(pixel),
-          depth(0),
-          active(1),
-          isInside(false),
-          lastBounceWasDelta(1),
-          lastBsdfPdf(1.f)
-    {}
-
-    __host__ __device__
-    void terminate()
+    HD WavefrontState(const Ray &r, const RNG &random, int pixel)
+        : ray(r), throughput(make_float3(1.f)), radiance(make_float3(0.f)), rng(random), pixelIndex(pixel), depth(0),
+          active(1), isInside(false), lastBounceWasDelta(1), lastBsdfPdf(1.f)
     {
-        active = false;
     }
+
+    D_FORCEINLINE void terminate() { active = false; }
 };

@@ -1,15 +1,9 @@
 #include "shading_kernels.cuh"
 
-__global__
-void shadeWavefrontKernel(
-    CudaScene scene,
-    WavefrontState* states,
-    HitRecord* hits,
-    int* hitMask,
-    const int* activeQueue,
-    int activeCount,
-    int* nextActiveQueue,
-    int* nextActiveCount)
+__global__ 
+void shadeWavefrontKernel(CudaScene scene, WavefrontState *states, HitRecord *hits, int *hitMask,
+                                     const int *activeQueue, int activeCount, int *nextActiveQueue,
+                                     int *nextActiveCount)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -55,21 +49,16 @@ void shadeWavefrontKernel(
 
         float g = 0.95f;
 
-        float phaseR =
-            (3.0f / (16.0f * GPUPIf)) *
-            (1.0f + mu * mu);
+        float phaseR = (3.0f / (16.0f * GPUPIf)) * (1.0f + mu * mu);
 
         float temp = 1.0f + g * g - 2.0f * g * mu;
 
         float phaseM =
-            (3.0f / (8.0f * GPUPIf)) *
-            ((1.0f - g * g) * (1.0f + mu * mu)) /
-            ((2.0f + g * g) * temp * sqrtf(temp));
+            (3.0f / (8.0f * GPUPIf)) * ((1.0f - g * g) * (1.0f + mu * mu)) / ((2.0f + g * g) * temp * sqrtf(temp));
 
         for (int i = 0; i < skyColorSamples; ++i)
         {
-            float3 samplePosition =
-                ray.origin + rayDir * (tCurrent + segmentLength * 0.5f);
+            float3 samplePosition = ray.origin + rayDir * (tCurrent + segmentLength * 0.5f);
 
             float height = max(samplePosition.y, 0.0f);
 
@@ -97,16 +86,9 @@ void shadeWavefrontKernel(
                 opticalDepthLightM += expf(-heightLight / hm) * sunSegmentLength;
             }
 
-            float3 tau =
-                betaR * (opticalDepthR + opticalDepthLightR) +
-                betaM * (opticalDepthM + opticalDepthLightM);
+            float3 tau = betaR * (opticalDepthR + opticalDepthLightR) + betaM * (opticalDepthM + opticalDepthLightM);
 
-            float3 attenuation =
-                make_float3(
-                    expf(-tau.x),
-                    expf(-tau.y),
-                    expf(-tau.z)
-                );
+            float3 attenuation = make_float3(expf(-tau.x), expf(-tau.y), expf(-tau.z));
 
             sumR += attenuation * hrLocal * segmentLength;
             sumM += attenuation * hmLocal * segmentLength;
@@ -114,9 +96,7 @@ void shadeWavefrontKernel(
             tCurrent += segmentLength;
         }
 
-        float3 sky =
-            sumR * betaR * phaseR +
-            sumM * betaM * phaseM * 0.3f;
+        float3 sky = sumR * betaR * phaseR + sumM * betaM * phaseM * 0.3f;
 
         state.radiance += state.throughput * sky * mult;
         state.terminate();
@@ -145,15 +125,9 @@ void shadeWavefrontKernel(
         }
         else
         {
-            float lightPdf = scene.lightPdf(
-                ray.origin,
-                ray.direction
-            );
+            float lightPdf = scene.lightPdf(ray.origin, ray.direction);
 
-            float w = powerHeuristic(
-                state.lastBsdfPdf,
-                lightPdf
-            );
+            float w = powerHeuristic(state.lastBsdfPdf, lightPdf);
 
             state.radiance += state.throughput * emission * w;
         }
@@ -163,7 +137,7 @@ void shadeWavefrontKernel(
         return;
     }
 
-    RNG* rng = &state.rng;
+    RNG *rng = &state.rng;
 
     BSDFVal bsdf;
 
@@ -186,12 +160,7 @@ void shadeWavefrontKernel(
         break;
 
     case TRANSPARENT:
-        bsdf = mtl.getTransparentBSDF(
-            ray,
-            hit,
-            rng,
-            state.isInside
-        );
+        bsdf = mtl.getTransparentBSDF(ray, hit, rng, state.isInside);
         break;
 
     default:
@@ -217,27 +186,18 @@ void shadeWavefrontKernel(
         int lightIndex = int(rng->nextFloat() * scene.nbLights);
         lightIndex = min(lightIndex, scene.nbLights - 1);
 
-        const Light& light = scene.lights[lightIndex];
+        const Light &light = scene.lights[lightIndex];
         LightSample ls = light.sample(hit.point, rng, scene);
 
         if (ls.pdf > 0.f)
         {
-            float3 shadowOrigin =
-                hit.point + hit.normal * 1e-3f;
+            float3 shadowOrigin = hit.point + hit.normal * 1e-3f;
 
-            Ray shadowRay(
-                shadowOrigin,
-                ls.direction,
-                ray.time
-            );
+            Ray shadowRay(shadowOrigin, ls.direction, ray.time);
 
-            if (!scene.intersectAny(
-                    shadowRay,
-                    1e-3f,
-                    ls.distance - 1e-3f))
+            if (!scene.intersectAny(shadowRay, 1e-3f, ls.distance - 1e-3f))
             {
-                float cosTheta =
-                    fmaxf(dot(hit.normal, ls.direction), 0.0f);
+                float cosTheta = fmaxf(dot(hit.normal, ls.direction), 0.0f);
 
                 if (cosTheta > 0.f)
                 {
@@ -248,37 +208,17 @@ void shadeWavefrontKernel(
                     {
                     case LAMBERT:
                         f = mtl.evalLambertBSDF();
-                        pdf_bsdf = mtl.lambertPDF(
-                            ray,
-                            hit,
-                            ls.direction
-                        );
+                        pdf_bsdf = mtl.lambertPDF(ray, hit, ls.direction);
                         break;
 
                     case METAL:
-                        f = mtl.evalMetalBSDF(
-                            ray,
-                            hit,
-                            ls.direction
-                        );
-                        pdf_bsdf = mtl.metalPDF(
-                            ray,
-                            hit,
-                            ls.direction
-                        );
+                        f = mtl.evalMetalBSDF(ray, hit, ls.direction);
+                        pdf_bsdf = mtl.metalPDF(ray, hit, ls.direction);
                         break;
 
                     case PLASTIC:
-                        f = mtl.evalPlasticBSDF(
-                            ray,
-                            hit,
-                            ls.direction
-                        );
-                        pdf_bsdf = mtl.plasticPDF(
-                            ray,
-                            hit,
-                            ls.direction
-                        );
+                        f = mtl.evalPlasticBSDF(ray, hit, ls.direction);
+                        pdf_bsdf = mtl.plasticPDF(ray, hit, ls.direction);
                         break;
 
                     default:
@@ -287,21 +227,13 @@ void shadeWavefrontKernel(
                         break;
                     }
 
-                    float pdf_light =
-                        ls.pdf * (1.f / scene.nbLights);
+                    float pdf_light = ls.pdf * (1.f / scene.nbLights);
 
                     if (pdf_light > 0.f)
                     {
-                        float w =
-                            powerHeuristic(pdf_light, pdf_bsdf);
+                        float w = powerHeuristic(pdf_light, pdf_bsdf);
 
-                        state.radiance +=
-                            state.throughput *
-                            f *
-                            ls.radiance *
-                            cosTheta *
-                            w /
-                            pdf_light;
+                        state.radiance += state.throughput * f * ls.radiance * cosTheta * w / pdf_light;
                     }
                 }
             }
@@ -318,25 +250,16 @@ void shadeWavefrontKernel(
     }
     else
     {
-        float cosTheta =
-            fmaxf(dot(hit.normal, bsdf.direction), 0.0f);
+        float cosTheta = fmaxf(dot(hit.normal, bsdf.direction), 0.0f);
 
-        state.throughput =
-            state.throughput *
-            bsdf.brdf *
-            cosTheta /
-            bsdf.pdf;
+        state.throughput = state.throughput * bsdf.brdf * cosTheta / bsdf.pdf;
     }
 
     // ------------------------------------------------------------
     // NEXT RAY
     // ------------------------------------------------------------
 
-    state.ray = Ray(
-        hit.point + bsdf.direction * 1e-3f,
-        bsdf.direction,
-        ray.time
-    );
+    state.ray = Ray(hit.point + bsdf.direction * 1e-3f, bsdf.direction, ray.time);
 
     state.depth += 1;
 
@@ -349,10 +272,7 @@ void shadeWavefrontKernel(
 
     if (state.depth > 3)
     {
-        float p = fmaxf(
-            state.throughput.x,
-            fmaxf(state.throughput.y, state.throughput.z)
-        );
+        float p = fmaxf(state.throughput.x, fmaxf(state.throughput.y, state.throughput.z));
 
         p = clamp(p, 0.05f, 0.95f);
 
@@ -475,7 +395,8 @@ void shadeMissKernel(WavefrontState* states, int* missQueue, int missCount)
 }
 
 __global__
-void shadeEmissiveKernel(CudaScene& gpuScene, WavefrontState* states, HitRecord* hits, int* emissiveQueue, int emissiveCount)
+void shadeEmissiveKernel(CudaScene& gpuScene, WavefrontState* states, HitRecord* hits, int* emissiveQueue, int
+emissiveCount)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -492,7 +413,7 @@ void shadeEmissiveKernel(CudaScene& gpuScene, WavefrontState* states, HitRecord*
     Ray ray = state.ray;
     Material mtl = gpuScene.materials[hits[idx].materialIndex];
     float3 emission = mtl.color() * mtl.intensity();
-    
+
     if(state.lastBounceWasDelta)
     {
         state.radiance += state.throughput * emission;

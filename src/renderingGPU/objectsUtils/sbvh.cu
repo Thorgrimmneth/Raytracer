@@ -438,7 +438,7 @@ int buildSBVHRecursive(
     return nodeIdx;
 }
 
-__host__
+HOST
 BVH* buildSBVH(
     TriangleMeshGeometry* triangles,
     int triangleCount,

@@ -1,0 +1,35 @@
+BasedOnStyle: LLVM
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 120
+
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterControlStatement: Always
+  BeforeElse: true
+  AfterFunction: true
+  AfterClass: true
+  AfterStruct: true
+  AfterEnum: true
+  AfterNamespace: true
+
+AttributeMacros:
+  - HD_INLINE
+  - D_FORCEINLINE
+  - H_INLINE
+  - HD_FORCEINLINE
+  - HD
+  - HOST
+  - DEVICE
+
+StatementAttributeLikeMacros:
+  - HD_INLINE
+  - D_FORCEINLINE
+  - H_INLINE
+  - HD_FORCEINLINE
+  - HD
+  - HOST
+  - DEVICE
+
+BreakAfterAttributes: Always

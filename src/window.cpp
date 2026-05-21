@@ -1,24 +1,6 @@
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
-
-#include <cuda_runtime.h>
-
-#define GL_GLEXT_PROTOTYPES
-#include <cuda_gl_interop.h>
-
-#include <algorithm>
-#include <iostream>
-
 #include "window.hpp"
 
-namespace RT
-{
-
-Window::Window(int p_width, int p_height)
-    : width(p_width),
-      height(p_height)
-{
-}
+Window::Window(int p_width, int p_height) : width(p_width), height(p_height) {}
 
 Window::~Window()
 {
@@ -29,7 +11,7 @@ Window::~Window()
     }
 }
 
-GLuint Window::createShader(GLenum type, const char* source)
+GLuint Window::createShader(GLenum type, const char *source)
 {
     GLuint shader = glCreateShader(type);
 
@@ -43,17 +25,9 @@ GLuint Window::createShader(GLenum type, const char* source)
     {
         char infoLog[512];
 
-        glGetShaderInfoLog(
-            shader,
-            512,
-            nullptr,
-            infoLog
-        );
+        glGetShaderInfoLog(shader, 512, nullptr, infoLog);
 
-        std::cout
-            << "Shader compilation error:\n"
-            << infoLog
-            << std::endl;
+        std::cout << "Shader compilation error:\n" << infoLog << std::endl;
     }
 
     return shader;
@@ -61,17 +35,9 @@ GLuint Window::createShader(GLenum type, const char* source)
 
 void Window::initShaders()
 {
-    GLuint vertexShader =
-        createShader(
-            GL_VERTEX_SHADER,
-            vertexShaderSource
-        );
+    GLuint vertexShader = createShader(GL_VERTEX_SHADER, vertexShaderSource);
 
-    GLuint fragmentShader =
-        createShader(
-            GL_FRAGMENT_SHADER,
-            fragmentShaderSource
-        );
+    GLuint fragmentShader = createShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
 
     shaderProgram = glCreateProgram();
 
@@ -82,27 +48,15 @@ void Window::initShaders()
 
     int success;
 
-    glGetProgramiv(
-        shaderProgram,
-        GL_LINK_STATUS,
-        &success
-    );
+    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
 
     if (!success)
     {
         char infoLog[512];
 
-        glGetProgramInfoLog(
-            shaderProgram,
-            512,
-            nullptr,
-            infoLog
-        );
+        glGetProgramInfoLog(shaderProgram, 512, nullptr, infoLog);
 
-        std::cout
-            << "Program linking error:\n"
-            << infoLog
-            << std::endl;
+        std::cout << "Program linking error:\n" << infoLog << std::endl;
     }
 
     glDeleteShader(vertexShader);
@@ -115,69 +69,29 @@ void Window::initTexture(int width, int height)
 
     glBindTexture(GL_TEXTURE_2D, texture);
 
-    glTexParameteri(
-        GL_TEXTURE_2D,
-        GL_TEXTURE_MIN_FILTER,
-        GL_LINEAR
-    );
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
-    glTexParameteri(
-        GL_TEXTURE_2D,
-        GL_TEXTURE_MAG_FILTER,
-        GL_LINEAR
-    );
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-    glTexParameteri(
-        GL_TEXTURE_2D,
-        GL_TEXTURE_WRAP_S,
-        GL_CLAMP_TO_EDGE
-    );
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 
-    glTexParameteri(
-        GL_TEXTURE_2D,
-        GL_TEXTURE_WRAP_T,
-        GL_CLAMP_TO_EDGE
-    );
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    glTexImage2D(
-        GL_TEXTURE_2D,
-        0,
-        GL_RGBA8,
-        width,
-        height,
-        0,
-        GL_RGBA,
-        GL_UNSIGNED_BYTE,
-        nullptr
-    );
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    cudaGraphicsGLRegisterImage(
-        &cudaTextureResource,
-        texture,
-        GL_TEXTURE_2D,
-        cudaGraphicsRegisterFlagsWriteDiscard
-    );
+    cudaGraphicsGLRegisterImage(&cudaTextureResource, texture, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsWriteDiscard);
 
-    renderer.setInteropResource(
-        cudaTextureResource
-    );
+    renderer.setInteropResource(cudaTextureResource);
 }
 
 void Window::initQuad()
 {
-    float quadVertices[] =
-    {
-        // positions    // uv
-        -1.f, -1.f, 0.f, 0.f,
-         1.f, -1.f, 1.f, 0.f,
-         1.f,  1.f, 1.f, 1.f,
+    float quadVertices[] = {// positions    // uv
+                            -1.f, -1.f, 0.f, 0.f, 1.f, -1.f, 1.f, 0.f, 1.f,  1.f, 1.f, 1.f,
 
-        -1.f, -1.f, 0.f, 0.f,
-         1.f,  1.f, 1.f, 1.f,
-        -1.f,  1.f, 0.f, 1.f
-    };
+                            -1.f, -1.f, 0.f, 0.f, 1.f, 1.f,  1.f, 1.f, -1.f, 1.f, 0.f, 1.f};
 
     glGenVertexArrays(1, &vao);
     glGenBuffers(1, &vbo);
@@ -186,34 +100,15 @@ void Window::initQuad()
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
-    glBufferData(
-        GL_ARRAY_BUFFER,
-        sizeof(quadVertices),
-        quadVertices,
-        GL_STATIC_DRAW
-    );
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
 
     glEnableVertexAttribArray(0);
 
-    glVertexAttribPointer(
-        0,
-        2,
-        GL_FLOAT,
-        GL_FALSE,
-        4 * sizeof(float),
-        (void*)0
-    );
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
 
     glEnableVertexAttribArray(1);
 
-    glVertexAttribPointer(
-        1,
-        2,
-        GL_FLOAT,
-        GL_FALSE,
-        4 * sizeof(float),
-        (void*)(2 * sizeof(float))
-    );
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)(2 * sizeof(float)));
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
@@ -225,13 +120,7 @@ void Window::draw()
 
     glUseProgram(shaderProgram);
 
-    glUniform1i(
-        glGetUniformLocation(
-            shaderProgram,
-            "uTexture"
-        ),
-        0
-    );
+    glUniform1i(glGetUniformLocation(shaderProgram, "uTexture"), 0);
 
     glActiveTexture(GL_TEXTURE0);
 
@@ -242,16 +131,11 @@ void Window::draw()
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
-unsigned char* Window::cumulativeRendering(
-    Vec3f sunDir,
-    int width,
-    int height)
+unsigned char *Window::cumulativeRendering(Vec3f sunDir, int width, int height)
 {
     if (!glfwInit())
     {
-        std::cout
-            << "Failed to initialize GLFW"
-            << std::endl;
+        std::cout << "Failed to initialize GLFW" << std::endl;
 
         return nullptr;
     }
@@ -259,29 +143,21 @@ unsigned char* Window::cumulativeRendering(
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
 
-    glfwWindowHint(
-        GLFW_OPENGL_PROFILE,
-        GLFW_OPENGL_CORE_PROFILE
-    );
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
-    glfwWindowHint(
-        GLFW_RESIZABLE,
-        GLFW_FALSE
-    );
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-    GLFWmonitor* targetMonitor = nullptr;
+    GLFWmonitor *targetMonitor = nullptr;
 
     int count = 0;
 
-    GLFWmonitor** monitors =
-        glfwGetMonitors(&count);
+    GLFWmonitor **monitors = glfwGetMonitors(&count);
 
     for (int i = 0; i < count; i++)
     {
-        const GLFWvidmode* mode =
-            glfwGetVideoMode(monitors[i]);
+        const GLFWvidmode *mode = glfwGetVideoMode(monitors[i]);
 
         if (mode->width > 1920)
         {
@@ -292,45 +168,28 @@ unsigned char* Window::cumulativeRendering(
 
     if (!targetMonitor)
     {
-        targetMonitor =
-            glfwGetPrimaryMonitor();
+        targetMonitor = glfwGetPrimaryMonitor();
     }
 
-    const GLFWvidmode* mode =
-        glfwGetVideoMode(targetMonitor);
+    const GLFWvidmode *mode = glfwGetVideoMode(targetMonitor);
 
-    std::cout
-        << "Refresh rate: "
-        << mode->refreshRate
-        << " Hz"
-        << std::endl;
+    std::cout << "Refresh rate: " << mode->refreshRate << " Hz" << std::endl;
 
-    int windowWidth  = width;
+    int windowWidth = width;
     int windowHeight = height;
 
     if (mode)
     {
-        windowWidth =
-            std::min(windowWidth, mode->width);
+        windowWidth = std::min(windowWidth, mode->width);
 
-        windowHeight =
-            std::min(windowHeight, mode->height);
+        windowHeight = std::min(windowHeight, mode->height);
     }
 
-    GLFWwindow* window =
-        glfwCreateWindow(
-            windowWidth,
-            windowHeight,
-            "Path Tracer",
-            nullptr,
-            nullptr
-        );
+    GLFWwindow *window = glfwCreateWindow(windowWidth, windowHeight, "Path Tracer", nullptr, nullptr);
 
     if (!window)
     {
-        std::cout
-            << "Failed to create window"
-            << std::endl;
+        std::cout << "Failed to create window" << std::endl;
 
         glfwTerminate();
 
@@ -342,70 +201,38 @@ unsigned char* Window::cumulativeRendering(
         int monitorX;
         int monitorY;
 
-        glfwGetMonitorPos(
-            targetMonitor,
-            &monitorX,
-            &monitorY
-        );
+        glfwGetMonitorPos(targetMonitor, &monitorX, &monitorY);
 
-        int posX =
-            monitorX +
-            (mode->width - windowWidth) / 2;
+        int posX = monitorX + (mode->width - windowWidth) / 2;
 
-        int posY =
-            monitorY +
-            (mode->height - windowHeight) / 2;
+        int posY = monitorY + (mode->height - windowHeight) / 2;
 
-        glfwSetWindowPos(
-            window,
-            posX,
-            posY
-        );
+        glfwSetWindowPos(window, posX, posY);
     }
 
     glfwMakeContextCurrent(window);
 
     glfwSwapInterval(0);
 
-    if (!gladLoadGLLoader(
-        (GLADloadproc)glfwGetProcAddress))
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
-        std::cout
-            << "Failed to initialize GLAD"
-            << std::endl;
+        std::cout << "Failed to initialize GLAD" << std::endl;
 
         return nullptr;
     }
 
-    std::cout
-        << glGetString(GL_VERSION)
-        << std::endl;
+    std::cout << glGetString(GL_VERSION) << std::endl;
 
     int framebufferWidth;
     int framebufferHeight;
 
-    glfwGetFramebufferSize(
-        window,
-        &framebufferWidth,
-        &framebufferHeight
-    );
+    glfwGetFramebufferSize(window, &framebufferWidth, &framebufferHeight);
 
-    glViewport(
-        0,
-        0,
-        framebufferWidth,
-        framebufferHeight
-    );
+    glViewport(0, 0, framebufferWidth, framebufferHeight);
 
     glfwShowWindow(window);
 
-    renderer.init(
-        width,
-        height,
-        sunDir.x,
-        sunDir.y,
-        sunDir.z
-    );
+    renderer.init(width, height, sunDir.x, sunDir.y, sunDir.z);
 
     initShaders();
     initTexture(width, height);
@@ -414,18 +241,11 @@ unsigned char* Window::cumulativeRendering(
     // Allocate image buffer for RGB data
     image = new unsigned char[width * height * 3];
 
-    glClearColor(
-        0.f,
-        0.f,
-        0.f,
-        1.f
-    );
+    glClearColor(0.f, 0.f, 0.f, 1.f);
 
-    double lastTime =
-        glfwGetTime();
+    double lastTime = glfwGetTime();
 
     int frames = 0;
-
 
     while (!glfwWindowShouldClose(window))
     {
@@ -433,10 +253,7 @@ unsigned char* Window::cumulativeRendering(
 
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         {
-            glfwSetWindowShouldClose(
-                window,
-                true
-            );
+            glfwSetWindowShouldClose(window, true);
         }
         if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS)
         {
@@ -461,26 +278,15 @@ unsigned char* Window::cumulativeRendering(
 
         frames++;
 
-        double currentTime =
-            glfwGetTime();
+        double currentTime = glfwGetTime();
 
         if (currentTime - lastTime >= 1.0)
         {
-            double fps =
-                frames /
-                (currentTime - lastTime);
+            double fps = frames / (currentTime - lastTime);
 
-            std::string title =
-                "Path Tracer | FPS: " +
-                std::to_string((int)fps) +
-                " | SPP: " +
-                std::to_string(
-                    renderer.getFrameNumber()
-                );
-            glfwSetWindowTitle(
-                window,
-                title.c_str()
-            );
+            std::string title = "Path Tracer | FPS: " + std::to_string((int)fps) +
+                                " | SPP: " + std::to_string(renderer.getFrameNumber());
+            glfwSetWindowTitle(window, title.c_str());
 
             frames = 0;
 
@@ -492,9 +298,7 @@ unsigned char* Window::cumulativeRendering(
     glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    cudaGraphicsUnregisterResource(
-        cudaTextureResource
-    );
+    cudaGraphicsUnregisterResource(cudaTextureResource);
 
     glDeleteTextures(1, &texture);
 
@@ -509,5 +313,3 @@ unsigned char* Window::cumulativeRendering(
     glfwTerminate();
     return image;
 }
-
-} // namespace RT

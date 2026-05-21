@@ -1,45 +1,46 @@
 #pragma once
 
+#include "../defines.hpp"
+
 struct cudaGraphicsResource;
 
 class Renderer
 {
-public:
-
+  public:
     Renderer();
 
     ~Renderer();
 
-    void render(bool outputImage=true);
-    void init(
-        int width,
-        int height,
-        float sunDirx,
-        float sunDiry,
-        float sunDirz
-    );
+    // Setter
+    void setInteropResource(cudaGraphicsResource *resource);
 
+    // Setter (kinda)
     void changeMode();
-    
-    void applyBloom();
-
-    int getFrameNumber();
-
-    void renderFrame(bool outputImage);
-
-    unsigned char* getFramebuffer();
 
     void resetAccumulation();
 
+    // Getter
+    int getFrameNumber();
+    unsigned char *getFramebuffer();
+
+    // Initialisation
+    void init(int width, int height, float sunDirx, float sunDiry, float sunDirz);
+
+    // Post-processing
+    void applyBloom();
+
+    // Renderer : megakernel and wavefront
+    void renderFrame(bool outputImage);
+    void renderFrameWavefront(bool outputImage);
+    
+    // Main function
+    void render(bool outputImage = true);
+
+    // Cleaner
     void cleanUp();
 
-    void renderFrameWavefront(bool outputImage);
-
-    void setInteropResource(cudaGraphicsResource* resource);
-
-private:
-
+  private:
     class Impl;
 
-    Impl* impl;
+    Impl *impl;
 };

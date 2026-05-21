@@ -3,23 +3,20 @@
 
 #include <mutex>
 
-namespace RT
-{
-	class ConsoleProgressBar
-	{
-	  public:
-		ConsoleProgressBar() = default;
+class ConsoleProgressBar {
+  public:
+    ConsoleProgressBar() = default;
 
-		void start( const int p_nbTasks, const int p_barWidth );
-		void next( const int n = 1 );
-		void stop();
+    void start(const int p_nbTasks, const int p_barWidth);
+    void next(const int n = 1);
+    void stop();
 
-	  private:
-		int _barWidth	 = 50;
-		int _nbTasksDone = 0;
-		int _nbTasks	 = 1;
+  private:
+    int _barWidth = 50;
+    int _nbTasksDone = 0;
+    int _nbTasks = 1;
 
-		std::mutex _mutex;
-	};
-} // namespace VTX
+    std::mutex _mutex;
+};
+
 #endif // __RT_ISICG_CONSOLE_PROGRESS_BAR__

@@ -1,17 +1,22 @@
-#include <cstdio>
-#include <cuda_runtime.h>
-#include <curand_kernel.h>
-#include <fstream>
+#include "renderer.hpp"
+
 #include "scene.cuh"
+#include "camera/camera.cuh"
+
 #include "integrators/pathtracer_integrator.cuh"
 
+#include "../defines.hpp"
+#include "utils/macro.cuh"
+#include "utils/constant.cuh"
 
 #include "shading_kernels.cuh"
 #include "wavefront_state.cuh"
 #include "post_treatment.cuh"
-#include "camera/camera.cuh"
-#include "../defines.hpp"
-#include "renderer.hpp"
+
+#include <cstdio>
+#include <cuda_runtime.h>
+#include <curand_kernel.h>
+#include <fstream>
 
 __constant__ int nbBounces;
 __constant__ float earthRadius;
@@ -34,7 +39,6 @@ enum class RenderMode
 class Renderer::Impl
 {
     
-
 public:
     RenderMode renderMode = RenderMode::Megakernel;
     int width  = 1920;
@@ -100,6 +104,13 @@ Renderer::~Renderer()
     delete impl;
 }
 
+// Helper
+inline 
+dim3 gridForCount(int count, int blockSize = 256)
+{
+    return dim3((count + blockSize - 1) / blockSize);
+}
+
 void Renderer::setInteropResource(cudaGraphicsResource* resource)
 {
     impl->cudaTextureResource = resource;
@@ -133,12 +144,7 @@ int Renderer::getFrameNumber(){
     return impl->sampleCount;
 }
 
-inline dim3 gridForCount(int count, int blockSize = 256)
-{
-    return dim3((count + blockSize - 1) / blockSize);
-}
-
-__host__
+HOST
 Camera initCamera(int width, int height){
     // ===== Camera =====
     float3 camPos    = make_float3(8.f, 2.f, 3.f);
@@ -171,12 +177,12 @@ Camera initCamera(int width, int height){
     return camera;
 }
 
-__host__
+HOST
 void initConstant(int width, int height, float4 sunDir){
-    int c_nbBounces = 5;
+    int c_nbBounces = 8;
     float c_earthRadius = 6360e3f;
     float3 c_sunDirection = toFloat3(sunDir);
-    int c_skyColorSamples = 8;
+    int c_skyColorSamples = 4;
     float c_hr = 7994.f;
     float c_hm = 1200.f;
     float3 c_betaR = make_float3(3.8e-6f, 13.5e-6f, 33.1e-6f);
@@ -211,7 +217,7 @@ void Renderer::init(
     float4 sunDir =
         make_float4(sunDirx, sunDiry, sunDirz, 0.f);
 
-    RT::setSeed(43);
+    setSeed(43);
 
     impl->gpuScene = spheresScene(sunDir);
     //impl->gpuScene = implicitSpheresScene(sunDir);
@@ -297,7 +303,40 @@ void Renderer::init(
     impl->sampleCount = 0;
 }
 
-__global__
+// MEGAKERNEL
+GLOBAL
+void renderKernel(
+    CudaScene gpuScene,
+    float3* d_accumBuffer,
+    int width,
+    int height,
+    int sampleCount)
+{
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x >= width || y >= height) return;
+
+    int pixelIndex = y * width + x;
+    uint seed = pixelIndex ^ (sampleCount * 0x9E3779B9u);
+    RNG localState(seed);
+
+    float3 finalColor = make_float3(0.f);
+
+    float sx = (x + localState.nextFloat()) / (float)(width  - 1);
+    float sy = (y + localState.nextFloat()) / (float)(height - 1);
+
+    float3 rayTarget = toFloat3(camera.topLeft + sx * camera.viewPortU - sy * camera.viewPortV);
+    float3 direction = normalize(rayTarget - toFloat3(camera.cameraPos));
+
+    Ray ray(toFloat3(camera.cameraPos), direction);
+    finalColor += PathtracerIntegrator::lighting(gpuScene, ray, 0, 1e20f, &localState);
+
+    d_accumBuffer[pixelIndex] += finalColor;
+}
+
+// WAVEFRONT INIT
+GLOBAL
 void generatePrimaryRaysKernel(
     WavefrontState* states,
     int* activeQueue,
@@ -340,7 +379,8 @@ void generatePrimaryRaysKernel(
         *activeCount = width * height;
 }
 
-__global__
+// WAVEFRONT INTERSECTION
+GLOBAL
 void wavefrontIntersectActiveKernel(
     CudaScene scene,
     WavefrontState* states,
@@ -379,38 +419,8 @@ void wavefrontIntersectActiveKernel(
     }
 }
 
-__global__
-void renderKernel(
-    CudaScene gpuScene,
-    float3* d_accumBuffer,
-    int width,
-    int height,
-    int sampleCount)
-{
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
-
-    if (x >= width || y >= height) return;
-
-    int pixelIndex = y * width + x;
-    uint seed = pixelIndex ^ (sampleCount * 0x9E3779B9u);
-    RNG localState(seed);
-
-    float3 finalColor = make_float3(0.f);
-
-    float sx = (x + localState.nextFloat()) / (float)(width  - 1);
-    float sy = (y + localState.nextFloat()) / (float)(height - 1);
-
-    float3 rayTarget = toFloat3(camera.topLeft + sx * camera.viewPortU - sy * camera.viewPortV);
-    float3 direction = normalize(rayTarget - toFloat3(camera.cameraPos));
-
-    Ray ray(toFloat3(camera.cameraPos), direction);
-    finalColor += PathtracerIntegrator::lighting(gpuScene, ray, 0, 1e20f, &localState);
-
-    d_accumBuffer[pixelIndex] += finalColor;
-}
-
-__global__
+// WAVEFRONT ACCUMULATION
+GLOBAL
 void accumulateWavefrontKernel(
     const WavefrontState* wavefrontStates,
     float3*              accumBuffer,
@@ -876,6 +886,7 @@ void Renderer::render(bool outputImage){
             break;
     }
 }
+
 void Renderer::cleanUp()
 {
     cudaFree(impl->d_accumBuffer);

@@ -1,6 +1,6 @@
 #include "material.cuh"
 
-__device__
+DEVICE
 void Material::createONB(const float3& n, float3& tangent, float3& bitangent) const
 {
     if (n.z < -0.999f) {
@@ -26,7 +26,7 @@ void Material::createONB(const float3& n, float3& tangent, float3& bitangent) co
     bitangent = normalize(bitangent);
 }
 
-__device__
+DEVICE
 float3 Material::toWorld(const float3& normal, const float3 direction) const
 {
     float3 T, B;
@@ -38,13 +38,13 @@ float3 Material::toWorld(const float3& normal, const float3 direction) const
 //  Lambert
 // ------------------------------------------------------------
 
-__device__
+DEVICE
 inline float3 Material::evaluateLambert() const
 {
     return color() * GPUInvPIf;
 }
 
-__device__
+DEVICE
 float3 Material::samplingLambert(const float3 normal, RNG* rngStates) const
 {
     float e1  = rngStates->nextFloat();
@@ -57,7 +57,7 @@ float3 Material::samplingLambert(const float3 normal, RNG* rngStates) const
     return toWorld(normal, make_float3(x, y, z));
 }
 
-__device__
+DEVICE
 float Material::pdfLambert(const float3 normal, const float3 direction) const
 {
     float cosTheta = fmaxf(dot(normal, direction), 0.f);
@@ -68,7 +68,7 @@ float Material::pdfLambert(const float3 normal, const float3 direction) const
 //  GGX / Cook-Torrance
 // ------------------------------------------------------------
 
-__device__
+DEVICE
 float Material::computeD(const float3& p_normal, const float3& h) const
 {
     float alpha = roughness() * roughness();
@@ -80,14 +80,14 @@ float Material::computeD(const float3& p_normal, const float3& h) const
     return alpha2 / fmaxf(denom, 1e-8f);
 }
 
-__device__
+DEVICE
 float3 Material::computeF(const float3& wo, const float3& h, const float3& F0) const
 {
     float HdotV = clamp(dot(h, wo), 0.f, 1.f);
     return F0 + (make_float3(1.f) - F0) * powf(1.f - HdotV, 5.f);
 }
 
-__device__
+DEVICE
 float Material::computeG1(const float& NdotV) const
 {
     if (NdotV <= 0.f)
@@ -103,7 +103,7 @@ float Material::computeG1(const float& NdotV) const
         (1.f + sqrtf(1.f + alpha * alpha * tan2));
 }
 
-__device__
+DEVICE
 float Material::computeG(const float3& wi, const float3& wo, const float3& n) const
 {
     float NdotV = fmaxf(dot(n, wo), 0.f);
@@ -113,7 +113,7 @@ float Material::computeG(const float3& wi, const float3& wo, const float3& n) co
          * computeG1(NdotL);
 }
 
-__device__
+DEVICE
 inline float3 Material::evaluateGGX(
     const float3& wo, const float3& normal,
     const float3& wi, const float3& F0) const
@@ -136,7 +136,7 @@ inline float3 Material::evaluateGGX(
     return (D * G / denom) * F;
 }
 
-__device__
+DEVICE
 float3 Material::samplingGGX(
     const float3& wo, const float3& normal,
     RNG* rngStates) const
@@ -181,7 +181,7 @@ float3 Material::samplingGGX(
     return wi;
 }
 
-__device__
+DEVICE
 float Material::pdfGGX(
     const float3 n, const float3 wi, const float3 wo) const
 {
@@ -205,7 +205,7 @@ float Material::pdfGGX(
 //  Fresnel (Schlick)
 // ------------------------------------------------------------
 
-__device__
+DEVICE
 float3 Material::fresnelSchlick(float cosTheta, const float3& F0) const
 {
     float m  = saturate(1.f - fabsf(cosTheta));
@@ -218,7 +218,7 @@ float3 Material::fresnelSchlick(float cosTheta, const float3& F0) const
 //  getBSDF helpers
 // ============================================================
 
-__device__
+DEVICE
 BSDFVal Material::getMetalBSDF(
     const Ray&       ray,
     const HitRecord& hit,
@@ -246,7 +246,7 @@ BSDFVal Material::getMetalBSDF(
     return bsdf;
 }
 
-__device__
+DEVICE
 BSDFVal Material::getLambertBSDF(
     const Ray&       ray,
     const HitRecord& hit,
@@ -263,7 +263,7 @@ BSDFVal Material::getLambertBSDF(
     return bsdf;
 }
 
-__device__
+DEVICE
 BSDFVal Material::getPlasticBSDF(
     const Ray&       ray,
     const HitRecord& hit,
@@ -303,7 +303,7 @@ BSDFVal Material::getPlasticBSDF(
     return bsdf;
 }
 
-__device__
+DEVICE
 BSDFVal Material::getMirrorBSDF(
     const Ray&       ray,
     const HitRecord& hit) const
@@ -319,7 +319,7 @@ BSDFVal Material::getMirrorBSDF(
     return bsdf;
 }
 
-__device__
+DEVICE
 BSDFVal Material::getTransparentBSDF(
     const Ray&       ray,
     const HitRecord& hit,
@@ -392,7 +392,7 @@ BSDFVal Material::getTransparentBSDF(
 //  getBSDF dispatcher
 // ============================================================
 
-__device__
+DEVICE
 BSDFVal Material::getBSDF(
     const Ray&       ray,
     const HitRecord& hit,
@@ -433,13 +433,13 @@ BSDFVal Material::getBSDF(
 //  Used by NEE / MIS — delta materials return 0
 // ============================================================
 
-__device__
+DEVICE
 float3 Material::evalLambertBSDF() const
 {
     return evaluateLambert();
 }
 
-__device__
+DEVICE
 float3 Material::evalMetalBSDF(
     const Ray&       ray,
     const HitRecord& hit,
@@ -456,7 +456,7 @@ float3 Material::evalMetalBSDF(
     return evaluateGGX(wo, normal, wi, F0);
 }
 
-__device__
+DEVICE
 float3 Material::evalPlasticBSDF(
     const Ray&       ray,
     const HitRecord& hit,
@@ -482,7 +482,7 @@ float3 Material::evalPlasticBSDF(
 //  evalBSDF dispatcher
 // ============================================================
 
-__device__
+DEVICE
 float3 Material::evalBSDF(
     const Ray&       ray,
     const HitRecord& hit,
@@ -512,7 +512,7 @@ float3 Material::evalBSDF(
 //  Used by MIS — delta materials return 0
 // ============================================================
 
-__device__
+DEVICE
 float Material::lambertPDF(
     const Ray&       ray,
     const HitRecord& hit,
@@ -523,7 +523,7 @@ float Material::lambertPDF(
     return pdfLambert(normal, wi);
 }
 
-__device__
+DEVICE
 float Material::metalPDF(
     const Ray&       ray,
     const HitRecord& hit,
@@ -538,7 +538,7 @@ float Material::metalPDF(
     return pdfGGX(normal, wi, wo);
 }
 
-__device__
+DEVICE
 float Material::plasticPDF(
     const Ray&       ray,
     const HitRecord& hit,
@@ -563,7 +563,7 @@ float Material::plasticPDF(
 //  pdf dispatcher
 // ============================================================
 
-__device__
+DEVICE
 float Material::pdf(
     const Ray&       ray,
     const HitRecord& hit,

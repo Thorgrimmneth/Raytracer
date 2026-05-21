@@ -1,76 +1,79 @@
+// alway glad before glfw3
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
+#include "defines.hpp"
+#include "renderingGPU/renderer.hpp"
+
+#include <algorithm>
+#include <cstring>
 #include <iostream>
 #include <vector>
-#include <cstring>
-#include "renderingGPU/renderer.hpp"
-#include "defines.hpp"
 
-namespace RT
-{	
-    class Window
-    {
-      public:
-        Window() = delete;
-        ~Window();
-        Window(int width, int height);
-        unsigned char* cumulativeRendering(Vec3f sunDir, int width, int height);
+#include <cuda_runtime.h>
+#include <cuda_gl_interop.h>
 
-        private:
 
-            GLuint createShader(GLenum type, const char* source);
-            void initShaders();
-            void initTexture(int width, int height);
-            void initQuad();
-            void draw();
-            
-        int width  = 1920;
-        int height = 1080;
-        
-        Renderer renderer;
 
-        cudaGraphicsResource* cudaTextureResource = nullptr;
-        
-        GLuint texture;
-        GLuint vao;
-        GLuint vbo;
-        GLuint shaderProgram;
+class Window {
+  public:
+    Window() = delete;
+    ~Window();
+    Window(int width, int height);
+    unsigned char *cumulativeRendering(Vec3f sunDir, int width, int height);
 
-        unsigned char* image = nullptr;
+  private:
+    GLuint createShader(GLenum type, const char *source);
+    void initShaders();
+    void initTexture(int width, int height);
+    void initQuad();
+    void draw();
 
-        const char* vertexShaderSource = R"(
-        #version 450 core
+    int width = 1920;
+    int height = 1080;
 
-        layout(location = 0) in vec2 aPos;
-        layout(location = 1) in vec2 aUV;
+    Renderer renderer;
 
-        out vec2 uv;
+    cudaGraphicsResource *cudaTextureResource = nullptr;
 
-        void main()
-        {
-            uv = aUV;
-            gl_Position = vec4(aPos, 0.0, 1.0);
-        }
-        )";
+    GLuint texture;
+    GLuint vao;
+    GLuint vbo;
+    GLuint shaderProgram;
 
-        const char* fragmentShaderSource = R"(
-        #version 450 core
+    unsigned char *image = nullptr;
 
-        in vec2 uv;
+    const char *vertexShaderSource = R"(
+            #version 450 core
 
-        out vec4 FragColor;
+            layout(location = 0) in vec2 aPos;
+            layout(location = 1) in vec2 aUV;
 
-        uniform sampler2D uTexture;
+            out vec2 uv;
 
-        void main()
-        {
-            vec2 flippedUV = vec2(uv.x, 1.0 - uv.y);
+            void main()
+            {
+                uv = aUV;
+                gl_Position = vec4(aPos, 0.0, 1.0);
+            }
+            )";
 
-            vec3 color = texture(uTexture, flippedUV).rgb;
+    const char *fragmentShaderSource = R"(
+            #version 450 core
 
-            FragColor = vec4(color, 1.0);
-        }
-        )";
-    };
-}
+            in vec2 uv;
+
+            out vec4 FragColor;
+
+            uniform sampler2D uTexture;
+
+            void main()
+            {
+                vec2 flippedUV = vec2(uv.x, 1.0 - uv.y);
+
+                vec3 color = texture(uTexture, flippedUV).rgb;
+
+                FragColor = vec4(color, 1.0);
+            }
+            )";
+};
