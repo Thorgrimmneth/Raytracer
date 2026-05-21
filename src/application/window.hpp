@@ -2,9 +2,6 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
-#include "defines.hpp"
-#include "renderingGPU/renderer.hpp"
-
 #include <algorithm>
 #include <cstring>
 #include <iostream>
@@ -13,7 +10,9 @@
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
 
+#include "utils/defines.hpp"
 
+#include "renderingGPU/renderer.hpp"
 
 class Window {
   public:

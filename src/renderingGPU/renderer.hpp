@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../defines.hpp"
+#include "../utils/defines.hpp"
 
 struct cudaGraphicsResource;
 

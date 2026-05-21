@@ -1,6 +1,6 @@
-#include "renderingGPU/renderer.hpp"
-#include "texture.hpp"
+#include "utils/texture.hpp"
 #include "utils/chrono.hpp"
+
 #include "window.hpp"
 
 class Application {

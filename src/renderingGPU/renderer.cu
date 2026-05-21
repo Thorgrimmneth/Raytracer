@@ -5,7 +5,7 @@
 
 #include "integrators/pathtracer_integrator.cuh"
 
-#include "../defines.hpp"
+#include "../utils/defines.hpp"
 #include "utils/macro.cuh"
 #include "utils/constant.cuh"
 

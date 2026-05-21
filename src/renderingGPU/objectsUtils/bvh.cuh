@@ -3,13 +3,13 @@
 #include <iostream>
 #include <cstdint>
 #include <cstring>
+#include <vector>
 
 #include "../utils/macro.cuh"
 
 #include "aabb.cuh"
 
 #include "../objects/triangle_mesh_geometry.cuh"
-#include "../objects/triangle_mesh.cuh"
 
 #include "../raytracingUtils/ray.cuh"
 #include "../raytracingUtils/hitrecord.cuh"

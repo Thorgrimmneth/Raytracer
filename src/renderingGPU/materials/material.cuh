@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../defines.hpp"
+#include "../../utils/defines.hpp"
 #include "../utils/cuda_defines.cuh"
 #include "../utils/macro.cuh"
 #include "../utils/rng.cuh"
