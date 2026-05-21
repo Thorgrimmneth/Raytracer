@@ -1,11 +1,6 @@
 #include "bvh.cuh"
-#include "../objects/triangle_mesh.cuh"
 
-#include <iostream>
-#include <cstdint>
-#include <cstring>
-
-__host__
+HOST
 BVH* buildBVH(
     TriangleMeshGeometry* triangles,
     int triangleCount,

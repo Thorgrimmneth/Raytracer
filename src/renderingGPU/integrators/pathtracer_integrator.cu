@@ -1,14 +1,11 @@
-#include "../scene.cuh"
-#include "../lights/light.cuh"
 #include "pathtracer_integrator.cuh"
 
-__device__
-float3 PathtracerIntegrator::lighting(
-        const CudaScene &scene,
-        const Ray &primaryRay,
-        const float tMin,
-        const float tMax,
-        RNG *rng)
+#include "../scene.cuh"
+#include "../lights/light.cuh"
+
+DEVICE 
+float3 PathtracerIntegrator::lighting(const CudaScene &scene, const Ray &primaryRay, const float tMin,
+                                             const float tMax, RNG *rng)
 {
     float3 finalColor = make_float3(0.f);
 
@@ -17,7 +14,7 @@ float3 PathtracerIntegrator::lighting(
     bool isInside = false;
     bool lastBounceWasDelta = true;
     float lastBsdfPdf = 1.f;
-    
+
     for (int depth = 0; depth < nbBounces; depth++)
     {
         HitRecord hit;
@@ -27,46 +24,41 @@ float3 PathtracerIntegrator::lighting(
             finalColor += throughput * getSkyColor(ray);
             break;
         }
-        //return finalColor;
+        // return finalColor;
         const Material &mtl = scene.materials[hit.materialIndex];
-        if(mtl.type() == MaterialType::EMISSIVE)
+        if (mtl.type() == MaterialType::EMISSIVE)
         {
-            float3 emission =
-                mtl.color() * mtl.intensity();
+            float3 emission = mtl.color() * mtl.intensity();
 
-            if(lastBounceWasDelta)
+            if (lastBounceWasDelta)
             {
                 finalColor += throughput * emission;
             }
             else
             {
-                float lightPdf =
-                    scene.lightPdf(
-                        ray.origin,
-                        ray.direction);
+                float lightPdf = scene.lightPdf(ray.origin, ray.direction);
 
-                float w =
-                    powerHeuristic(
-                        lastBsdfPdf,
-                        lightPdf);
+                float w = powerHeuristic(lastBsdfPdf, lightPdf);
 
-                finalColor +=
-                    throughput * emission * w;
+                finalColor += throughput * emission * w;
             }
 
             break;
         }
 
         BSDFVal bsdf = mtl.getBSDF(ray, hit, rng, isInside);
-        if(bsdf.pdf <= 1e-4f) break;
-        if(bsdf.isDelta){
+        if (bsdf.pdf <= 1e-4f)
+            break;
+        if (bsdf.isDelta)
+        {
             throughput *= bsdf.brdf;
         }
-        else{
+        else
+        {
             int lightIndex = int(rng->nextFloat() * scene.nbLights);
             lightIndex = min(lightIndex, scene.nbLights - 1);
 
-            const Light& light = scene.lights[lightIndex];
+            const Light &light = scene.lights[lightIndex];
             LightSample ls = light.sample(hit.point, rng, scene);
 
             if (ls.pdf > 0.f)
@@ -82,7 +74,7 @@ float3 PathtracerIntegrator::lighting(
                     {
                         float3 f = mtl.evalBSDF(ray, hit, ls.direction);
 
-                        float pdf_light = ls.pdf * (1.f / scene.nbLights); 
+                        float pdf_light = ls.pdf * (1.f / scene.nbLights);
 
                         float pdf_bsdf = mtl.pdf(ray, hit, ls.direction);
 
@@ -116,11 +108,11 @@ float3 PathtracerIntegrator::lighting(
     return finalColor;
 }
 
-__device__ __noinline__
+DEVICE 
 float3 PathtracerIntegrator::getSkyColor(const Ray &ray)
 {
     float3 rayDir = ray.direction;
-    //float mult = lerp(1.f, 20.f, (max(-0.4f,sunDir.y) + 0.4)/1.4f);
+    // float mult = lerp(1.f, 20.f, (max(-0.4f,sunDir.y) + 0.4)/1.4f);
     float t = clamp((sunDirection.y + 0.4f) / 1.4f, 0.0f, 1.0f);
     float tM = 1 - t;
     float B0 = pow(1.0f - t, 3.0f);
@@ -146,9 +138,8 @@ float3 PathtracerIntegrator::getSkyColor(const Ray &ray)
     float phaseR = (3.0f / (16.0f * GPUPIf)) * (1.0f + mu * mu);
 
     float temp = 1.0f + g * g - 2.0f * g * mu;
-    float phaseM = (3.0f / (8.0f * GPUPIf)) *
-                   ((1.0f - g * g) * (1.0f + mu * mu)) /
-                   ((2.0f + g * g) * temp * sqrtf(temp));
+    float phaseM =
+        (3.0f / (8.0f * GPUPIf)) * ((1.0f - g * g) * (1.0f + mu * mu)) / ((2.0f + g * g) * temp * sqrtf(temp));
 
     for (int i = 0; i < skyColorSamples; ++i)
     {
@@ -167,7 +158,7 @@ float3 PathtracerIntegrator::getSkyColor(const Ray &ray)
         float opticalDepthLightR = 0.0f;
         float opticalDepthLightM = 0.0f;
 
-        const int sunSamples = 8;
+        const int sunSamples = 4;
         float sunSegmentLength = sizeAtmosphere / sunSamples;
 
         for (int j = 0; j < sunSamples; ++j)
@@ -180,12 +171,9 @@ float3 PathtracerIntegrator::getSkyColor(const Ray &ray)
             opticalDepthLightM += expf(-heightLight / hm) * sunSegmentLength;
         }
 
-        float3 tau =
-            betaR * (opticalDepthR + opticalDepthLightR) +
-            betaM * (opticalDepthM + opticalDepthLightM);
+        float3 tau = betaR * (opticalDepthR + opticalDepthLightR) + betaM * (opticalDepthM + opticalDepthLightM);
 
-        float3 attenuation =
-            make_float3(expf(-tau.x), expf(-tau.y), expf(-tau.z));
+        float3 attenuation = make_float3(expf(-tau.x), expf(-tau.y), expf(-tau.z));
 
         sumR += attenuation * hrLocal * segmentLength;
         sumM += attenuation * hmLocal * segmentLength;
@@ -193,8 +181,7 @@ float3 PathtracerIntegrator::getSkyColor(const Ray &ray)
         tCurrent += segmentLength;
     }
 
-    float3 sky = sumR * betaR * phaseR +
-                 sumM * betaM * phaseM * 0.3f;
+    float3 sky = sumR * betaR * phaseR + sumM * betaM * phaseM * 0.3f;
 
     /*float sunAngularRadius = 2.1f * GPUPIf / 180.f;
     float cosTheta = dot(rayDir, sunDirection);

@@ -1,7 +1,11 @@
 #pragma once
 
 #include "wavefront_state.cuh"
+
+#include "utils/constant.cuh"
+
 #include "lights/light.cuh"
+
 #include "scene.cuh"
 
 __global__

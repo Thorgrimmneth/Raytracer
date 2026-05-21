@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../objectsUtils/aabb.cuh"
+#include "../utils/macro.cuh"
 
 class TriangleMesh;
 
@@ -59,9 +60,9 @@ struct TriangleMeshGeometry{
             m0 = make_float4(rowZ.x, rowZ.y, rowZ.z, tz);
             m1 = make_float4(rowU.x, rowU.y, rowU.z, tu);
             m2 = make_float4(rowV.x, rowV.y, rowV.z, tv);
-        };
+    };
 
-    __device__ __forceinline__
+    D_FORCEINLINE
     bool intersect(
             const Ray& ray,
             float tMin,
@@ -99,6 +100,14 @@ struct TriangleMeshGeometry{
         return true;
     }
 
-    __device__
-    const float3 computeSmoothNormal( const float2 & p_uv, const float3* normals ) const;
+    D_FORCEINLINE
+    const float3 computeSmoothNormal( const float2 & p_uv, const float3* normals ) const
+    {
+        const float3 & n0 = normals[ i0];
+        const float3 & n1 = normals[ i1 ];
+        const float3 & n2 = normals[ i2 ];
+        float		  u	 = p_uv.x;
+        float		  v	 = p_uv.y;
+        return ( 1 - u - v ) * n0 + u * n1 + v * n2;
+    }
 };

@@ -2,13 +2,14 @@
 
 #include "op.cuh"
 #include "cuda_defines.cuh"
+#include "macro.cuh"
 
 struct Quaternion
 {
     float w, x, y, z;
 };
 
-__host__ __device__ inline
+H_INLINE
 Quaternion makeQuaternion(float w, float x, float y, float z)
 {
     Quaternion q;
@@ -19,7 +20,7 @@ Quaternion makeQuaternion(float w, float x, float y, float z)
     return q;
 }
 
-__host__ __device__ inline
+H_INLINE
 Quaternion normalizeQuaternion(Quaternion q)
 {
     float len = sqrtf(q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z);
@@ -37,13 +38,13 @@ Quaternion normalizeQuaternion(Quaternion q)
     );
 }
 
-__host__ __device__ inline
+H_INLINE
 Quaternion conjugateQuaternion(Quaternion q)
 {
     return makeQuaternion(q.w, -q.x, -q.y, -q.z);
 }
 
-__host__ __device__ inline
+H_INLINE
 Quaternion multiplyQuaternion(Quaternion a, Quaternion b)
 {
     return makeQuaternion(
@@ -54,7 +55,7 @@ Quaternion multiplyQuaternion(Quaternion a, Quaternion b)
     );
 }
 
-__host__ __device__ inline
+H_INLINE
 Quaternion quaternionFromAxisAngle(float3 axis, float angle)
 {
     float angleRad = angle * GPUPIf / 180.f;
@@ -71,7 +72,7 @@ Quaternion quaternionFromAxisAngle(float3 axis, float angle)
     ));
 }
 
-__host__ __device__ inline
+H_INLINE
 float3 rotateByQuaternionFast(float3 v, Quaternion q)
 {
     q = normalizeQuaternion(q);
@@ -84,7 +85,7 @@ float3 rotateByQuaternionFast(float3 v, Quaternion q)
          + 2.f * s * cross(u, v);
 }
 
-__host__ __device__ inline
+H_INLINE
 float3 transformPoint(
     float3 p,
     float3 scale,
@@ -104,7 +105,7 @@ float3 transformPoint(
     return p;
 }
 
-__host__ __device__ inline
+H_INLINE
 float3 transformNormal(
     float3 n,
     Quaternion rotation)

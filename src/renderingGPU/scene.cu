@@ -1,12 +1,7 @@
-#include "lights/light.cuh"
-#include "scene.cuh"
-#include <assimp/Importer.hpp>
-#include <assimp/scene.h>
-#include <assimp/postprocess.h>
-#include "objectsUtils/bvh.cuh"
-#include "objectsUtils/sbvh.cuh"
 
-__host__
+#include "scene.cuh"
+
+HOST
 void CudaScene::uploadObjects(
     std::vector<Sphere> spheresGPU,
     std::vector<Plane> planesGPU,
@@ -115,7 +110,7 @@ void CudaScene::uploadObjects(
     bvhScene.d_implicitSpheres = implicitSpheres;
 }
 
-__host__
+HOST
 void CudaScene::uploadLights(
                              std::vector<Light> lightsGPU){
     nbLights = lightsGPU.size();
@@ -135,7 +130,7 @@ void CudaScene::uploadLights(
     }
 }
 
-__host__ 
+HOST
 void CudaScene::uploadMaterials(std::vector<Material> materialsGPU)
 {
 	nbMaterials = materialsGPU.size();
@@ -156,7 +151,7 @@ void CudaScene::uploadMaterials(std::vector<Material> materialsGPU)
 	}
 }
 
-void sceneSize(CudaScene gpuScene, std::vector<BaseObject> primitivesGPU)
+void CudaScene::sceneSize(std::vector<BaseObject> primitivesGPU)
 {
     printf("Size of one BVH node: %zu bytes\n", sizeof(BVHSceneNode));
     printf("Size of AABB: %zu bytes\n", sizeof(AABB));
@@ -168,22 +163,22 @@ void sceneSize(CudaScene gpuScene, std::vector<BaseObject> primitivesGPU)
     printf("Size of ImplicitSphere: %zu bytes\n", sizeof(ImplicitSphere));
     printf("\n");
     size_t totalSize = 0;
-    totalSize += gpuScene.nbSpheres * sizeof(Sphere);
-    printf("Size of spheres: %zu bytes. %2.2f gain compared to v1\n", gpuScene.nbSpheres * sizeof(Sphere), (1.f - (gpuScene.nbSpheres * sizeof(Sphere) / 38240.f)) * 100.f);
-    totalSize += gpuScene.nbPlanes * sizeof(Plane);
-    printf("Size of planes: %zu bytes. %2.2f gain compared to v1\n", gpuScene.nbPlanes * sizeof(Plane), (1.f - (gpuScene.nbPlanes * sizeof(Plane) / 20.f))* 100.f);
-    totalSize += gpuScene.nbTriangleMeshes * sizeof(TriangleMesh);
-    printf("Size of triangle meshes: %zu bytes. %2.2f gain compared to v1\n", gpuScene.nbTriangleMeshes * sizeof(TriangleMesh), (1.f - (gpuScene.nbTriangleMeshes * sizeof(TriangleMesh) / 1.f)) * 100.f);
-    totalSize += gpuScene.nbMaterials * sizeof(Material);
-    printf("Size of materials: %zu bytes. %2.2f gain compared to v1\n", gpuScene.nbMaterials * sizeof(Material), (1.f - (gpuScene.nbMaterials * sizeof(Material) / 15360.f)) * 100.f);
-    totalSize += gpuScene.nbLights * sizeof(Light);
-    printf("Size of lights: %zu bytes. %2.2f gain compared to v1\n", gpuScene.nbLights * sizeof(Light), (1.f - (gpuScene.nbLights * sizeof(Light) / 192.f)) * 100.f);
+    totalSize += nbSpheres * sizeof(Sphere);
+    printf("Size of spheres: %zu bytes. %2.2f gain compared to v1\n", nbSpheres * sizeof(Sphere), (1.f - (nbSpheres * sizeof(Sphere) / 38240.f)) * 100.f);
+    totalSize += nbPlanes * sizeof(Plane);
+    printf("Size of planes: %zu bytes. %2.2f gain compared to v1\n", nbPlanes * sizeof(Plane), (1.f - (nbPlanes * sizeof(Plane) / 20.f))* 100.f);
+    totalSize += nbTriangleMeshes * sizeof(TriangleMesh);
+    printf("Size of triangle meshes: %zu bytes. %2.2f gain compared to v1\n", nbTriangleMeshes * sizeof(TriangleMesh), (1.f - (nbTriangleMeshes * sizeof(TriangleMesh) / 1.f)) * 100.f);
+    totalSize += nbMaterials * sizeof(Material);
+    printf("Size of materials: %zu bytes. %2.2f gain compared to v1\n", nbMaterials * sizeof(Material), (1.f - (nbMaterials * sizeof(Material) / 15360.f)) * 100.f);
+    totalSize += nbLights * sizeof(Light);
+    printf("Size of lights: %zu bytes. %2.2f gain compared to v1\n", nbLights * sizeof(Light), (1.f - (nbLights * sizeof(Light) / 192.f)) * 100.f);
     totalSize += primitivesGPU.size() * sizeof(BaseObject);
     printf("Size of primitives: %zu bytes. %2.2f gain compared to v1\n", primitivesGPU.size() * sizeof(BaseObject), (1.f - (primitivesGPU.size() * sizeof(BaseObject) / 22992.f)) * 100.f);
-    totalSize += gpuScene.bvhScene.getDeviceSize();
-    printf("Size of implicit spheres: %zu bytes. %2.2f gain compared to v1\n", gpuScene.nbImplicitSpheres * sizeof(ImplicitSphere), (1.f - (gpuScene.nbImplicitSpheres * sizeof(ImplicitSphere) / 400.f)) * 100.f);
-    totalSize += gpuScene.nbImplicitSpheres * sizeof(ImplicitSphere);
-    printf("BVH size: %zu bytes. %2.2f gain compared to v1\n", gpuScene.bvhScene.getDeviceSize(), (1.f - (gpuScene.bvhScene.getDeviceSize() / 68928.f)) * 100.f);
+    totalSize += bvhScene.getDeviceSize();
+    printf("Size of implicit spheres: %zu bytes. %2.2f gain compared to v1\n", nbImplicitSpheres * sizeof(ImplicitSphere), (1.f - (nbImplicitSpheres * sizeof(ImplicitSphere) / 400.f)) * 100.f);
+    totalSize += nbImplicitSpheres * sizeof(ImplicitSphere);
+    printf("BVH size: %zu bytes. %2.2f gain compared to v1\n", bvhScene.getDeviceSize(), (1.f - (bvhScene.getDeviceSize() / 68928.f)) * 100.f);
     printf("Total size of GPU data: %zu bytes. %2.2f gain compared to v1\n", totalSize, (1.f - (totalSize / 145732.f)) * 100.f);
 }
 
@@ -240,12 +235,12 @@ CudaScene spheresScene(float4 sunDir)
     {
         for (int j = -numberOfSpheresPerSide; j < numberOfSpheresPerSide; j++)
         {
-            double choose_mat = RT::randomDouble();
+            double choose_mat = randomDouble();
 
             float3 center = make_float3(
-                i + 0.9f * RT::randomFloat(),
+                i + 0.9f * randomFloat(),
                 0.2f,
-                j + 0.9f * RT::randomFloat()
+                j + 0.9f * randomFloat()
             );
 
             if (
@@ -372,7 +367,7 @@ CudaScene spheresScene(float4 sunDir)
     gpuScene.uploadLights(lightsGPU);
     gpuScene.uploadMaterials(materialsGPU);
 
-    sceneSize(gpuScene, primitivesGPU);
+    gpuScene.sceneSize(primitivesGPU);
     return gpuScene;
 }
 
@@ -420,12 +415,12 @@ CudaScene implicitSpheresScene(float4 sunDir)
     {
         for (int j = -numberOfSpheresPerSide; j < numberOfSpheresPerSide; j++)
         {
-            double choose_mat = RT::randomDouble();
+            double choose_mat = randomDouble();
 
             float3 center = make_float3(
-                i + 0.9f * RT::randomFloat(),
+                i + 0.9f * randomFloat(),
                 0.2f,
-                j + 0.9f * RT::randomFloat()
+                j + 0.9f * randomFloat()
             );
 
             if (
@@ -444,9 +439,9 @@ CudaScene implicitSpheresScene(float4 sunDir)
             {
                 Material mat = Material::makeMaterial(
                     make_float3(
-                        RT::randomFloat(),
-                        RT::randomFloat(),
-                        RT::randomFloat()
+                        randomFloat(),
+                        randomFloat(),
+                        randomFloat()
                     ),
                     LAMBERT,
                     1.0f
@@ -531,7 +526,7 @@ CudaScene implicitSpheresScene(float4 sunDir)
     gpuScene.uploadLights(lightsGPU);
     gpuScene.uploadMaterials(materialsGPU);
 
-    sceneSize(gpuScene, primitivesGPU);
+    gpuScene.sceneSize(primitivesGPU);
     return gpuScene;
 }
 
@@ -544,9 +539,9 @@ CudaScene singleObject(float4 sunDir)
     std::vector<Light> lightsGPU;
     Material mat = Material::makeMaterial(
                     make_float3(
-                        RT::randomFloat(),
-                        RT::randomFloat(),
-                        RT::randomFloat()
+                        randomFloat(),
+                        randomFloat(),
+                        randomFloat()
                     ),
                     LAMBERT,
                     1.0f
@@ -564,212 +559,9 @@ CudaScene singleObject(float4 sunDir)
     gpuScene.uploadObjects(std::vector<Sphere>(), std::vector<Plane>(), triangleMeshesGPU, primitivesGPU, std::vector<ImplicitSphere>());
     gpuScene.uploadLights(lightsGPU);
     gpuScene.uploadMaterials(materialsGPU);
+    gpuScene.sceneSize(primitivesGPU);
     return gpuScene;
 }
 
 
 
-__host__
-MeshAndPrimitive loadTriangleMesh(const std::string& p_path, int materialIndex, int index, float3 scale, Quaternion rotation, float3 translation)
-{
-    std::cout << "Loading: " << p_path << std::endl;
-    
-    Assimp::Importer importer;
-    
-    // Read scene and triangulate meshes
-    const aiScene* const scene = importer.ReadFile(
-        p_path, 
-        aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_GenUVCoords
-    );
-    
-    if (scene == nullptr) {
-        throw std::runtime_error("Failed to load file: " + p_path);
-    }
-    
-    // Aggregate all meshes into one
-    std::vector<float3> vertices;
-    std::vector<float3> normals;
-    std::vector<float2> uvs;
-    std::vector<TriangleMeshGeometry> triangles;
-    
-    unsigned int cptTriangles = 0;
-    unsigned int cptVertices = 0;
-    float3 mini = make_float3(+INFINITY);
-    float3 maxi = make_float3(-INFINITY);
-    float totalArea = 0.f;
-    std::vector<float> areaCdf;
-    for (unsigned int m = 0; m < scene->mNumMeshes; ++m) {
-        const aiMesh* const mesh = scene->mMeshes[m];
-        if (mesh == nullptr) {
-            throw std::runtime_error("Failed to load file: " + p_path + ": mesh is null");
-        }
-        
-        std::cout << "-- Load mesh " << m + 1 << "/" << scene->mNumMeshes << std::endl;
-        
-        const bool hasUV = mesh->HasTextureCoords(0);
-        int vertexOffset = vertices.size();
-        
-        // Add vertices, normals, and UVs
-        for (unsigned int v = 0; v < mesh->mNumVertices; ++v) {
-            float3 vertex = make_float3(mesh->mVertices[v].x, mesh->mVertices[v].y, mesh->mVertices[v].z);
-            vertex = transformPoint(vertex, scale, rotation, translation);
-
-            mini = getMin(mini, vertex);
-            maxi = getMax(maxi, vertex);
-            vertices.push_back(vertex);
-            
-            float3 normal = make_float3(mesh->mNormals[v].x, mesh->mNormals[v].y, mesh->mNormals[v].z);
-
-            normal = transformNormal(normal, rotation);
-
-            normals.push_back(normal);
-            
-            if (hasUV) {
-                uvs.push_back(make_float2(
-                    mesh->mTextureCoords[0][v].x,
-                    mesh->mTextureCoords[0][v].y
-                ));
-            } else {
-                uvs.push_back(make_float2(0.f, 0.f));
-            }
-        }
-        
-        // Add triangles
-        for (unsigned int f = 0; f < mesh->mNumFaces; ++f) {
-            const aiFace& face = mesh->mFaces[f];
-            TriangleMeshGeometry tri(vertexOffset + face.mIndices[0], vertexOffset + face.mIndices[1], vertexOffset + face.mIndices[2], vertices.data());
-            float area = 0.5f * abs((vertices[tri.i1].x - vertices[tri.i0].x) * (vertices[tri.i2].y - vertices[tri.i0].y) - (vertices[tri.i1].y - vertices[tri.i0].y) * (vertices[tri.i2].x - vertices[tri.i0].x));
-            totalArea += area;
-            areaCdf.push_back(area);
-            triangles.push_back(tri);
-        }
-        
-        cptTriangles += mesh->mNumFaces;
-        cptVertices += mesh->mNumVertices;
-        
-        std::cout << "-- [DONE] " << mesh->mNumFaces << " triangles, " << mesh->mNumVertices << " vertices." << std::endl;
-    }
-    
-    std::cout << "[DONE] " << scene->mNumMeshes << " meshes, " << cptTriangles << " triangles, " << cptVertices << " vertices." << std::endl;
-    // Create TriangleMesh structure
-    TriangleMesh triMesh;
-
-    // Basic mesh metadata
-    triMesh.triangleCount = static_cast<int>(triangles.size());
-    triMesh.vertexCount = static_cast<int>(vertices.size());
-    triMesh.materialIndex = materialIndex;
-
-    // GPU pointers
-    triMesh.triangles = nullptr;
-    triMesh.vertices = nullptr;
-    triMesh.normals = nullptr;
-    triMesh.uvs = nullptr;
-    triMesh.triangleAreaCdf = nullptr;
-
-    // Mesh BVH
-    triMesh.bvhNodes = nullptr;
-    triMesh.bvhNodeCount = 0;
-
-    // BVH/SBVH triangle references
-    triMesh.triangleRefIndices = nullptr;
-    triMesh.refCount = 0;
-
-    // Sampling data
-    triMesh.meshArea = totalArea;
-
-    // Build mesh BVH on host, allocate BVH nodes and triangle refs on device
-    triMesh.bvhNodes = buildBVH(
-        triangles.data(),
-        triMesh.triangleCount,
-        vertices.data(),
-        normals.data(),
-        uvs.data(),
-        triMesh.bvhNodeCount,
-        triMesh.triangleRefIndices,
-        triMesh.refCount
-    );
-
-    // Allocate and copy triangles to GPU
-    if (!triangles.empty())
-    {
-        cudaMalloc(
-            &triMesh.triangles,
-            triangles.size() * sizeof(TriangleMeshGeometry)
-        );
-
-        cudaMemcpy(
-            triMesh.triangles,
-            triangles.data(),
-            triangles.size() * sizeof(TriangleMeshGeometry),
-            cudaMemcpyHostToDevice
-        );
-    }
-
-    // Allocate and copy vertices to GPU
-    if (!vertices.empty())
-    {
-        cudaMalloc(
-            &triMesh.vertices,
-            vertices.size() * sizeof(float3)
-        );
-
-        cudaMemcpy(
-            triMesh.vertices,
-            vertices.data(),
-            vertices.size() * sizeof(float3),
-            cudaMemcpyHostToDevice
-        );
-    }
-
-    // Allocate and copy normals to GPU
-    if (!normals.empty())
-    {
-        cudaMalloc(
-            &triMesh.normals,
-            normals.size() * sizeof(float3)
-        );
-
-        cudaMemcpy(
-            triMesh.normals,
-            normals.data(),
-            normals.size() * sizeof(float3),
-            cudaMemcpyHostToDevice
-        );
-    }
-
-    // Allocate and copy UVs to GPU
-    if (!uvs.empty())
-    {
-        cudaMalloc(
-            &triMesh.uvs,
-            uvs.size() * sizeof(float2)
-        );
-
-        cudaMemcpy(
-            triMesh.uvs,
-            uvs.data(),
-            uvs.size() * sizeof(float2),
-            cudaMemcpyHostToDevice
-        );
-    }
-
-    // Allocate and copy triangle area CDF to GPU
-    if (!areaCdf.empty())
-    {
-        cudaMalloc(
-            &triMesh.triangleAreaCdf,
-            areaCdf.size() * sizeof(float)
-        );
-
-        cudaMemcpy(
-            triMesh.triangleAreaCdf,
-            areaCdf.data(),
-            areaCdf.size() * sizeof(float),
-            cudaMemcpyHostToDevice
-        );
-    }
-
-    triMesh.meshArea = totalArea;
-    
-    return MeshAndPrimitive(triMesh, mini, maxi, ObjectType::TRIANGLE, index);
-}

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../utils/op.cuh"
+#include "../utils/macro.cuh"
 
 enum HitObjectType
 {
@@ -21,6 +22,9 @@ struct HitRecord
     int objectIndex;
     HitObjectType objectType;
 
-    __device__
-    void faceNormal(const float3& direction);
+    D_FORCEINLINE
+    void faceNormal(const float3 &direction)
+    {
+        normal = dot(direction, normal) < 0.f ? normal : -normal; 
+    }
 };

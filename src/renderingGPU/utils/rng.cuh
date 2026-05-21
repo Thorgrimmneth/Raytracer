@@ -1,14 +1,18 @@
 #pragma once
 
+#include "macro.cuh"
+
 struct RNG
 {
     uint state;
 
-    __device__ RNG(uint seed)
+    DEVICE 
+    RNG(uint seed)
         : state(seed)
     {}
 
-    __device__ uint nextUInt()
+    D_FORCEINLINE 
+    uint nextUInt()
     {
         uint oldstate = state;
 
@@ -22,13 +26,14 @@ struct RNG
         return (word >> 22u) ^ word;
     }
 
-    __device__ float nextFloat()
+    D_FORCEINLINE  
+    float nextFloat()
     {
         return (nextUInt() >> 8) * 0x1p-24f;
     }
 };
 
-__device__ inline
+D_FORCEINLINE 
 uint pcg_hash(uint input)
 {
     uint state = input * 747796405u + 2891336453u;

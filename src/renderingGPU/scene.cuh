@@ -1,16 +1,24 @@
 #pragma once
 
-#include "objects/sphere.cuh"
-#include "objects/plane.cuh"
-#include "objects/triangle_mesh.cuh"
+#include "utils/macro.cuh"
+#include "mesh_loader.cuh"
+
 #include "materials/material.cuh"
+#include "lights/light.cuh"
+
+#include "objects/implicitSphere.cuh"
+#include "objects/plane.cuh"
+#include "objects/sphere.cuh"
+#include "objects/triangle_mesh.cuh"
+
 #include "objectsUtils/aabb.cuh"
 #include "objectsUtils/bvh_scene.cuh"
-#include "objects/implicitSphere.cuh"
-#include "utils/quaternion.cuh"
-#include "objectsUtils/bvh_scene.cuh"
-#include "raytracingUtils/ray.cuh"
+
 #include "raytracingUtils/hitrecord.cuh"
+#include "raytracingUtils/ray.cuh"
+
+
+
 struct Light;
 
 struct CudaScene
@@ -31,24 +39,28 @@ struct CudaScene
     int nbLights;
     int nbImplicitSpheres;
 
-    __host__ void uploadObjects(
-        std::vector<Sphere> spheresGPU,
-        std::vector<Plane> planesGPU,
-        std::vector<TriangleMesh> triangleMeshesGPU,
-        std::vector<BaseObject> primitivesGPU,
-        std::vector<ImplicitSphere> implicitSpheresGPU);
+    void sceneSize(std::vector<BaseObject> primitivesGPU);
+    
+    HOST 
+    void uploadObjects(std::vector<Sphere> spheresGPU, 
+                            std::vector<Plane> planesGPU,
+                            std::vector<TriangleMesh> triangleMeshesGPU, 
+                            std::vector<BaseObject> primitivesGPU,
+                            std::vector<ImplicitSphere> implicitSpheresGPU);
 
-    __host__ void uploadLights(
-        std::vector<Light> lightsGPU);
+    HOST 
+    void uploadLights(std::vector<Light> lightsGPU);
 
-    __host__ void uploadMaterials(std::vector<Material> materialsGPU);
+    HOST 
+    void uploadMaterials(std::vector<Material> materialsGPU);
 
-    __device__ __forceinline__ 
-    bool intersect(const Ray &p_ray, const float p_tMin, const float p_tMax, HitRecord &p_hitRecord) const
+    D_FORCEINLINE 
+    bool intersect(const Ray &p_ray, const float p_tMin, const float p_tMax,
+                                              HitRecord &p_hitRecord) const
     {
         float tMax = p_tMax;
         bool hit = false;
-        for(int i = 0; i < nbPlanes; ++i)
+        for (int i = 0; i < nbPlanes; ++i)
         {
             HitRecord planeHit;
 
@@ -68,31 +80,29 @@ struct CudaScene
             tMax = p_hitRecord.distance; // update tMax to conserve the nearest hit
             hit = true;
         }
-        
+
         return hit;
     }
 
-    __device__ __forceinline__ 
+    D_FORCEINLINE 
     bool intersectAny(const Ray &p_ray, const float p_tMin, const float p_tMax) const
     {
-        for(int i = 0; i < nbPlanes; ++i)
+        for (int i = 0; i < nbPlanes; ++i)
         {
             if (planes[i].intersectAny(p_ray, p_tMin, p_tMax, materials))
             {
                 return true;
             }
         }
-        if(bvhScene.intersectAny(p_ray, p_tMin, p_tMax, materials))
+        if (bvhScene.intersectAny(p_ray, p_tMin, p_tMax, materials))
         {
             return true;
         }
         return false;
     }
 
-    __device__ __forceinline__
-    float lightPdf(
-    const float3& origin,
-    const float3& dir) const
+    D_FORCEINLINE
+    float lightPdf(const float3 &origin, const float3 &dir) const
     {
         Ray ray(origin, dir);
 
@@ -111,7 +121,7 @@ struct CudaScene
 
         if (hit.objectType == HIT_SPHERE)
         {
-            const Sphere& s = spheres[hit.objectIndex];
+            const Sphere &s = spheres[hit.objectIndex];
 
             const float3 toSurface = hit.point - s.center1;
             const float invRadius = 1.0f / s.radius;
@@ -126,7 +136,7 @@ struct CudaScene
         }
         else if (hit.objectType == HIT_SPHERE_IMPLICIT)
         {
-            const ImplicitSphere& s = implicitSpheres[hit.objectIndex];
+            const ImplicitSphere &s = implicitSpheres[hit.objectIndex];
 
             const float3 toSurface = hit.point - s.center1;
             const float invRadius = 1.0f / s.radius;
@@ -141,7 +151,7 @@ struct CudaScene
         }
         else if (hit.objectType == HIT_TRIANGLE_MESH)
         {
-            const TriangleMesh& mesh = triangleMeshes[hit.objectIndex];
+            const TriangleMesh &mesh = triangleMeshes[hit.objectIndex];
 
             const float cosTheta = fmaxf(dot(hit.normal, -dir), 0.0f);
 
@@ -157,23 +167,10 @@ struct CudaScene
 
         return pdf * (1.0f / nbLights);
     };
-
 };
-
-void sceneSize();
 
 CudaScene spheresScene(float4 sunDir);
 
 CudaScene implicitSpheresScene(float4 sunDir);
 
 CudaScene singleObject(float4 sunDir);
-
-struct MeshAndPrimitive{
-    TriangleMesh mesh;
-    BaseObject prim;
-
-    MeshAndPrimitive(TriangleMesh p_mesh, float3 min, float3 max, ObjectType type, int index) : prim(BaseObject(min, max, type, index)), mesh(p_mesh) {}
-};
-
-__host__
-MeshAndPrimitive loadTriangleMesh(const std::string& p_path, int materialIndex, int index, float3 scale, Quaternion rotation, float3 translation);

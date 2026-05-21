@@ -1,4 +1,5 @@
 #include <curand_kernel.h>
+#include "../utils/macro.cuh"
 
 enum MaterialPTType
 {
@@ -8,19 +9,21 @@ enum MaterialPTType
     EMISSIVE
 };
 
-struct SampleMatPT{
+struct SampleMatPT
+{
     float3 wi;
     float3 brdf;
     float pdf;
 };
 
-struct MaterialPT{
+struct MaterialPT
+{
     MaterialPTType type;
     float3 albedo;
     float roughness;
     float ior;
     float3 emission;
 
-    __device__
-    SampleMatPT sample(float3 wo, float3 normal, curandState* states);
+    DEVICE 
+    SampleMatPT sample(float3 wo, float3 normal, curandState *states);
 };

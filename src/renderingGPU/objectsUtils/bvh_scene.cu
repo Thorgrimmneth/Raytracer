@@ -1,16 +1,13 @@
 #include "bvh_scene.cuh"
-#include <algorithm>
-#include <limits>
 
 // ============================================================
 // BUILD BVH (CPU)
 // ============================================================
 
-__host__
-BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
-                                 std::vector<Sphere>* spheres,
-                                 std::vector<TriangleMesh>* meshes,
-                                 std::vector<ImplicitSphere>* implicitSpheres)
+HOST 
+BVHScene BVHScene::buildBVHScene(std::vector<BaseObject> *primitives, std::vector<Sphere> *spheres,
+                                 std::vector<TriangleMesh> *meshes,
+                                 std::vector<ImplicitSphere> *implicitSpheres)
 {
     BVHScene scene{};
 
@@ -20,7 +17,7 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
     const int maxObjectsPerLeaf = 1;
     const uint8_t maxDepth = 16;
     const uint8_t BIN_COUNT = 16;
-    
+
     std::vector<BVHSceneNode> nodes;
     nodes.reserve(primitives->size() * 2);
 
@@ -58,8 +55,8 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
 
         if (nbObjects <= maxObjectsPerLeaf || task.depth >= maxDepth)
         {
-            //nodes[nodeIndex].left = 0x8000u;
-            nodes[nodeIndex].left = 0x80000000u;  // Mark as leaf (set bit 31)
+            // nodes[nodeIndex].left = 0x8000u;
+            nodes[nodeIndex].left = 0x80000000u; // Mark as leaf (set bit 31)
             continue;
         }
 
@@ -86,7 +83,8 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
             if (extent <= 1e-5f)
                 continue;
 
-            struct Bin {
+            struct Bin
+            {
                 AABB bbox;
                 int count = 0;
             };
@@ -99,8 +97,7 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
                 AABB tempBox{};
                 tempBox.min = make_float4((*primitives)[indices[i]].getMin(), 0.0f);
                 tempBox.max = make_float4((*primitives)[indices[i]].getMax(), 0.0f);
-                float centroid =
-                    getAxis(tempBox.centroid(), axis);
+                float centroid = getAxis(tempBox.centroid(), axis);
 
                 int binId = int(BIN_COUNT * (centroid - cmin) / extent);
                 binId = std::min(BIN_COUNT - 1, std::max(0, binId));
@@ -146,9 +143,7 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
                 if (leftCount[i] == 0 || rightCount[i + 1] == 0)
                     continue;
 
-                float cost =
-                    leftBBox[i].area() * leftCount[i] +
-                    rightBBox[i + 1].area() * rightCount[i + 1];
+                float cost = leftBBox[i].area() * leftCount[i] + rightBBox[i + 1].area() * rightCount[i + 1];
 
                 if (cost < bestCost)
                 {
@@ -170,7 +165,7 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
             uint32_t rightIndex = nodes.size();
             nodes.push_back(BVHSceneNode{});
             nodes[nodeIndex].left = leftIndex & 0x7FFFFFFFFu;
-            //nodes[nodeIndex].left = leftIndex & 0x7FFFu;  // non-leaf: store index in bits 0-30
+            // nodes[nodeIndex].left = leftIndex & 0x7FFFu;  // non-leaf: store index in bits 0-30
             nodes[nodeIndex].right = rightIndex;
 
             stack.push_back({rightIndex, mid, task.last, uint8_t(task.depth + 1)});
@@ -181,27 +176,21 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
         float cmin = getAxis(centroidBBox.min, bestAxis);
         float extent = getAxis(centroidBBox.max, bestAxis) - cmin;
 
-        float splitPos =
-            cmin + extent * float(bestSplitBin + 1) / float(BIN_COUNT);
+        float splitPos = cmin + extent * float(bestSplitBin + 1) / float(BIN_COUNT);
 
-        auto midIter = std::partition(
-            indices.begin() + task.first,
-            indices.begin() + task.last,
-            [&](int idx)
-            {
-                AABB tempBox{};
-                tempBox.min = make_float4((*primitives)[idx].getMin(), 0.0f);
-                tempBox.max = make_float4((*primitives)[idx].getMax(), 0.0f);
-                return getAxis(tempBox.centroid(), bestAxis) < splitPos;
-            }
-        );
+        auto midIter = std::partition(indices.begin() + task.first, indices.begin() + task.last, [&](int idx) {
+            AABB tempBox{};
+            tempBox.min = make_float4((*primitives)[idx].getMin(), 0.0f);
+            tempBox.max = make_float4((*primitives)[idx].getMax(), 0.0f);
+            return getAxis(tempBox.centroid(), bestAxis) < splitPos;
+        });
 
         uint32_t mid = midIter - indices.begin();
 
         if (mid == task.first || mid == task.last)
         {
-            nodes[nodeIndex].left = 0x80000000u;  // Mark as leaf (set bit 31)
-            //nodes[nodeIndex].left = 0x8000u;
+            nodes[nodeIndex].left = 0x80000000u; // Mark as leaf (set bit 31)
+            // nodes[nodeIndex].left = 0x8000u;
             continue;
         }
 
@@ -211,47 +200,32 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject>* primitives,
         uint32_t rightIndex = nodes.size();
         nodes.push_back(BVHSceneNode{});
 
-        nodes[nodeIndex].left = leftIndex & 0x7FFFFFFFu;   // non-leaf: store index in bits 0-30
-        //nodes[nodeIndex].left = leftIndex & 0x7FFFu;
+        nodes[nodeIndex].left = leftIndex & 0x7FFFFFFFu; // non-leaf: store index in bits 0-30
+        // nodes[nodeIndex].left = leftIndex & 0x7FFFu;
         nodes[nodeIndex].right = rightIndex;
 
         stack.push_back({rightIndex, mid, task.last, uint8_t(task.depth + 1)});
-        stack.push_back({leftIndex,  task.first, mid, uint8_t(task.depth + 1)});
+        stack.push_back({leftIndex, task.first, mid, uint8_t(task.depth + 1)});
     }
 
     // ===== Upload indices =====
-    cudaMalloc(&scene.d_indices,
-               indices.size() * sizeof(int));
+    cudaMalloc(&scene.d_indices, indices.size() * sizeof(int));
 
-    cudaMemcpy(scene.d_indices,
-               indices.data(),
-               indices.size() * sizeof(int),
-               cudaMemcpyHostToDevice);
+    cudaMemcpy(scene.d_indices, indices.data(), indices.size() * sizeof(int), cudaMemcpyHostToDevice);
 
     // ===== Upload nodes =====
-    cudaMalloc(&scene.d_nodes,
-               nodes.size() * sizeof(BVHSceneNode));
+    cudaMalloc(&scene.d_nodes, nodes.size() * sizeof(BVHSceneNode));
 
-    cudaMemcpy(scene.d_nodes,
-               nodes.data(),
-               nodes.size() * sizeof(BVHSceneNode),
-               cudaMemcpyHostToDevice);
+    cudaMemcpy(scene.d_nodes, nodes.data(), nodes.size() * sizeof(BVHSceneNode), cudaMemcpyHostToDevice);
 
     scene.d_primitives = nullptr;
     scene.nbObjects = primitives->size();
-    scene.nbNodes   = nodes.size();
+    scene.nbNodes = nodes.size();
     printf("Built BVH with %d nodes for %d objects\n", scene.nbNodes, scene.nbObjects);
     return scene;
 }
 
-// ============================================================
-// INTERSECT (closest hit)
-// ============================================================
-
-
-
-
-__host__
+HOST 
 size_t BVHScene::getDeviceSize() const
 {
     size_t size = 0;
