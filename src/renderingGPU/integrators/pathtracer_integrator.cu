@@ -1,6 +1,7 @@
-#include "../lights/light.cuh"
-#include "../scene.cuh"
 #include "pathtracer_integrator.cuh"
+
+#include "../scene.cuh"
+#include "../lights/light.cuh"
 
 DEVICE 
 float3 PathtracerIntegrator::lighting(const CudaScene &scene, const Ray &primaryRay, const float tMin,

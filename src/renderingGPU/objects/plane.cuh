@@ -1,10 +1,6 @@
 #pragma once
 
-#include "../materials/material.cuh"
-#include "../raytracingUtils/hitrecord.cuh"
-#include "../raytracingUtils/ray.cuh"
-#include "../utils/macro.cuh"
-#include "../utils/op.cuh"
+#include "../utils/objects.cuh"
 
 struct Plane
 {

@@ -1,10 +1,11 @@
 #pragma once
 
+#include "triangle_mesh_geometry.cuh"
+
+#include "../utils/objects.cuh"
+
 #include "../materials/material.cuh"
 #include "../objectsUtils/bvh.cuh"
-#include "../raytracingUtils/hitrecord.cuh"
-#include "../utils/macro.cuh"
-#include "triangle_mesh_geometry.cuh"
 
 struct TriangleMesh
 {

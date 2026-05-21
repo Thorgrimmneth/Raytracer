@@ -1,8 +1,10 @@
 #pragma once
 
+#include <curand_kernel.h>
+
 #include "utils/macro.cuh"
 #include "utils/op.cuh"
-#include <curand_kernel.h>
+
 
 GLOBAL
 void extractBright(float3 *hdr, float3 *bright, int width, int height, float threshold);

@@ -1,14 +1,22 @@
 #pragma once
-#include "../materials/material.cuh"
+
+#include <algorithm>
+#include <limits>
+#include <vector>
+
+#include "../utils/macro.cuh"
+
+#include "aabb.cuh"
+
 #include "../objects/base_object.cuh"
 #include "../objects/implicitSphere.cuh"
 #include "../objects/plane.cuh"
 #include "../objects/sphere.cuh"
 #include "../objects/triangle_mesh.cuh"
+
+#include "../materials/material.cuh"
+
 #include "../raytracingUtils/hitrecord.cuh"
-#include "../utils/macro.cuh"
-#include "aabb.cuh"
-#include <vector>
 
 struct Current
 {

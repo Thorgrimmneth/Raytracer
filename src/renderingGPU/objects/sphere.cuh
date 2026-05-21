@@ -1,8 +1,6 @@
 #pragma once
 
-#include "../raytracingUtils/hitrecord.cuh"
-#include "../raytracingUtils/ray.cuh"
-#include "../utils/macro.cuh"
+#include "../utils/objects.cuh"
 
 struct Sphere
 {

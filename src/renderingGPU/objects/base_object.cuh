@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../objectsUtils/aabb.cuh"
 #include <stdint.h>
+#include "../objectsUtils/aabb.cuh"
 #include "../utils/macro.cuh"
 
 enum ObjectType : uint32_t
@@ -26,18 +26,18 @@ struct DataMax
 
 struct BaseObject
 {
-    DataMin min;
-    DataMax max;
+    DataMin dataMin;
+    DataMax dataMax;
 
-    BaseObject(float3 min, float3 max, ObjectType type, int index) : min(DataMin{min, type}), max(DataMax{max, index})
+    BaseObject(float3 min, float3 max, ObjectType type, int index) : dataMin(DataMin{min, type}), dataMax(DataMax{max, index})
     {
     }
 
-    HD float3 getMin() const { return min.min; };
+    HD float3 getMin() const { return dataMin.min; };
 
-    HD float3 getMax() const { return max.max; };
+    HD float3 getMax() const { return dataMax.max; };
 
-    D_FORCEINLINE ObjectType getType() const { return min.type; };
+    D_FORCEINLINE ObjectType getType() const { return dataMin.type; };
 
-    D_FORCEINLINE int getIndex() const { return max.index; };
+    D_FORCEINLINE int getIndex() const { return dataMax.index; };
 };

@@ -1,12 +1,15 @@
 #pragma once
 
 #include "../scene.cuh"
-#include "../raytracingUtils/ray.cuh"
-#include "../raytracingUtils/hitrecord.cuh"
+
 #include "../utils/cuda_defines.cuh"
 #include "../utils/rng.cuh"
 #include "../utils/constant.cuh"
 #include "../utils/macro.cuh"
+
+#include "../raytracingUtils/ray.cuh"
+#include "../raytracingUtils/hitrecord.cuh"
+
 
 struct PathtracerIntegrator
 {

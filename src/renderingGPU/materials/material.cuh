@@ -1,12 +1,16 @@
 #pragma once
 
 #include "../../defines.hpp"
-#include "../lights/lightsample.cuh"
-#include "../raytracingUtils/hitrecord.cuh"
-#include "../raytracingUtils/ray.cuh"
 #include "../utils/cuda_defines.cuh"
 #include "../utils/macro.cuh"
 #include "../utils/rng.cuh"
+
+#include "../lights/lightsample.cuh"
+
+#include "../raytracingUtils/hitrecord.cuh"
+#include "../raytracingUtils/ray.cuh"
+
+
 enum MaterialType
 {
     LAMBERT,

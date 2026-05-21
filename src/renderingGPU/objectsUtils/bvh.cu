@@ -1,9 +1,4 @@
 #include "bvh.cuh"
-#include "../objects/triangle_mesh.cuh"
-
-#include <iostream>
-#include <cstdint>
-#include <cstring>
 
 HOST
 BVH* buildBVH(

@@ -1,12 +1,16 @@
 #pragma once
 
-#include "../objects/triangle_mesh_geometry.cuh"
-#include "../raytracingUtils/ray.cuh"
-#include "aabb.cuh"
-#include "bvh.cuh"
 #include <algorithm>
 #include <limits>
 #include <vector>
+
+#include "aabb.cuh"
+
+#include "../objects/triangle_mesh_geometry.cuh"
+
+#include "bvh.cuh"
+
+#include "../raytracingUtils/ray.cuh"
 
 struct TriangleRef
 {

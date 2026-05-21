@@ -1,6 +1,4 @@
 #include "bvh_scene.cuh"
-#include <algorithm>
-#include <limits>
 
 // ============================================================
 // BUILD BVH (CPU)
