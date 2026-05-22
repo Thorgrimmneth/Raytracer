@@ -1,21 +1,21 @@
 #pragma once
 
-#include "utils/macro.cuh"
+#include "../utils/macro.cuh"
 #include "mesh_loader.cuh"
 
-#include "materials/material.cuh"
-#include "lights/light.cuh"
+#include "../materials/material.cuh"
+#include "../lights/light.cuh"
 
-#include "objects/implicitSphere.cuh"
-#include "objects/plane.cuh"
-#include "objects/sphere.cuh"
-#include "objects/triangle_mesh.cuh"
+#include "../objects/implicitSphere.cuh"
+#include "../objects/plane.cuh"
+#include "../objects/sphere.cuh"
+#include "../objects/triangle_mesh.cuh"
 
-#include "objectsUtils/aabb.cuh"
-#include "objectsUtils/bvh_scene.cuh"
+#include "../objectsUtils/aabb.cuh"
+#include "../objectsUtils/bvh_scene.cuh"
 
-#include "raytracingUtils/hitrecord.cuh"
-#include "raytracingUtils/ray.cuh"
+#include "../raytracingUtils/hitrecord.cuh"
+#include "../raytracingUtils/ray.cuh"
 
 
 

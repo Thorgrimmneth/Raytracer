@@ -4,16 +4,16 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
-#include "utils/quaternion.cuh"
-#include "utils/op.cuh"
-#include "utils/macro.cuh"
+#include "../utils/quaternion.cuh"
+#include "../utils/op.cuh"
+#include "../utils/macro.cuh"
 
-#include "objects/base_object.cuh"
-#include "objects/triangle_mesh.cuh"
-#include "objects/triangle_mesh_geometry.cuh"
+#include "../objects/base_object.cuh"
+#include "../objects/triangle_mesh.cuh"
+#include "../objects/triangle_mesh_geometry.cuh"
 
-#include "objectsUtils/bvh.cuh"
-#include "objectsUtils/sbvh.cuh"
+#include "../objectsUtils/bvh.cuh"
+#include "../objectsUtils/sbvh.cuh"
 
 struct MeshAndPrimitive
 {

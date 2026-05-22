@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../scene.cuh"
+#include "../scene/scene.cuh"
 
 #include "../utils/cuda_defines.cuh"
 #include "../utils/rng.cuh"

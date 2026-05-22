@@ -2,8 +2,8 @@
 
 #include <curand_kernel.h>
 
-#include "utils/macro.cuh"
-#include "utils/op.cuh"
+#include "../utils/macro.cuh"
+#include "../utils/op.cuh"
 
 
 GLOBAL

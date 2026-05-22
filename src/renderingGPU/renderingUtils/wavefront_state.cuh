@@ -1,15 +1,15 @@
 #pragma once
 
-#include "utils/rng.cuh"
-#include "utils/macro.cuh"
+#include "../utils/rng.cuh"
+#include "../utils/macro.cuh"
 
-#include "materials/material.cuh"
+#include "../materials/material.cuh"
 
-#include "objects/triangle_mesh_geometry.cuh"
-#include "objectsUtils/aabb.cuh"
+#include "../objects/triangle_mesh_geometry.cuh"
+#include "../objectsUtils/aabb.cuh"
 
-#include "raytracingUtils/hitrecord.cuh"
-#include "raytracingUtils/ray.cuh"
+#include "../raytracingUtils/hitrecord.cuh"
+#include "../raytracingUtils/ray.cuh"
 
 
 enum WavefrontQueueType

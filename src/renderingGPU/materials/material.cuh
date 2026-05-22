@@ -128,7 +128,14 @@ struct Material
 
     DEVICE void createONB(const float3 &n, float3 &tangent, float3 &bitangent) const;
 
-    DEVICE float3 fresnelSchlick(float cosTheta, const float3 &F0) const;
+    D_FORCEINLINE
+    float3 fresnelSchlick(float cosTheta, const float3& F0) const
+    {
+        float m  = saturate(1.f - fabsf(cosTheta));
+        float m2 = m * m;
+        float m5 = m2 * m2 * m;
+        return F0 + (make_float3(1.f) - F0) * m5;
+    }
 
     DEVICE BSDFVal getLambertBSDF(const Ray &ray, const HitRecord &hit, RNG *rngStates) const;
 

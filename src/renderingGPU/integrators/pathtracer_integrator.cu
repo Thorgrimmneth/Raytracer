@@ -1,6 +1,6 @@
 #include "pathtracer_integrator.cuh"
 
-#include "../scene.cuh"
+#include "../scene/scene.cuh"
 #include "../lights/light.cuh"
 
 DEVICE 

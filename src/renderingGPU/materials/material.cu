@@ -201,19 +201,6 @@ float Material::pdfGGX(
     return (G1 * D) / (4.f * NdotV);
 }
 
-// ------------------------------------------------------------
-//  Fresnel (Schlick)
-// ------------------------------------------------------------
-
-DEVICE
-float3 Material::fresnelSchlick(float cosTheta, const float3& F0) const
-{
-    float m  = saturate(1.f - fabsf(cosTheta));
-    float m2 = m * m;
-    float m5 = m2 * m2 * m;
-    return F0 + (make_float3(1.f) - F0) * m5;
-}
-
 // ============================================================
 //  getBSDF helpers
 // ============================================================
