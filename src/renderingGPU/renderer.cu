@@ -74,9 +74,9 @@ class Renderer::Impl
     int *d_activeCount = nullptr;
     int *d_nextActiveCount = nullptr;
 
-    unsigned char *d_finalBuffer = nullptr;
-
     dim3 blockSize = dim3(16, 16);
+
+    cudaStream_t stream = nullptr;
 
     dim3 gridSize;
 
@@ -201,8 +201,6 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     // impl->gpuScene = singleObject(sunDir);
     impl->hdrBufferSize = impl->width * impl->height * sizeof(float3);
 
-    size_t finalBufferSize = impl->width * impl->height * 3 * sizeof(unsigned char);
-
     // =========================
     // GPU buffers
     // =========================
@@ -226,8 +224,6 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     cudaMalloc(&impl->d_activeCount, sizeof(int));
     cudaMalloc(&impl->d_nextActiveCount, sizeof(int));
 
-    cudaMalloc(&impl->d_finalBuffer, finalBufferSize);
-
     // =========================
     // Clear buffers
     // =========================
@@ -242,10 +238,12 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
 
     cudaMemset(impl->d_finalHDRBuffer, 0, impl->hdrBufferSize);
 
-    cudaMemset(impl->d_finalBuffer, 0, finalBufferSize);
-
     // =========================
-    // RNG
+    // CUDA Stream for async operations
+    // =========================
+
+    cudaStreamCreate(&impl->stream);
+
     // =========================
 
     impl->blockSize = dim3(16, 16);
@@ -527,7 +525,7 @@ void Renderer::renderFrameWavefront(bool outputImage)
 
         shadeWavefrontKernel<<<gridForCount(h_activeCount), block1D>>>(
             impl->gpuScene, impl->d_wavefrontStates, impl->d_hits, impl->d_hitMask, impl->d_activeQueue, h_activeCount,
-            impl->d_nextActiveQueue, impl->d_nextActiveCount);
+            impl->d_nextActiveQueue, impl->d_nextActiveCount, bounce == 0);
 
         err = cudaGetLastError();
         if (err != cudaSuccess)
@@ -540,7 +538,9 @@ void Renderer::renderFrameWavefront(bool outputImage)
         // 2.3 Récupération du nombre de rayons actifs pour le prochain bounce
         // ---------------------------------------------------------------------
 
-        cudaMemcpy(&h_activeCount, impl->d_nextActiveCount, sizeof(int), cudaMemcpyDeviceToHost);
+        cudaMemcpyAsync(&h_activeCount, impl->d_nextActiveCount, sizeof(int), cudaMemcpyDeviceToHost, impl->stream);
+
+        cudaStreamSynchronize(impl->stream);
 
         err = cudaGetLastError();
         if (err != cudaSuccess)
@@ -706,9 +706,9 @@ void Renderer::cleanUp()
     cudaFree(impl->d_nextActiveQueue);
     cudaFree(impl->d_nextActiveCount);
 
-    cudaFree(impl->d_finalBuffer);
-
     cudaFree(impl->d_lvl1);
 
     cudaFree(impl->d_lvl2);
+
+    cudaStreamDestroy(impl->stream);
 }

@@ -8,13 +8,6 @@
 
 #include "../scene/scene.cuh"
 
-__global__
-void shadeWavefrontKernel(
-    CudaScene scene,
-    WavefrontState* states,
-    HitRecord* hits,
-    int* hitMask,
-    const int* activeQueue,
-    int activeCount,
-    int* nextActiveQueue,
-    int* nextActiveCount);
+__global__ void shadeWavefrontKernel(CudaScene scene, WavefrontState *states, HitRecord *hits, int *hitMask,
+                                     const int *activeQueue, int activeCount, int *nextActiveQueue,
+                                     int *nextActiveCount, bool safeSun);

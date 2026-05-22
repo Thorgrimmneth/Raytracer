@@ -9,7 +9,7 @@
 #include "aabb.cuh"
 
 #include "../objects/base_object.cuh"
-#include "../objects/implicitSphere.cuh"
+#include "../objects/implicit_sphere.cuh"
 #include "../objects/plane.cuh"
 #include "../objects/sphere.cuh"
 #include "../objects/triangle_mesh.cuh"

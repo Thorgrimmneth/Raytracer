@@ -1,9 +1,8 @@
 #include "shading_kernels.cuh"
 
-__global__ 
-void shadeWavefrontKernel(CudaScene scene, WavefrontState *states, HitRecord *hits, int *hitMask,
+__global__ void shadeWavefrontKernel(CudaScene scene, WavefrontState *states, HitRecord *hits, int *hitMask,
                                      const int *activeQueue, int activeCount, int *nextActiveQueue,
-                                     int *nextActiveCount)
+                                     int *nextActiveCount, bool safeSun)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -26,15 +25,21 @@ void shadeWavefrontKernel(CudaScene scene, WavefrontState *states, HitRecord *hi
     {
         float3 rayDir = ray.direction;
 
+        // float mult = lerp(1.f, 20.f, (max(-0.4f,sunDir.y) + 0.4)/1.4f);
         float t = clamp((sunDirection.y + 0.4f) / 1.4f, 0.0f, 1.0f);
-        float tM = 1.f - t;
 
-        float B0 = powf(1.0f - t, 3.0f);
-        float B1 = 3.0f * tM * tM * t;
-        float B2 = 3.0f * tM * t * t;
-        float B3 = t * t * t;
+        float mult = 1.0f + 19.0f * t * t * t;
 
-        float mult = B0 * 1.0f + B1 * 1.f + B2 * 1.f + B3 * 20.0f;
+        const float horizonFade = smoothstep(-0.05f, 0.02f, rayDir.y);
+
+        if (horizonFade <= 0.0f)
+        {
+            state.radiance += state.throughput * make_float3(0.0f);
+            state.terminate();
+
+            states[idx] = state;
+            return;
+        }
 
         float segmentLength = sizeAtmosphere / skyColorSamples;
         float tCurrent = 0.0f;
@@ -47,23 +52,31 @@ void shadeWavefrontKernel(CudaScene scene, WavefrontState *states, HitRecord *hi
 
         float mu = dot(rayDir, sunDirection);
 
-        float g = 0.95f;
+        // float g = 0.76f;
 
-        float phaseR = (3.0f / (16.0f * GPUPIf)) * (1.0f + mu * mu);
+        float mu2Term = 1.0f + mu * mu;
 
-        float temp = 1.0f + g * g - 2.0f * g * mu;
+        float phaseR = 0.0596831f * mu2Term;
+        // float phaseR = (3.0f / (16.0f * GPUPIf)) * (1.0f + mu * mu);
 
-        float phaseM =
-            (3.0f / (8.0f * GPUPIf)) * ((1.0f - g * g) * (1.0f + mu * mu)) / ((2.0f + g * g) * temp * sqrtf(temp));
+        float temp = 1.5776f - 1.52f * mu;
+        // float temp = 1.0f + g * g - 2.0f * g * mu;
+
+        // float phaseM = (3.0f / (8.0f * GPUPIf)) * ((1.0f - g * g) * (1.0f + mu * mu)) / ((2.0f + g * g) * temp *
+        // sqrtf(temp));
+        float phaseM = 0.0195609427f * mu2Term * rsqrtf(temp) / temp;
+
+        const int sunSamples = 4;
+        float sunSegmentLength = 15000.f;
 
         for (int i = 0; i < skyColorSamples; ++i)
         {
             float3 samplePosition = ray.origin + rayDir * (tCurrent + segmentLength * 0.5f);
 
-            float height = max(samplePosition.y, 0.0f);
+            float height = fmaxf(samplePosition.y, 0.0f);
 
-            float hrLocal = expf(-height / hr);
-            float hmLocal = expf(-height / hm);
+            float hrLocal = __expf(-height / hr);
+            float hmLocal = __expf(-height / hm);
 
             opticalDepthR += hrLocal * segmentLength;
             opticalDepthM += hmLocal * segmentLength;
@@ -73,22 +86,19 @@ void shadeWavefrontKernel(CudaScene scene, WavefrontState *states, HitRecord *hi
             float opticalDepthLightR = 0.0f;
             float opticalDepthLightM = 0.0f;
 
-            const int sunSamples = 8;
-            float sunSegmentLength = sizeAtmosphere / sunSamples;
-
             for (int j = 0; j < sunSamples; ++j)
             {
                 sunSamplePosition += sunDirection * sunSegmentLength;
 
-                float heightLight = max(sunSamplePosition.y, 0.0f);
+                float heightLight = fmaxf(sunSamplePosition.y, 0.0f);
 
-                opticalDepthLightR += expf(-heightLight / hr) * sunSegmentLength;
-                opticalDepthLightM += expf(-heightLight / hm) * sunSegmentLength;
+                opticalDepthLightR += __expf(-heightLight / hr) * sunSegmentLength;
+                opticalDepthLightM += __expf(-heightLight / hm) * sunSegmentLength;
             }
 
             float3 tau = betaR * (opticalDepthR + opticalDepthLightR) + betaM * (opticalDepthM + opticalDepthLightM);
 
-            float3 attenuation = make_float3(expf(-tau.x), expf(-tau.y), expf(-tau.z));
+            float3 attenuation = make_float3(__expf(-tau.x), __expf(-tau.y), __expf(-tau.z));
 
             sumR += attenuation * hrLocal * segmentLength;
             sumM += attenuation * hmLocal * segmentLength;
@@ -97,6 +107,21 @@ void shadeWavefrontKernel(CudaScene scene, WavefrontState *states, HitRecord *hi
         }
 
         float3 sky = sumR * betaR * phaseR + sumM * betaM * phaseM * 0.3f;
+
+        float sunAngularRadius = 2.1f * GPUPIf / 180.f;
+        float cosTheta = dot(rayDir, sunDirection);
+
+        float sunDisk = smoothstep(cos(sunAngularRadius), cos(sunAngularRadius * 0.5f), cosTheta);
+
+        float sunset = pow(1.0f - t, 2.0f);
+        float3 sunColor = lerp(make_float3(30.f, 27.f, 24.f), make_float3(60.f, 25.f, 10.f), sunset);
+        if (!safeSun)
+        {
+            sunColor = clamp(sunColor, make_float3(0.f), make_float3(1.f));
+        }
+        sky += sunColor * sunDisk;
+
+        sky *mult *horizonFade;
 
         state.radiance += state.throughput * sky * mult;
         state.terminate();

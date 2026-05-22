@@ -287,7 +287,6 @@ HD_INLINE float getAxis(const float4& v, int axis)
 
 // ============================================================
 // Reflection / refraction
-// reflect garde normalize(), indispensable avec ton code actuel
 // ============================================================
 
 HD_FORCEINLINE float3 reflect(const float3& a, const float3& b)

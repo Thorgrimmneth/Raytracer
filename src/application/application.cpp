@@ -95,7 +95,7 @@ int Application::launchApp(int argc, char **argv)
         image.createFromRaw(img_cuda_raw, width, height);
         const std::string imageName = "profiling.jpg";
         image.saveJPG(RESULTS_PATH + imageName);
-        std::cout << "saved : " << RESULTS_PATH + imageName<< std::endl;
+        std::cout << "saved : " + imageName << std::endl;
     }
 
     chrono.stop();

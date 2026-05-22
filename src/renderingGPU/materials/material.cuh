@@ -14,11 +14,11 @@
 enum MaterialType
 {
     LAMBERT,
-    EMISSIVE,
     METAL,
-    MIRROR,
     PLASTIC,
-    TRANSPARENT
+    TRANSPARENT,
+    EMISSIVE,
+    MIRROR
 };
 
 struct BSDFVal

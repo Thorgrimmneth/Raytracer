@@ -6,7 +6,7 @@
 #include "../materials/material.cuh"
 #include "../lights/light.cuh"
 
-#include "../objects/implicitSphere.cuh"
+#include "../objects/implicit_sphere.cuh"
 #include "../objects/plane.cuh"
 #include "../objects/sphere.cuh"
 #include "../objects/triangle_mesh.cuh"
@@ -16,8 +16,6 @@
 
 #include "../raytracingUtils/hitrecord.cuh"
 #include "../raytracingUtils/ray.cuh"
-
-
 
 struct Light;
 

@@ -136,21 +136,21 @@ float3 PathtracerIntegrator::getSkyColor(const Ray &ray, bool safeSun)
 
     float mu = dot(rayDir, sunDirection);
 
-    float g = 0.76f;
+    //float g = 0.76f;
 
     float mu2Term = 1.0f + mu * mu;
 
-    //float phaseR = 0.0596831f * mu2Term; 
-    float phaseR = (3.0f / (16.0f * GPUPIf)) * (1.0f + mu * mu);
+    float phaseR = 0.0596831f * mu2Term; 
+    //float phaseR = (3.0f / (16.0f * GPUPIf)) * (1.0f + mu * mu);
 
-    //float temp = 1.9025f - 1.9f * mu; 
-    float temp = 1.0f + g * g - 2.0f * g * mu;
+    float temp = 1.5776f - 1.52f * mu; 
+    //float temp = 1.0f + g * g - 2.0f * g * mu;
 
-    float phaseM = (3.0f / (8.0f * GPUPIf)) * ((1.0f - g * g) * (1.0f + mu * mu)) / ((2.0f + g * g) * temp * sqrtf(temp));
-    //float phaseM = 0.00400971756f * mu2Term / (temp * sqrtf(temp));
+    //float phaseM = (3.0f / (8.0f * GPUPIf)) * ((1.0f - g * g) * (1.0f + mu * mu)) / ((2.0f + g * g) * temp * sqrtf(temp));
+    float phaseM = 0.0195609427f * mu2Term * rsqrtf(temp) / temp;
 
     const int sunSamples = 4;
-    float sunSegmentLength = sizeAtmosphere / sunSamples;
+    float sunSegmentLength = 15000.f;
 
     for (int i = 0; i < skyColorSamples; ++i)
     {
