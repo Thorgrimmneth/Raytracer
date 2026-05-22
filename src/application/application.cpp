@@ -26,6 +26,10 @@ int Application::initParameters(int argc, char **argv)
         {
             mode = std::stoi(argv[++i]);
         }
+        else if (arg == "-t" && i + 1 < argc)
+        {
+            t = std::stof(argv[++i]);
+        }
         else if (arg == "--help")
         {
             std::cout << "Usage: ./mon_projet [options]\n";
@@ -34,6 +38,7 @@ int Application::initParameters(int argc, char **argv)
             std::cout << "  -i <int>     number of images\n";
             std::cout << "  -skip <int>  start with the ith image\n";
             std::cout << "  -mode        0 = performance mode, 1 = cumulative mode\n";
+            std::cout << "  -t <float>   time parameter\n";
             return 1;
         }
     }
@@ -67,7 +72,6 @@ int Application::launchApp(int argc, char **argv)
     // performance mode, no GUI. Used for profiling and creating final images
     if (mode == 0)
     {
-        float t = 0.5f;
         sunDir = computeSunDir(t);
 
         Renderer renderer;
@@ -83,7 +87,6 @@ int Application::launchApp(int argc, char **argv)
         // setup window for cumulative rendering
         Window win(width, height);
 
-        float t = 0.5f;
         sunDir = computeSunDir(t);
 
         unsigned char *img_cuda_raw = win.cumulativeRendering(sunDir, width, height);
@@ -92,7 +95,7 @@ int Application::launchApp(int argc, char **argv)
         image.createFromRaw(img_cuda_raw, width, height);
         const std::string imageName = "profiling.jpg";
         image.saveJPG(RESULTS_PATH + imageName);
-        std::cout << "saved" << std::endl;
+        std::cout << "saved : " << RESULTS_PATH + imageName<< std::endl;
     }
 
     chrono.stop();

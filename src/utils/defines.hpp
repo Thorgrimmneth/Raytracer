@@ -19,7 +19,7 @@ const Vec3f VEC3F_ZERO = Vec3f(0.f);
 const Vec4f VEC4F_ZERO = Vec4f(0.f);
 
 // Paths.
-const std::string RESULTS_PATH = "../results/images/";
+const std::string RESULTS_PATH = "results/images/";
 
 // Utils.
 static inline float intAsFloat(const int p_i)

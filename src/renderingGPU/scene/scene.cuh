@@ -84,7 +84,7 @@ struct CudaScene
         return hit;
     }
 
-    D_FORCEINLINE 
+    D_FORCEINLINE
     bool intersectAny(const Ray &p_ray, const float p_tMin, const float p_tMax) const
     {
         for (int i = 0; i < nbPlanes; ++i)
@@ -99,6 +99,60 @@ struct CudaScene
             return true;
         }
         return false;
+    }
+
+    D_FORCEINLINE
+    float3 traceShadowRay(const Ray &p_ray, const float p_tMin, const float p_tMax) const
+    {
+        float3 shadowColor = make_float3(1.f);
+        Ray currentRay = p_ray;
+        float remainingDistance = p_tMax;
+        
+        // Trace through up to 2 transparent surfaces
+        for (int bounce = 0; bounce < 2; ++bounce)
+        {
+            HitRecord hit;
+            
+            if (!intersect(currentRay, p_tMin + 1e-4f, remainingDistance - 1e-4f, hit))
+            {
+                // No hit = ray reached the light
+                return shadowColor;
+            }
+            
+            const Material& mtl = materials[hit.materialIndex];
+            MaterialType matType = mtl.type();
+            
+            // Check if material is transparent
+            if (matType == TRANSPARENT)
+            {
+                // Tint shadow ray with material transmission color
+                float3 transmission = mtl.computeTransmission();
+                shadowColor *= transmission;
+                
+                // Early termination: if transmission becomes negligible, stop bouncing
+                float transAlpha = fmaxf(shadowColor.x, fmaxf(shadowColor.y, shadowColor.z));
+                if (transAlpha < 0.001f)
+                {
+                    return make_float3(0.f);
+                }
+                
+                // Continue ray from hit point toward light
+                currentRay = Ray(hit.point + currentRay.direction * 1e-4f, currentRay.direction, currentRay.time);
+                remainingDistance -= hit.distance;
+            }
+            else if (matType == EMISSIVE)
+            {
+                return shadowColor;
+            }
+            else
+            {
+                // Opaque material blocks shadow completely
+                return make_float3(0.f);
+            }
+        }
+        
+        // After max bounces, assume ray reached the light
+        return shadowColor;
     }
 
     D_FORCEINLINE

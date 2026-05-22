@@ -281,7 +281,7 @@ void renderKernel(CudaScene gpuScene, float3 *d_accumBuffer, int width, int heig
         return;
 
     int pixelIndex = y * width + x;
-    uint seed = pixelIndex ^ (sampleCount * 0x9E3779B9u);
+    uint seed = (pixelIndex * 0x9E3779B9u) ^ (sampleCount * 0x6C078965u);
     RNG localState(seed);
 
     float3 finalColor = make_float3(0.f);
@@ -311,7 +311,7 @@ void generatePrimaryRaysKernel(WavefrontState *states, int *activeQueue, int *ac
 
     int pixelIndex = y * width + x;
 
-    uint seed = pixelIndex ^ (sampleCount * 0x9E3779B9u);
+    uint seed = (pixelIndex * 0x9E3779B9u) ^ (sampleCount * 0x6C078965u);
     RNG rng(seed);
 
     float sx = (x + rng.nextFloat()) / (float)(width - 1);

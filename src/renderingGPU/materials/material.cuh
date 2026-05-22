@@ -137,6 +137,21 @@ struct Material
         return F0 + (make_float3(1.f) - F0) * m5;
     }
 
+    D_FORCEINLINE
+    float3 computeTransmission() const
+    {
+        // Energy-based transmission: Fresnel at normal incidence
+        // Uses IOR to compute the reflection coefficient at normal angle
+        float ior = this->ior();
+        float eta = 1.f / ior;  // ratio of refraction indices (air to material)
+        float r0 = (1.f - eta) / (1.f + eta);  // reflection coefficient at normal incidence
+        r0 *= r0;
+        float transmission = 1.f - r0;  // transmission = 1 - reflection
+        
+        // Apply material color to the transmission
+        return color() * transmission;
+    }
+
     DEVICE BSDFVal getLambertBSDF(const Ray &ray, const HitRecord &hit, RNG *rngStates) const;
 
     DEVICE BSDFVal getMetalBSDF(const Ray &ray, const HitRecord &hit, RNG *rngStates) const;

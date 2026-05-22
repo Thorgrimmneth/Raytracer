@@ -216,8 +216,8 @@ CudaScene spheresScene(float4 sunDir)
         1.5f,
         0.f
     );
-    Material mirror      = Material::makeMaterial(make_float3(1.f, 1.f, 0.f), MIRROR);
-    Material transparent = Material::makeMaterial(make_float3(1.f, 0.f, 1.f), TRANSPARENT, 0.f, 0.f, 1.5f);
+    Material mirror      = Material::makeMaterial(make_float3(1.f, 1.f, 1.f), MIRROR);
+    Material transparent = Material::makeMaterial(make_float3(0.9f, 0.9f, 0.9f), TRANSPARENT, 0.f, 0.f, 1.5f);
     Material emissive    = Material::makeMaterial(make_float3(1.f, 0.f, 0.f), EMISSIVE, 0.f, 0.f, 1.f, 11.f);
     int blueTransparentIdx = materialsGPU.size(); materialsGPU.push_back(blueGlass);
     int mirrorIdx = materialsGPU.size(); materialsGPU.push_back(mirror);

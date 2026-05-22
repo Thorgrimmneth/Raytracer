@@ -24,7 +24,7 @@ struct PathtracerIntegrator
     DEVICE
     void intersect(const CudaScene &scene, const Ray &ray, const float tMin, const float tMax, HitRecord &hit);
 
-    DEVICE static float3 getSkyColor(const Ray &p_ray);
+    DEVICE static float3 getSkyColor(const Ray &p_ray, bool safeSun);
 
     
 };

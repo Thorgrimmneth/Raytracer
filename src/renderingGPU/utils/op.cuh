@@ -259,6 +259,15 @@ HD_FORCEINLINE float clamp(const float x, const float lo, const float hi)
     return fminf(fmaxf(x, lo), hi);
 }
 
+D_FORCEINLINE float3 clamp(const float3 x, const float3 lo, const float3 hi)
+{
+    return make_float3(
+        clamp(x.x, lo.x, hi.x),
+        clamp(x.y, lo.y, hi.y),
+        clamp(x.z, lo.z, hi.z)
+    );
+}
+
 HD_INLINE float3 lerp(const float3& a, const float3& b, const float c)
 {
     return a * (1.f - c) + b * c;

@@ -19,6 +19,7 @@ class Application {
     int nbRPP = 32;
     int nbImage = 10;
     int skipImage = 0;
+    float t = 0.5f;
     int mode = 0;
     float maxElevation = 90.0f;
     Vec3f sunDir = Vec3f(0.f, 1.f, 0.f);
