@@ -8,7 +8,7 @@
 #include "../lights/light.cuh"
 #include "../objects/base_object.cuh"
 
-struct cudaSceneHelper
+struct CudaSceneHelper
 {
     std::vector<Sphere> spheresGPU = std::vector<Sphere>();
     std::vector<ImplicitSphere> implicitSpheresGPU = std::vector<ImplicitSphere>();

@@ -250,6 +250,10 @@ HD_FORCEINLINE float distance(const float3& a, const float3& b)
     return length(a - b);
 }
 
+D_FORCEINLINE float3 abs(const float3& a)
+{
+    return make_float3(fabsf(a.x), fabsf(a.y), fabsf(a.z));
+}
 // ============================================================
 // Scalar helpers
 // ============================================================

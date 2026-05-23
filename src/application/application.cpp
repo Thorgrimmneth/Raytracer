@@ -30,6 +30,15 @@ int Application::initParameters(int argc, char **argv)
         {
             t = std::stof(argv[++i]);
         }
+        else if (arg == "-convergence" && i + 1 < argc)
+        {
+            convergence = std::stof(argv[++i]) != 0;
+        }
+        else if (arg == "-threshold" && i + 1 < argc)
+        {
+            threshold = std::stof(argv[++i]);
+            convergence = true;
+        }
         else if (arg == "--help")
         {
             std::cout << "Usage: ./mon_projet [options]\n";
@@ -37,8 +46,10 @@ int Application::initParameters(int argc, char **argv)
             std::cout << "  -w <int>     width\n";
             std::cout << "  -i <int>     number of images\n";
             std::cout << "  -skip <int>  start with the ith image\n";
-            std::cout << "  -mode        0 = performance mode, 1 = cumulative mode\n";
+            std::cout << "  -mode        0 = profiling mode, 1 = cumulative mode, 2 = performance mode\n";
             std::cout << "  -t <float>   time parameter\n";
+            std::cout << "  -convergence <int> runs until convergence is reached\n";
+            std::cout << "  -threshold <float> threshold for the convergence\n";
             return 1;
         }
     }
@@ -68,7 +79,7 @@ int Application::launchApp(int argc, char **argv)
 
     Chrono chrono;
     chrono.start();
-
+    float value = 1.f;
     // performance mode, no GUI. Used for profiling and creating final images
     if (mode == 0)
     {
@@ -76,26 +87,59 @@ int Application::launchApp(int argc, char **argv)
 
         Renderer renderer;
         renderer.init(width, height, sunDir.x, sunDir.y, sunDir.z);
-        for (int i = 0; i < nbRPP; i++)
+        for (int i = 0; i < nbRPP && value > threshold; i++)
         {
-            renderer.render(false);
+            value = renderer.render(false, convergence);
         }
     }
     // cumulative mode. GUI, fps count. Allows to switch between megakernel and wavefront
-    else if (mode >= 1)
+    else if (mode == 1)
     {
         // setup window for cumulative rendering
         Window win(width, height);
 
         sunDir = computeSunDir(t);
 
-        unsigned char *img_cuda_raw = win.cumulativeRendering(sunDir, width, height);
+        unsigned char *img_cuda_raw = win.cumulativeRendering(sunDir, width, height, convergence);
 
         // end of rendering
         image.createFromRaw(img_cuda_raw, width, height);
-        const std::string imageName = "profiling.jpg";
+        const std::string imageName = "cumulative.jpg";
         image.saveJPG(RESULTS_PATH + imageName);
         std::cout << "saved : " + imageName << std::endl;
+    }
+    else if (mode >= 2)
+    {
+        sunDir = computeSunDir(t);
+
+        Renderer renderer;
+        renderer.init(width, height, sunDir.x, sunDir.y, sunDir.z);
+        while (value > threshold){
+            value = renderer.render(false, true);
+        }
+
+        // Get finalized image from GPU and save to texture
+        float3 *d_finalizedImage = renderer.getFinalizedImage();
+        if (d_finalizedImage)
+        {
+            unsigned char *img_data = (unsigned char *)malloc(width * height * 3);
+            for (int i = 0; i < width * height; i++)
+            {
+                img_data[i * 3] = static_cast<unsigned char>(d_finalizedImage[i].x * 255.0f);
+                img_data[i * 3 + 1] = static_cast<unsigned char>(d_finalizedImage[i].y * 255.0f);
+                img_data[i * 3 + 2] = static_cast<unsigned char>(d_finalizedImage[i].z * 255.0f);
+            }
+            std::cout << "converged after " << renderer.getFrameNumber() << std::endl;
+            image.createFromRaw(img_data, width, height);
+            const std::string imageName = "performance.jpg";
+            image.saveJPG(RESULTS_PATH + imageName);
+            std::cout << "saved : " + imageName << std::endl;
+            std::cout << "avg : " << renderer.getFrameNumber() / (chrono.elapsedTime()) << " spp/s" << std::endl;
+            free(img_data);
+            free(d_finalizedImage);
+        }
+        
+        renderer.cleanUp();
     }
 
     chrono.stop();

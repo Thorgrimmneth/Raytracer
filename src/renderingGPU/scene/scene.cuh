@@ -17,6 +17,8 @@
 #include "../raytracingUtils/hitrecord.cuh"
 #include "../raytracingUtils/ray.cuh"
 
+#include "scene_helper.cuh"
+
 struct Light;
 
 struct CudaScene
@@ -29,6 +31,8 @@ struct CudaScene
     Material *materials;
     BaseObject *primitives;
     Light *lights;
+    float *lightProbabilities;
+    float *lightCumulativeWeights;
 
     int nbSpheres;
     int nbPlanes;
@@ -37,20 +41,16 @@ struct CudaScene
     int nbLights;
     int nbImplicitSpheres;
 
-    void sceneSize(std::vector<BaseObject> primitivesGPU);
+    void sceneSize(CudaSceneHelper &helper);
     
     HOST 
-    void uploadObjects(std::vector<Sphere> spheresGPU, 
-                            std::vector<Plane> planesGPU,
-                            std::vector<TriangleMesh> triangleMeshesGPU, 
-                            std::vector<BaseObject> primitivesGPU,
-                            std::vector<ImplicitSphere> implicitSpheresGPU);
+    void uploadObjects(CudaSceneHelper &helper);
 
     HOST 
-    void uploadLights(std::vector<Light> lightsGPU);
+    void uploadLights(CudaSceneHelper &helper);
 
     HOST 
-    void uploadMaterials(std::vector<Material> materialsGPU);
+    void uploadMaterials(CudaSceneHelper &helper);
 
     D_FORCEINLINE 
     bool intersect(const Ray &p_ray, const float p_tMin, const float p_tMax,

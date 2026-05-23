@@ -22,6 +22,7 @@ class Renderer
     // Getter
     int getFrameNumber();
     unsigned char *getFramebuffer();
+    float3 *getFinalizedImage();
 
     // Initialisation
     void init(int width, int height, float sunDirx, float sunDiry, float sunDirz);
@@ -30,11 +31,11 @@ class Renderer
     void applyBloom();
 
     // Renderer : megakernel and wavefront
-    void renderFrame(bool outputImage);
-    void renderFrameWavefront(bool outputImage);
+    float renderFrame(bool outputImage, bool convergence = false);
+    float renderFrameWavefront(bool outputImage, bool convergence = false);
     
     // Main function
-    void render(bool outputImage = true);
+    float render(bool outputImage = true, bool convergence = false);
 
     // Cleaner
     void cleanUp();

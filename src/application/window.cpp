@@ -131,7 +131,7 @@ void Window::draw()
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
-unsigned char *Window::cumulativeRendering(Vec3f sunDir, int width, int height)
+unsigned char *Window::cumulativeRendering(Vec3f sunDir, int width, int height, bool convergence, float threshold)
 {
     if (!glfwInit())
     {
@@ -247,7 +247,8 @@ unsigned char *Window::cumulativeRendering(Vec3f sunDir, int width, int height)
 
     int frames = 0;
 
-    while (!glfwWindowShouldClose(window))
+    float value = 1.f;
+    while (!glfwWindowShouldClose(window) && value > threshold)
     {
         glfwPollEvents();
 
@@ -270,8 +271,8 @@ unsigned char *Window::cumulativeRendering(Vec3f sunDir, int width, int height)
         }
 
         cWasPressed = cIsPressed;
-        renderer.render();
-
+        value = renderer.render(true, convergence);
+            
         draw();
 
         glfwSwapBuffers(window);
@@ -285,13 +286,16 @@ unsigned char *Window::cumulativeRendering(Vec3f sunDir, int width, int height)
             double fps = frames / (currentTime - lastTime);
 
             std::string title = "Path Tracer | FPS: " + std::to_string((int)fps) +
-                                " | SPP: " + std::to_string(renderer.getFrameNumber());
+                                " | SPP: " + std::to_string(renderer.getFrameNumber()) + " | Diff: " + std::to_string(value);
             glfwSetWindowTitle(window, title.c_str());
 
             frames = 0;
 
             lastTime = currentTime;
         }
+    }
+    if(value < threshold){
+        std::cout << "Convergence reached at sample " << renderer.getFrameNumber() << std::endl;
     }
     // Read the final rendered image from the texture
     glBindTexture(GL_TEXTURE_2D, texture);

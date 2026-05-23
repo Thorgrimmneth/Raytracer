@@ -3,6 +3,69 @@
 #include "../scene/scene.cuh"
 #include "../lights/light.cuh"
 
+DEVICE
+int selectLightByImportance(const CudaScene &scene, RNG *rng)
+{
+    // Compute total light intensity
+    float totalIntensity = 0.0f;
+    for (int i = 0; i < scene.nbLights; i++)
+    {
+        float intensity = scene.lights[i].getIntensity();
+        float luminance = dot(scene.lights[i].getColor(), make_float3(0.299f, 0.587f, 0.114f));
+        totalIntensity += intensity * luminance;
+    }
+    
+    if (totalIntensity <= 0.0f)
+    {
+        // Fallback to uniform selection if no lights have intensity
+        return min(int(rng->nextFloat() * scene.nbLights), scene.nbLights - 1);
+    }
+    
+    // Weighted random selection using rejection sampling
+    float random = rng->nextFloat() * totalIntensity;
+    float accumulated = 0.0f;
+    
+    for (int i = 0; i < scene.nbLights; i++)
+    {
+        float intensity = scene.lights[i].getIntensity();
+        float luminance = dot(scene.lights[i].getColor(), make_float3(0.299f, 0.587f, 0.114f));
+        accumulated += intensity * luminance;
+        
+        if (random <= accumulated)
+        {
+            return i;
+        }
+    }
+    
+    // Fallback (shouldn't reach here)
+    return scene.nbLights - 1;
+}
+
+// Helper function: Compute probability of selecting a specific light
+DEVICE
+float getLightProbability(const CudaScene &scene, int lightIndex)
+{
+    // Compute total light intensity
+    float totalIntensity = 0.0f;
+    for (int i = 0; i < scene.nbLights; i++)
+    {
+        float intensity = scene.lights[i].getIntensity();
+        float luminance = dot(scene.lights[i].getColor(), make_float3(0.299f, 0.587f, 0.114f));
+        totalIntensity += intensity * luminance;
+    }
+    
+    if (totalIntensity <= 0.0f)
+    {
+        return 1.0f / scene.nbLights;
+    }
+    
+    // Probability of this light
+    float intensity = scene.lights[lightIndex].getIntensity();
+    float luminance = dot(scene.lights[lightIndex].getColor(), make_float3(0.299f, 0.587f, 0.114f));
+    
+    return (intensity * luminance) / totalIntensity;
+}
+
 DEVICE 
 float3 PathtracerIntegrator::lighting(const CudaScene &scene, const Ray &primaryRay, const float tMin,
                                              const float tMax, RNG *rng)
@@ -55,8 +118,9 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const Ray &primary
         }
         else
         {
-            int lightIndex = int(rng->nextFloat() * scene.nbLights);
-            lightIndex = min(lightIndex, scene.nbLights - 1);
+            // Select light by importance (weighted by intensity)
+            int lightIndex = selectLightByImportance(scene, rng);
+            float lightSelectionProb = getLightProbability(scene, lightIndex);
 
             const Light &light = scene.lights[lightIndex];
             LightSample ls = light.sample(hit.point, rng, scene);
@@ -93,10 +157,10 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const Ray &primary
         }
         lastBounceWasDelta = bsdf.isDelta;
         lastBsdfPdf = bsdf.pdf;
-        if (depth > 3)
+        if (depth > 2)
         {
             float p = fmaxf(throughput.x, fmaxf(throughput.y, throughput.z));
-            p = clamp(p, 0.05f, 0.95f);
+            p = clamp(p, 0.1f, 1.f);
 
             if (rng->nextFloat() > p)
                 break;

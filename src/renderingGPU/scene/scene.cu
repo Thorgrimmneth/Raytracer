@@ -3,19 +3,17 @@
 
 #include "scene_helper.cuh"
 
-HOST void CudaScene::uploadObjects(std::vector<Sphere> spheresGPU, std::vector<Plane> planesGPU,
-                                   std::vector<TriangleMesh> triangleMeshesGPU, std::vector<BaseObject> primitivesGPU,
-                                   std::vector<ImplicitSphere> implicitSpheresGPU)
+HOST void CudaScene::uploadObjects(CudaSceneHelper &helper)
 {
     // =========================
     // Upload primitives
     // =========================
-    int nbObjects = primitivesGPU.size();
+    int nbObjects = helper.primitivesGPU.size();
 
     if (nbObjects > 0)
     {
         cudaMalloc(&primitives, nbObjects * sizeof(BaseObject));
-        cudaMemcpy(primitives, primitivesGPU.data(), nbObjects * sizeof(BaseObject), cudaMemcpyHostToDevice);
+        cudaMemcpy(primitives, helper.primitivesGPU.data(), nbObjects * sizeof(BaseObject), cudaMemcpyHostToDevice);
     }
     else
     {
@@ -25,16 +23,17 @@ HOST void CudaScene::uploadObjects(std::vector<Sphere> spheresGPU, std::vector<P
     // =========================
     // Build BVH
     // =========================
-    bvhScene = BVHScene::buildBVHScene(&primitivesGPU, &spheresGPU, &triangleMeshesGPU, &implicitSpheresGPU);
+    bvhScene = BVHScene::buildBVHScene(&helper.primitivesGPU, &helper.spheresGPU, &helper.triangleMeshesGPU,
+                                       &helper.implicitSpheresGPU);
 
     // =========================
     // Upload spheres
     // =========================
-    nbSpheres = spheresGPU.size();
+    nbSpheres = helper.spheresGPU.size();
     if (nbSpheres > 0)
     {
         cudaMalloc(&spheres, nbSpheres * sizeof(Sphere));
-        cudaMemcpy(spheres, spheresGPU.data(), nbSpheres * sizeof(Sphere), cudaMemcpyHostToDevice);
+        cudaMemcpy(spheres, helper.spheresGPU.data(), nbSpheres * sizeof(Sphere), cudaMemcpyHostToDevice);
     }
     else
     {
@@ -44,11 +43,11 @@ HOST void CudaScene::uploadObjects(std::vector<Sphere> spheresGPU, std::vector<P
     // =========================
     // Upload planes
     // =========================
-    nbPlanes = planesGPU.size();
+    nbPlanes = helper.planesGPU.size();
     if (nbPlanes > 0)
     {
         cudaMalloc(&planes, nbPlanes * sizeof(Plane));
-        cudaMemcpy(planes, planesGPU.data(), nbPlanes * sizeof(Plane), cudaMemcpyHostToDevice);
+        cudaMemcpy(planes, helper.planesGPU.data(), nbPlanes * sizeof(Plane), cudaMemcpyHostToDevice);
     }
     else
     {
@@ -58,12 +57,12 @@ HOST void CudaScene::uploadObjects(std::vector<Sphere> spheresGPU, std::vector<P
     // =========================
     // Upload meshes
     // =========================
-    nbTriangleMeshes = triangleMeshesGPU.size();
+    nbTriangleMeshes = helper.triangleMeshesGPU.size();
     if (nbTriangleMeshes > 0)
     {
         cudaMalloc(&triangleMeshes, nbTriangleMeshes * sizeof(TriangleMesh));
 
-        cudaMemcpy(triangleMeshes, triangleMeshesGPU.data(), nbTriangleMeshes * sizeof(TriangleMesh),
+        cudaMemcpy(triangleMeshes, helper.triangleMeshesGPU.data(), nbTriangleMeshes * sizeof(TriangleMesh),
                    cudaMemcpyHostToDevice);
     }
     else
@@ -71,11 +70,11 @@ HOST void CudaScene::uploadObjects(std::vector<Sphere> spheresGPU, std::vector<P
         triangleMeshes = nullptr;
     }
 
-    nbImplicitSpheres = implicitSpheresGPU.size();
+    nbImplicitSpheres = helper.implicitSpheresGPU.size();
     if (nbImplicitSpheres > 0)
     {
         cudaMalloc(&implicitSpheres, nbImplicitSpheres * sizeof(ImplicitSphere));
-        cudaMemcpy(implicitSpheres, implicitSpheresGPU.data(), nbImplicitSpheres * sizeof(ImplicitSphere),
+        cudaMemcpy(implicitSpheres, helper.implicitSpheresGPU.data(), nbImplicitSpheres * sizeof(ImplicitSphere),
                    cudaMemcpyHostToDevice);
     }
     else
@@ -90,14 +89,14 @@ HOST void CudaScene::uploadObjects(std::vector<Sphere> spheresGPU, std::vector<P
     bvhScene.d_implicitSpheres = implicitSpheres;
 }
 
-HOST void CudaScene::uploadLights(std::vector<Light> lightsGPU)
+HOST void CudaScene::uploadLights(CudaSceneHelper &helper)
 {
-    nbLights = lightsGPU.size();
+    nbLights = helper.lightsGPU.size();
     if (nbLights > 0)
     {
         cudaMalloc(&lights, nbLights * sizeof(Light));
 
-        cudaMemcpy(lights, lightsGPU.data(), nbLights * sizeof(Light), cudaMemcpyHostToDevice);
+        cudaMemcpy(lights, helper.lightsGPU.data(), nbLights * sizeof(Light), cudaMemcpyHostToDevice);
     }
     else
     {
@@ -105,15 +104,15 @@ HOST void CudaScene::uploadLights(std::vector<Light> lightsGPU)
     }
 }
 
-HOST void CudaScene::uploadMaterials(std::vector<Material> materialsGPU)
+HOST void CudaScene::uploadMaterials(CudaSceneHelper &helper)
 {
-    nbMaterials = materialsGPU.size();
+    nbMaterials = helper.materialsGPU.size();
 
     if (nbMaterials > 0)
     {
         cudaMalloc(&materials, nbMaterials * sizeof(Material));
 
-        cudaMemcpy(materials, materialsGPU.data(), nbMaterials * sizeof(Material), cudaMemcpyHostToDevice);
+        cudaMemcpy(materials, helper.materialsGPU.data(), nbMaterials * sizeof(Material), cudaMemcpyHostToDevice);
     }
     else
     {
@@ -121,7 +120,7 @@ HOST void CudaScene::uploadMaterials(std::vector<Material> materialsGPU)
     }
 }
 
-void CudaScene::sceneSize(std::vector<BaseObject> primitivesGPU)
+void CudaScene::sceneSize(CudaSceneHelper &helper)
 {
     printf("Size of one BVH node: %zu bytes\n", sizeof(BVHSceneNode));
     printf("Size of AABB: %zu bytes\n", sizeof(AABB));
@@ -148,9 +147,10 @@ void CudaScene::sceneSize(std::vector<BaseObject> primitivesGPU)
     totalSize += nbLights * sizeof(Light);
     printf("Size of lights: %zu bytes. %2.2f gain compared to v1\n", nbLights * sizeof(Light),
            (1.f - (nbLights * sizeof(Light) / 192.f)) * 100.f);
-    totalSize += primitivesGPU.size() * sizeof(BaseObject);
-    printf("Size of primitives: %zu bytes. %2.2f gain compared to v1\n", primitivesGPU.size() * sizeof(BaseObject),
-           (1.f - (primitivesGPU.size() * sizeof(BaseObject) / 22992.f)) * 100.f);
+    totalSize += helper.primitivesGPU.size() * sizeof(BaseObject);
+    printf("Size of primitives: %zu bytes. %2.2f gain compared to v1\n",
+           helper.primitivesGPU.size() * sizeof(BaseObject),
+           (1.f - (helper.primitivesGPU.size() * sizeof(BaseObject) / 22992.f)) * 100.f);
     totalSize += bvhScene.getDeviceSize();
     printf("Size of implicit spheres: %zu bytes. %2.2f gain compared to v1\n",
            nbImplicitSpheres * sizeof(ImplicitSphere),
@@ -196,12 +196,18 @@ void sortMaterials(std::vector<Material> &materialsGPU, std::vector<int> &planeT
         Sphere s = spheresGPU[i];
         spheresGPU[i].materialIndex += padding[sphereType[i]];
     }
+
+    for (int i = 0; i < triangleMeshesGPU.size(); i++)
+    {
+        TriangleMesh tm = triangleMeshesGPU[i];
+        triangleMeshesGPU[i].materialIndex += padding[triangleMeshType[i]];
+    }
 }
 
 CudaScene spheresScene(float4 sunDir)
 {
     CudaScene gpuScene;
-    cudaSceneHelper helper;
+    CudaSceneHelper helper;
 
     // ===== PLAN =====
     {
@@ -236,7 +242,7 @@ CudaScene spheresScene(float4 sunDir)
     float margin = 0.05f;
     float minDist = bigRadius + smallRadius + margin;
 
-    int numberOfSpheresPerSide = 11;
+    int numberOfSpheresPerSide = 10;
     // ===== PETITES SPHERES =====
     for (int i = -numberOfSpheresPerSide; i < numberOfSpheresPerSide; i++)
     {
@@ -316,7 +322,8 @@ CudaScene spheresScene(float4 sunDir)
             // ===== AABB =====
             float3 r = make_float3(s.radius);
 
-            helper.primitivesGPU.push_back(BaseObject{center - r, center + r, ObjectType::SPHERE, (int)helper.spheresGPU.size()});
+            helper.primitivesGPU.push_back(
+                BaseObject{center - r, center + r, ObjectType::SPHERE, (int)helper.spheresGPU.size()});
             helper.spheresGPU.push_back(s);
         }
     }
@@ -331,7 +338,8 @@ CudaScene spheresScene(float4 sunDir)
 
         float3 r = make_float3(radius);
 
-        helper.primitivesGPU.push_back(BaseObject{center - r, center + r, ObjectType::SPHERE, (int)helper.spheresGPU.size()});
+        helper.primitivesGPU.push_back(
+            BaseObject{center - r, center + r, ObjectType::SPHERE, (int)helper.spheresGPU.size()});
 
         helper.spheresGPU.push_back(s);
         helper.sphereType.push_back(sphereTypeValue);
@@ -348,8 +356,9 @@ CudaScene spheresScene(float4 sunDir)
     addBigSphere(make_float3(-4.f, 1.f, 0.f), 1.f, emissiveIdx, 4);
     addBigSphere(make_float3(4.f, 1.f, 0.f), 1.f, mirrorIdx, 5);
 
-    sortMaterials(helper.materialsGPU, helper.planeType, helper.sphereType, helper.triangleMeshType, helper.lambertList, helper.metalList, helper.plasticList,
-                  helper.transparentList, helper.emissiveList, helper.mirrorList, helper.planesGPU, helper.spheresGPU, helper.triangleMeshesGPU);
+    sortMaterials(helper.materialsGPU, helper.planeType, helper.sphereType, helper.triangleMeshType, helper.lambertList,
+                  helper.metalList, helper.plasticList, helper.transparentList, helper.emissiveList, helper.mirrorList,
+                  helper.planesGPU, helper.spheresGPU, helper.triangleMeshesGPU);
 
     // ===== LIGHT (SUN) =====
     Light l;
@@ -359,18 +368,18 @@ CudaScene spheresScene(float4 sunDir)
     helper.lightsGPU.push_back(l);
 
     // ===== UPLOAD =====
-    gpuScene.uploadObjects(helper.spheresGPU, helper.planesGPU, helper.triangleMeshesGPU, helper.primitivesGPU, helper.implicitSpheresGPU);
-    gpuScene.uploadLights(helper.lightsGPU);
-    gpuScene.uploadMaterials(helper.materialsGPU);
+    gpuScene.uploadObjects(helper);
+    gpuScene.uploadLights(helper);
+    gpuScene.uploadMaterials(helper);
 
-    gpuScene.sceneSize(helper.primitivesGPU);
+    gpuScene.sceneSize(helper);
     return gpuScene;
 }
 
 CudaScene implicitSpheresScene(float4 sunDir)
 {
     CudaScene gpuScene;
-
+    CudaSceneHelper helper;
     std::vector<ImplicitSphere> implicitSpheresGPU;
     std::vector<Plane> planesGPU;
     std::vector<TriangleMesh> triangleMeshesGPU;
@@ -499,17 +508,19 @@ CudaScene implicitSpheresScene(float4 sunDir)
     lightsGPU.push_back(l);
 
     // ===== UPLOAD =====
-    gpuScene.uploadObjects(std::vector<Sphere>(), planesGPU, triangleMeshesGPU, primitivesGPU, implicitSpheresGPU);
-    gpuScene.uploadLights(lightsGPU);
-    gpuScene.uploadMaterials(materialsGPU);
+    gpuScene.uploadObjects(helper);
+    gpuScene.uploadLights(helper);
+    gpuScene.uploadMaterials(helper);
 
-    gpuScene.sceneSize(primitivesGPU);
+    gpuScene.sceneSize(helper);
     return gpuScene;
 }
 
 CudaScene singleObject(float4 sunDir)
 {
     CudaScene gpuScene;
+    CudaSceneHelper helper;
+
     std::vector<TriangleMesh> triangleMeshesGPU;
     std::vector<BaseObject> primitivesGPU;
     std::vector<Material> materialsGPU;
@@ -527,10 +538,9 @@ CudaScene singleObject(float4 sunDir)
     l.direction = make_float4(sunDir.x, sunDir.y, sunDir.z, 0.f);
     l.metadata = Light::packMetadata(LightType::SUN, 0);
     lightsGPU.push_back(l);
-    gpuScene.uploadObjects(std::vector<Sphere>(), std::vector<Plane>(), triangleMeshesGPU, primitivesGPU,
-                           std::vector<ImplicitSphere>());
-    gpuScene.uploadLights(lightsGPU);
-    gpuScene.uploadMaterials(materialsGPU);
-    gpuScene.sceneSize(primitivesGPU);
+    gpuScene.uploadObjects(helper);
+    gpuScene.uploadLights(helper);
+    gpuScene.uploadMaterials(helper);
+    gpuScene.sceneSize(helper);
     return gpuScene;
 }
