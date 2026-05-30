@@ -39,44 +39,34 @@ void downsample(float3 *input, float3 *output, int width, int height)
     output[y * newWidth + x] = (input[idx00] + input[idx10] + input[idx01] + input[idx11]) * 0.25f;
 }
 
-constexpr int RADIUS = 4;
-
-__constant__ float gaussianWeights[RADIUS + 1] = {0.227027f, 0.1945946f, 0.1216216f, 0.054054f, 0.016216f};
-
-template <int RADIUS>
-__global__ void blurHorizontal(const float3 *__restrict__ input, float3 *__restrict__ output, int width, int height)
+template<int RADIUS>
+GLOBAL
+void blurHorizontal(
+    const float3* __restrict__ input,
+    float3* __restrict__ output,
+    int width,
+    int height)
 {
     constexpr int BLOCK_X = 16;
     constexpr int BLOCK_Y = 16;
 
     __shared__ float3 tile[BLOCK_Y][BLOCK_X + 2 * RADIUS];
 
-    int tx = threadIdx.x;
-    int ty = threadIdx.y;
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
 
-    int x = blockIdx.x * BLOCK_X + tx;
-    int y = blockIdx.y * BLOCK_Y + ty;
+    const int x = blockIdx.x * BLOCK_X + tx;
+    const int y = blockIdx.y * BLOCK_Y + ty;
 
-    int sharedX = tx + RADIUS;
-
-    // center
-    if (x < width && y < height)
-        tile[ty][sharedX] = input[y * width + x];
-
-    // left halo
-    if (tx < RADIUS)
+    // Chargement complet du tile + halo
+    for (int sx = tx; sx < BLOCK_X + 2 * RADIUS; sx += BLOCK_X)
     {
-        int gx = max(x - RADIUS, 0);
+        int gx = blockIdx.x * BLOCK_X + sx - RADIUS;
 
-        tile[ty][tx] = input[y * width + gx];
-    }
+        gx = max(0, min(gx, width - 1));
 
-    // right halo
-    if (tx < RADIUS)
-    {
-        int gx = min(x + BLOCK_X, width - 1);
-
-        tile[ty][sharedX + BLOCK_X] = input[y * width + gx];
+        if (y < height)
+            tile[ty][sx] = input[y * width + gx];
     }
 
     __syncthreads();
@@ -84,49 +74,56 @@ __global__ void blurHorizontal(const float3 *__restrict__ input, float3 *__restr
     if (x >= width || y >= height)
         return;
 
-    float3 result = tile[ty][sharedX] * gaussianWeights[0];
+    constexpr float weights[] =
+    {
+        0.227027f,
+        0.1945946f,
+        0.1216216f,
+        0.054054f,
+        0.016216f
+    };
+
+    float3 result =
+        tile[ty][tx + RADIUS] * weights[0];
 
     #pragma unroll
-    for (int i = 1; i <= RADIUS; i++)
+    for (int i = 1; i <= RADIUS; ++i)
     {
-        result += tile[ty][sharedX - i] * gaussianWeights[i];
-        result += tile[ty][sharedX + i] * gaussianWeights[i];
+        result += tile[ty][tx + RADIUS - i] * weights[i];
+        result += tile[ty][tx + RADIUS + i] * weights[i];
     }
 
     output[y * width + x] = result;
 }
 
-template <int RADIUS>
-__global__ void blurVertical(const float3 *__restrict__ input, float3 *__restrict__ output, int width, int height)
+template<int RADIUS>
+GLOBAL
+void blurVertical(
+    const float3* __restrict__ input,
+    float3* __restrict__ output,
+    int width,
+    int height)
 {
     constexpr int BLOCK_X = 16;
     constexpr int BLOCK_Y = 16;
 
     __shared__ float3 tile[BLOCK_Y + 2 * RADIUS][BLOCK_X];
 
-    int tx = threadIdx.x;
-    int ty = threadIdx.y;
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
 
-    int x = blockIdx.x * BLOCK_X + tx;
-    int y = blockIdx.y * BLOCK_Y + ty;
+    const int x = blockIdx.x * BLOCK_X + tx;
+    const int y = blockIdx.y * BLOCK_Y + ty;
 
-    int sharedY = ty + RADIUS;
-
-    if (x < width && y < height)
-        tile[sharedY][tx] = input[y * width + x];
-
-    if (ty < RADIUS)
+    // Chargement complet du tile + halo
+    for (int sy = ty; sy < BLOCK_Y + 2 * RADIUS; sy += BLOCK_Y)
     {
-        int gy = max(y - RADIUS, 0);
+        int gy = blockIdx.y * BLOCK_Y + sy - RADIUS;
 
-        tile[ty][tx] = input[gy * width + x];
-    }
+        gy = max(0, min(gy, height - 1));
 
-    if (ty < RADIUS)
-    {
-        int gy = min(y + BLOCK_Y, height - 1);
-
-        tile[sharedY + BLOCK_Y][tx] = input[gy * width + x];
+        if (x < width)
+            tile[sy][tx] = input[gy * width + x];
     }
 
     __syncthreads();
@@ -134,13 +131,23 @@ __global__ void blurVertical(const float3 *__restrict__ input, float3 *__restric
     if (x >= width || y >= height)
         return;
 
-    float3 result = tile[sharedY][tx] * gaussianWeights[0];
+    constexpr float weights[] =
+    {
+        0.227027f,
+        0.1945946f,
+        0.1216216f,
+        0.054054f,
+        0.016216f
+    };
+
+    float3 result =
+        tile[ty + RADIUS][tx] * weights[0];
 
     #pragma unroll
-    for (int i = 1; i <= RADIUS; i++)
+    for (int i = 1; i <= RADIUS; ++i)
     {
-        result += tile[sharedY - i][tx] * gaussianWeights[i];
-        result += tile[sharedY + i][tx] * gaussianWeights[i];
+        result += tile[ty + RADIUS - i][tx] * weights[i];
+        result += tile[ty + RADIUS + i][tx] * weights[i];
     }
 
     output[y * width + x] = result;
