@@ -13,12 +13,6 @@ GLOBAL
 void downsample(float3 *input, float3 *output, int width, int height);
 
 GLOBAL
-void blurHorizontal(float3 *input, float3 *output, int width, int height);
-
-GLOBAL
-void blurVertical(float3 *input, float3 *output, int width, int height);
-
-GLOBAL
 void upsampleAdd(float3 *lowRes, float3 *highRes, int lowWidth, int lowHeight, int highWidth, float strength);
 
 void applyMultiScaleBloom(float3 *d_bright, float3 *d_temp, float3 *d_lvl1, float3 *d_lvl2, int w1, int h1, int w2,

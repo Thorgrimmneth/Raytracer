@@ -4,8 +4,8 @@ HOST
 BVH* buildBVH(
     TriangleMeshGeometry* triangles,
     int triangleCount,
-    float3* vertices,
-    float3* normals,
+    float4* vertices,
+    float4* normals,
     float2* uvs,
     int& outNodeCount,
     int*& outTriangleRefIndices,
@@ -89,9 +89,9 @@ BVH* buildBVH(
             int triIdx = triangleIndices[i];
             const TriangleMeshGeometry& tri = triangles[triIdx];
 
-            float3 v0 = vertices[tri.i0];
-            float3 v1 = vertices[tri.i1];
-            float3 v2 = vertices[tri.i2];
+            float4 v0 = vertices[tri.i0];
+            float4 v1 = vertices[tri.i1];
+            float4 v2 = vertices[tri.i2];
 
             float c0 =
                 splitAxis == 0 ? v0.x :

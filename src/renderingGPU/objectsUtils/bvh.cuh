@@ -31,8 +31,8 @@ HOST
 BVH* buildBVH(
     TriangleMeshGeometry* triangles,
     int triangleCount,
-    float3* vertices,
-    float3* normals,
+    float4* vertices,
+    float4* normals,
     float2* uvs,
     int& outNodeCount,
     int*& outTriangleRefIndices,

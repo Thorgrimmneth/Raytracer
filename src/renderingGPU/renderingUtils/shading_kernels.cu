@@ -135,7 +135,7 @@ __global__ void shadeWavefrontKernel(CudaScene scene, WavefrontState *states, Hi
     // ------------------------------------------------------------
 
     HitRecord hit = hits[idx];
-    Material mtl = scene.materials[hit.materialIndex];
+    Material mtl = scene.materials[hit.getMaterialIndex()];
 
     // ------------------------------------------------------------
     // EMISSIVE
@@ -212,17 +212,17 @@ __global__ void shadeWavefrontKernel(CudaScene scene, WavefrontState *states, Hi
         lightIndex = min(lightIndex, scene.nbLights - 1);
 
         const Light &light = scene.lights[lightIndex];
-        LightSample ls = light.sample(hit.point, rng, scene);
+        LightSample ls = light.sample(hit.getPoint(), rng, scene);
 
         if (ls.pdf > 0.f)
         {
-            float3 shadowOrigin = hit.point + hit.normal * 1e-3f;
+            float3 shadowOrigin = hit.getPoint() + hit.getNormal() * 1e-3f;
 
             Ray shadowRay(shadowOrigin, ls.direction, ray.time);
 
             if (!scene.intersectAny(shadowRay, 1e-3f, ls.distance - 1e-3f))
             {
-                float cosTheta = fmaxf(dot(hit.normal, ls.direction), 0.0f);
+                float cosTheta = fmaxf(dot(hit.getNormal(), ls.direction), 0.0f);
 
                 if (cosTheta > 0.f)
                 {
@@ -275,7 +275,7 @@ __global__ void shadeWavefrontKernel(CudaScene scene, WavefrontState *states, Hi
     }
     else
     {
-        float cosTheta = fmaxf(dot(hit.normal, bsdf.direction), 0.0f);
+        float cosTheta = fmaxf(dot(hit.getNormal(), bsdf.direction), 0.0f);
 
         state.throughput = state.throughput * bsdf.brdf * cosTheta / bsdf.pdf;
     }
@@ -284,7 +284,7 @@ __global__ void shadeWavefrontKernel(CudaScene scene, WavefrontState *states, Hi
     // NEXT RAY
     // ------------------------------------------------------------
 
-    state.ray = Ray(hit.point + bsdf.direction * 1e-3f, bsdf.direction, ray.time);
+    state.ray = Ray(hit.getPoint() + bsdf.direction * 1e-3f, bsdf.direction, ray.time);
 
     state.depth += 1;
 

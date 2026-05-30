@@ -18,8 +18,8 @@ MeshAndPrimitive loadTriangleMesh(const std::string &p_path, int materialIndex, 
     }
 
     // Aggregate all meshes into one
-    std::vector<float3> vertices;
-    std::vector<float3> normals;
+    std::vector<float4> vertices;
+    std::vector<float4> normals;
     std::vector<float2> uvs;
     std::vector<TriangleMeshGeometry> triangles;
 
@@ -50,13 +50,13 @@ MeshAndPrimitive loadTriangleMesh(const std::string &p_path, int materialIndex, 
 
             mini = getMin(mini, vertex);
             maxi = getMax(maxi, vertex);
-            vertices.push_back(vertex);
+            vertices.push_back(make_float4(vertex.x, vertex.y, vertex.z, 1.0f));
 
             float3 normal = make_float3(mesh->mNormals[v].x, mesh->mNormals[v].y, mesh->mNormals[v].z);
 
             normal = transformNormal(normal, rotation);
 
-            normals.push_back(normal);
+            normals.push_back(make_float4(normal.x, normal.y, normal.z, 0.0f));
 
             if (hasUV)
             {
@@ -133,17 +133,17 @@ MeshAndPrimitive loadTriangleMesh(const std::string &p_path, int materialIndex, 
     // Allocate and copy vertices to GPU
     if (!vertices.empty())
     {
-        cudaMalloc(&triMesh.vertices, vertices.size() * sizeof(float3));
+        cudaMalloc(&triMesh.vertices, vertices.size() * sizeof(float4));
 
-        cudaMemcpy(triMesh.vertices, vertices.data(), vertices.size() * sizeof(float3), cudaMemcpyHostToDevice);
+        cudaMemcpy(triMesh.vertices, vertices.data(), vertices.size() * sizeof(float4), cudaMemcpyHostToDevice);
     }
 
     // Allocate and copy normals to GPU
     if (!normals.empty())
     {
-        cudaMalloc(&triMesh.normals, normals.size() * sizeof(float3));
+        cudaMalloc(&triMesh.normals, normals.size() * sizeof(float4));
 
-        cudaMemcpy(triMesh.normals, normals.data(), normals.size() * sizeof(float3), cudaMemcpyHostToDevice);
+        cudaMemcpy(triMesh.normals, normals.data(), normals.size() * sizeof(float4), cudaMemcpyHostToDevice);
     }
 
     // Allocate and copy UVs to GPU

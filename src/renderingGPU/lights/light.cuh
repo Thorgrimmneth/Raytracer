@@ -47,8 +47,7 @@ struct alignas(16) Light
     float4 direction;
 
     // xyz = v
-    // w   = geomIndex
-    float3 v;
+    float4 vSample;
 
     uint32_t metadata;
 
@@ -117,7 +116,7 @@ struct alignas(16) Light
 
     D_FORCEINLINE float3 getV() const
     {
-        return v;
+        return make_float3(vSample);
     }
 
     //

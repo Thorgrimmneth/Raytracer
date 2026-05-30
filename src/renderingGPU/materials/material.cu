@@ -211,7 +211,7 @@ BSDFVal Material::getMetalBSDF(
     const HitRecord& hit,
     RNG*             rngStates) const
 {
-    float3  normal = hit.normal;
+    float3  normal = hit.getNormal();
     float3  wo     = -ray.direction;
     BSDFVal bsdf;
 
@@ -239,7 +239,7 @@ BSDFVal Material::getLambertBSDF(
     const HitRecord& hit,
     RNG*             rngStates) const
 {
-    float3  normal = hit.normal;
+    float3  normal = hit.getNormal();
     BSDFVal bsdf;
 
     bsdf.direction = samplingLambert(normal, rngStates);
@@ -256,7 +256,7 @@ BSDFVal Material::getPlasticBSDF(
     const HitRecord& hit,
     RNG*             rngStates) const
 {
-    float3  normal = hit.normal;
+    float3  normal = hit.getNormal();
     float3  wo     = -ray.direction;
     BSDFVal bsdf;
 
@@ -295,7 +295,7 @@ BSDFVal Material::getMirrorBSDF(
     const Ray&       ray,
     const HitRecord& hit) const
 {
-    float3  normal = hit.normal;
+    float3  normal = hit.getNormal();
     BSDFVal bsdf;
 
     bsdf.direction = reflect(ray.direction, normal);
@@ -313,7 +313,7 @@ BSDFVal Material::getTransparentBSDF(
     RNG*             rngStates,
     bool&            isInside) const
 {
-    float3  normal = hit.normal;
+    float3  normal = hit.getNormal();
     float3  wo     = ray.direction;
     BSDFVal bsdf;
 
@@ -432,7 +432,7 @@ float3 Material::evalMetalBSDF(
     const HitRecord& hit,
     const float3&    wi) const
 {
-    float3 normal = hit.normal;
+    float3 normal = hit.getNormal();
     float3 wo     = -ray.direction;
 
     if (dot(normal, wi) <= 0.f)
@@ -449,7 +449,7 @@ float3 Material::evalPlasticBSDF(
     const HitRecord& hit,
     const float3&    wi) const
 {
-    float3 normal = hit.normal;
+    float3 normal = hit.getNormal();
     float3 wo     = -ray.direction;
 
     if (dot(normal, wi) <= 0.f)
@@ -505,7 +505,7 @@ float Material::lambertPDF(
     const HitRecord& hit,
     const float3&    wi) const
 {
-    float3 normal = hit.normal;
+    float3 normal = hit.getNormal();
 
     return pdfLambert(normal, wi);
 }
@@ -516,7 +516,7 @@ float Material::metalPDF(
     const HitRecord& hit,
     const float3&    wi) const
 {
-    float3 normal = hit.normal;
+    float3 normal = hit.getNormal();
     float3 wo     = -ray.direction;
 
     if (dot(normal, wi) <= 0.f)
@@ -531,7 +531,7 @@ float Material::plasticPDF(
     const HitRecord& hit,
     const float3&    wi) const
 {
-    float3 normal = hit.normal;
+    float3 normal = hit.getNormal();
     float3 wo     = -ray.direction;
 
     if (dot(normal, wi) <= 0.f)

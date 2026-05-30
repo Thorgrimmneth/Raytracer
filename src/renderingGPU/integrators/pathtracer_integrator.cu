@@ -88,7 +88,7 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const Ray &primary
             break;
         }
         // return finalColor;
-        const Material &mtl = scene.materials[hit.materialIndex];
+        const Material &mtl = scene.materials[hit.getMaterialIndex()];
         if (mtl.type() == MaterialType::EMISSIVE)
         {
             float3 emission = mtl.color() * mtl.intensity();
@@ -123,11 +123,11 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const Ray &primary
             float lightSelectionProb = getLightProbability(scene, lightIndex);
 
             const Light &light = scene.lights[lightIndex];
-            LightSample ls = light.sample(hit.point, rng, scene);
+            LightSample ls = light.sample(hit.getPoint(), rng, scene);
 
             if (ls.pdf > 0.f)
             {
-                float3 shadowOrigin = hit.point + hit.normal * 1e-3f;
+                float3 shadowOrigin = hit.getPoint() + hit.getNormal() * 1e-3f;
                 Ray shadowRay(shadowOrigin, ls.direction, ray.time);
 
                 float3 shadowTint = scene.traceShadowRay(shadowRay, 1e-3f, ls.distance - 1e-3f);
@@ -135,7 +135,7 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const Ray &primary
                 // If shadow ray wasn't completely blocked
                 if (length(shadowTint) > 1e-6f)
                 {
-                    float cosTheta = fmaxf(dot(hit.normal, ls.direction), 0.0f);
+                    float cosTheta = fmaxf(dot(hit.getNormal(), ls.direction), 0.0f);
 
                     if (cosTheta > 0.f)
                     {
@@ -151,7 +151,7 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const Ray &primary
                     }
                 }
             }
-            float cosTheta = fmaxf(dot(hit.normal, bsdf.direction), 0.0f);
+            float cosTheta = fmaxf(dot(hit.getNormal(), bsdf.direction), 0.0f);
 
             throughput = throughput * bsdf.brdf * cosTheta / bsdf.pdf;
         }
@@ -167,7 +167,7 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const Ray &primary
 
             throughput /= p;
         }
-        ray = Ray(hit.point + bsdf.direction * 1e-3f, bsdf.direction);
+        ray = Ray(hit.getPoint() + bsdf.direction * 1e-3f, bsdf.direction);
     }
 
     return finalColor;

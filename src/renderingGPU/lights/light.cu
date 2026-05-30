@@ -165,7 +165,7 @@ LightSample Light::sampleSphereGeom(const float3 &p_point, RNG *rng, const CudaS
 {
     const Sphere &s = scene.spheres[getGeomIndex()];
 
-    const Material &m = scene.materials[s.materialIndex];
+    const Material &m = scene.materials[s.getMaterialIndex()];
 
     float z = 1.f - 2.f * rng->nextFloat();
 
@@ -175,7 +175,7 @@ LightSample Light::sampleSphereGeom(const float3 &p_point, RNG *rng, const CudaS
 
     float3 n = make_float3(r * cosf(phi), r * sinf(phi), z);
 
-    float3 p = s.center1 + s.radius * n;
+    float3 p = s.getCenter1() + s.getRadius() * n;
 
     float3 wi = normalize(p - p_point);
 
@@ -188,7 +188,7 @@ LightSample Light::sampleSphereGeom(const float3 &p_point, RNG *rng, const CudaS
     if (cosThetaLight <= 0.f)
         return ls;
 
-    float area = 4.f * GPUPIf * s.radius * s.radius;
+    float area = 4.f * GPUPIf * s.getRadius() * s.getRadius();
 
     float pdf_area = 1.f / area;
 
@@ -209,7 +209,7 @@ LightSample Light::sampleImplicitSphereGeom(const float3 &p_point, RNG *rng, con
 {
     const ImplicitSphere &s = scene.implicitSpheres[getGeomIndex()];
 
-    const Material &m = scene.materials[s.materialIndex];
+    const Material &m = scene.materials[s.getMaterialIndex()];
 
     float z = 1.f - 2.f * rng->nextFloat();
 
@@ -219,7 +219,7 @@ LightSample Light::sampleImplicitSphereGeom(const float3 &p_point, RNG *rng, con
 
     float3 n = make_float3(r * cosf(phi), r * sinf(phi), z);
 
-    float3 p = s.center1 + s.radius * n;
+    float3 p = s.getCenter1() + s.getRadius() * n;
 
     float3 wi = normalize(p - p_point);
 
@@ -232,7 +232,7 @@ LightSample Light::sampleImplicitSphereGeom(const float3 &p_point, RNG *rng, con
     if (cosThetaLight <= 0.f)
         return ls;
 
-    float area = 4.f * GPUPIf * s.radius * s.radius;
+    float area = 4.f * GPUPIf * s.getRadius() * s.getRadius();
 
     float pdf_area = 1.f / area;
 
@@ -273,11 +273,11 @@ LightSample Light::sampleMeshGeom(const float3 &p_point, RNG *rng, const CudaSce
 
     const TriangleMeshGeometry &tri = mesh.triangles[triIndex];
 
-    const float3 *vertices = mesh.vertices;
+    const float4 *vertices = mesh.vertices;
 
-    float3 v0 = vertices[tri.i0];
-    float3 v1 = vertices[tri.i1];
-    float3 v2 = vertices[tri.i2];
+    float3 v0 = make_float3(vertices[tri.i0]);
+    float3 v1 = make_float3(vertices[tri.i1]);
+    float3 v2 = make_float3(vertices[tri.i2]);
 
     float u = rng->nextFloat();
     float v = rng->nextFloat();

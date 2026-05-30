@@ -39,56 +39,111 @@ void downsample(float3 *input, float3 *output, int width, int height)
     output[y * newWidth + x] = (input[idx00] + input[idx10] + input[idx01] + input[idx11]) * 0.25f;
 }
 
-GLOBAL
-void blurHorizontal(float3 *input, float3 *output, int width, int height)
+constexpr int RADIUS = 4;
+
+__constant__ float gaussianWeights[RADIUS + 1] = {0.227027f, 0.1945946f, 0.1216216f, 0.054054f, 0.016216f};
+
+template <int RADIUS>
+__global__ void blurHorizontal(const float3 *__restrict__ input, float3 *__restrict__ output, int width, int height)
 {
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    constexpr int BLOCK_X = 16;
+    constexpr int BLOCK_Y = 16;
+
+    __shared__ float3 tile[BLOCK_Y][BLOCK_X + 2 * RADIUS];
+
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+
+    int x = blockIdx.x * BLOCK_X + tx;
+    int y = blockIdx.y * BLOCK_Y + ty;
+
+    int sharedX = tx + RADIUS;
+
+    // center
+    if (x < width && y < height)
+        tile[ty][sharedX] = input[y * width + x];
+
+    // left halo
+    if (tx < RADIUS)
+    {
+        int gx = max(x - RADIUS, 0);
+
+        tile[ty][tx] = input[y * width + gx];
+    }
+
+    // right halo
+    if (tx < RADIUS)
+    {
+        int gx = min(x + BLOCK_X, width - 1);
+
+        tile[ty][sharedX + BLOCK_X] = input[y * width + gx];
+    }
+
+    __syncthreads();
 
     if (x >= width || y >= height)
         return;
 
-    const float weights[5] = {0.227027f, 0.1945946f, 0.1216216f, 0.054054f, 0.016216f};
+    float3 result = tile[ty][sharedX] * gaussianWeights[0];
 
-    int idx = y * width + x;
-    float3 result = input[idx] * weights[0];
-
-    for (int i = 1; i < 5; i++)
+    #pragma unroll
+    for (int i = 1; i <= RADIUS; i++)
     {
-        int left = y * width + max(x - i, 0);
-        int right = y * width + min(x + i, width - 1);
-
-        result += input[left] * weights[i];
-        result += input[right] * weights[i];
+        result += tile[ty][sharedX - i] * gaussianWeights[i];
+        result += tile[ty][sharedX + i] * gaussianWeights[i];
     }
 
-    output[idx] = result;
+    output[y * width + x] = result;
 }
 
-GLOBAL
-void blurVertical(float3 *input, float3 *output, int width, int height)
+template <int RADIUS>
+__global__ void blurVertical(const float3 *__restrict__ input, float3 *__restrict__ output, int width, int height)
 {
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    constexpr int BLOCK_X = 16;
+    constexpr int BLOCK_Y = 16;
+
+    __shared__ float3 tile[BLOCK_Y + 2 * RADIUS][BLOCK_X];
+
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+
+    int x = blockIdx.x * BLOCK_X + tx;
+    int y = blockIdx.y * BLOCK_Y + ty;
+
+    int sharedY = ty + RADIUS;
+
+    if (x < width && y < height)
+        tile[sharedY][tx] = input[y * width + x];
+
+    if (ty < RADIUS)
+    {
+        int gy = max(y - RADIUS, 0);
+
+        tile[ty][tx] = input[gy * width + x];
+    }
+
+    if (ty < RADIUS)
+    {
+        int gy = min(y + BLOCK_Y, height - 1);
+
+        tile[sharedY + BLOCK_Y][tx] = input[gy * width + x];
+    }
+
+    __syncthreads();
 
     if (x >= width || y >= height)
         return;
 
-    const float weights[5] = {0.227027f, 0.1945946f, 0.1216216f, 0.054054f, 0.016216f};
+    float3 result = tile[sharedY][tx] * gaussianWeights[0];
 
-    int idx = y * width + x;
-    float3 result = input[idx] * weights[0];
-
-    for (int i = 1; i < 5; i++)
+    #pragma unroll
+    for (int i = 1; i <= RADIUS; i++)
     {
-        int down = max(y - i, 0) * width + x;
-        int up = min(y + i, height - 1) * width + x;
-
-        result += input[down] * weights[i];
-        result += input[up] * weights[i];
+        result += tile[sharedY - i][tx] * gaussianWeights[i];
+        result += tile[sharedY + i][tx] * gaussianWeights[i];
     }
 
-    output[idx] = result;
+    output[y * width + x] = result;
 }
 
 GLOBAL
@@ -133,15 +188,15 @@ void applyMultiScaleBloom(float3 *d_bright, float3 *d_temp, float3 *d_lvl1, floa
 
     downsample<<<grid1, block>>>(d_bright, d_lvl1, width, height);
 
-    blurHorizontal<<<grid1, block>>>(d_lvl1, d_temp, w1, h1);
-    blurVertical<<<grid1, block>>>(d_temp, d_lvl1, w1, h1);
+    blurHorizontal<4><<<grid1, block>>>(d_lvl1, d_temp, w1, h1);
+    blurVertical<4><<<grid1, block>>>(d_temp, d_lvl1, w1, h1);
 
     dim3 grid2((w2 + 15) / 16, (h2 + 15) / 16);
 
     downsample<<<grid2, block>>>(d_lvl1, d_lvl2, w1, h1);
 
-    blurHorizontal<<<grid2, block>>>(d_lvl2, d_temp, w2, h2);
-    blurVertical<<<grid2, block>>>(d_temp, d_lvl2, w2, h2);
+    blurHorizontal<2><<<grid2, block>>>(d_lvl2, d_temp, w2, h2);
+    blurVertical<2><<<grid2, block>>>(d_temp, d_lvl2, w2, h2);
 
     upsampleAdd<<<grid1, block>>>(d_lvl2, d_lvl1, w2, h2, w1, 1.0f);
 

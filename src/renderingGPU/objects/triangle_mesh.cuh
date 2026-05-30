@@ -11,8 +11,8 @@
 struct TriangleMesh
 {
     TriangleMeshGeometry *triangles = nullptr;
-    float3 *vertices = nullptr;
-    float3 *normals = nullptr;
+    float4 *vertices = nullptr;
+    float4 *normals = nullptr;
     float2 *uvs = nullptr;
 
     int triangleCount = 0;
@@ -76,12 +76,8 @@ struct TriangleMesh
                     {
                         tClosest = t;
                         hit = true;
-
-                        p_hitRecord.point = p_ray.pointAtT(t);
-                        p_hitRecord.normal = tri.computeSmoothNormal(uv, normals);
+                        p_hitRecord.setHitInfo(p_ray.pointAtT(t), tri.computeSmoothNormal(uv, normals), t, materialIndex, 0 , HIT_TRIANGLE_MESH);
                         p_hitRecord.faceNormal(p_ray.direction);
-                        p_hitRecord.distance = t;
-                        p_hitRecord.materialIndex = materialIndex;
                     }
                 }
             }

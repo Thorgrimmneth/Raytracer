@@ -64,7 +64,7 @@ struct CudaScene
 
             if (planes[i].intersect(p_ray, p_tMin, tMax, planeHit))
             {
-                tMax = planeHit.distance;
+                tMax = planeHit.getDistance();
                 p_hitRecord = planeHit;
 
                 p_hitRecord.objectType = HIT_PLANE;
@@ -75,7 +75,7 @@ struct CudaScene
         }
         if (bvhScene.intersect(p_ray, p_tMin, tMax, p_hitRecord))
         {
-            tMax = p_hitRecord.distance; // update tMax to conserve the nearest hit
+            tMax = p_hitRecord.getDistance(); // update tMax to conserve the nearest hit
             hit = true;
         }
 
@@ -117,7 +117,7 @@ struct CudaScene
                 return shadowColor;
             }
             
-            const Material& mtl = materials[hit.materialIndex];
+            const Material& mtl = materials[hit.getMaterialIndex()];
             MaterialType matType = mtl.type();
             
             // Check if material is transparent
@@ -135,8 +135,8 @@ struct CudaScene
                 }
                 
                 // Continue ray from hit point toward light
-                currentRay = Ray(hit.point + currentRay.direction * 1e-4f, currentRay.direction, currentRay.time);
-                remainingDistance -= hit.distance;
+                currentRay = Ray(hit.getPoint() + currentRay.direction * 1e-4f, currentRay.direction, currentRay.time);
+                remainingDistance -= hit.getDistance();
             }
             else if (matType == EMISSIVE)
             {
@@ -163,49 +163,49 @@ struct CudaScene
         if (!intersect(ray, 1e-4f, 1e30f, hit))
             return 0.0f;
 
-        const MaterialType matType = materials[hit.materialIndex].type();
+        const MaterialType matType = materials[hit.getMaterialIndex()].type();
 
         if (matType != MaterialType::EMISSIVE)
             return 0.0f;
 
-        const float dist2 = hit.distance * hit.distance;
+        const float dist2 = hit.getDistance() * hit.getDistance();
         float pdf = 0.0f;
 
         if (hit.objectType == HIT_SPHERE)
         {
             const Sphere &s = spheres[hit.objectIndex];
 
-            const float3 toSurface = hit.point - s.center1;
-            const float invRadius = 1.0f / s.radius;
+            const float3 toSurface = hit.getPoint() - s.getCenter1();
+            const float invRadius = 1.0f / s.getRadius();
 
             const float cosTheta = fmaxf(dot(toSurface, -dir) * invRadius, 0.0f);
 
             if (cosTheta <= 0.0f)
                 return 0.0f;
 
-            const float area = 4.0f * GPUPIf * s.radius * s.radius;
+            const float area = 4.0f * GPUPIf * s.getRadius() * s.getRadius();
             pdf = dist2 / (area * cosTheta);
         }
         else if (hit.objectType == HIT_SPHERE_IMPLICIT)
         {
             const ImplicitSphere &s = implicitSpheres[hit.objectIndex];
 
-            const float3 toSurface = hit.point - s.center1;
-            const float invRadius = 1.0f / s.radius;
+            const float3 toSurface = hit.getPoint() - s.getCenter1();
+            const float invRadius = 1.0f / s.getRadius();
 
             const float cosTheta = fmaxf(dot(toSurface, -dir) * invRadius, 0.0f);
 
             if (cosTheta <= 0.0f)
                 return 0.0f;
 
-            const float area = 4.0f * GPUPIf * s.radius * s.radius;
+            const float area = 4.0f * GPUPIf * s.getRadius() * s.getRadius();
             pdf = dist2 / (area * cosTheta);
         }
         else if (hit.objectType == HIT_TRIANGLE_MESH)
         {
             const TriangleMesh &mesh = triangleMeshes[hit.objectIndex];
 
-            const float cosTheta = fmaxf(dot(hit.normal, -dir), 0.0f);
+            const float cosTheta = fmaxf(dot(hit.getNormal(), -dir), 0.0f);
 
             if (cosTheta <= 0.0f)
                 return 0.0f;

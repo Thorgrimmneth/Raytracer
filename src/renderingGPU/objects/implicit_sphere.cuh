@@ -4,16 +4,37 @@
 
 struct ImplicitSphere
 {
-    float3 center1;
-    float radius;
-    float3 center2;
-    int materialIndex;
+    float4 center1; // xyz = center, w = radius
+    float4 center2; // xyz = center2, w = materialIndex
+
+    ImplicitSphere(float3 c1, float r, float3 c2, int materialIndex)
+        : center1(make_float4(c1, r)), center2(make_float4(c2, intBitsToFloat(materialIndex)))
+    {
+    }
+
+    HD_FORCEINLINE 
+    float3 getCenter1() const { return make_float3(center1); }
+
+    HD_FORCEINLINE
+    float getRadius() const { return center1.w; }
+
+    HD_FORCEINLINE
+    float3 getCenter2() const { return make_float3(center2); }
+
+    HD_FORCEINLINE
+    int getMaterialIndex() const { return floatBitsToInt(center2.w); }
+
+    HOST
+    void setMaterialIndex(int materialIndex)
+    {
+        center2.w = intBitsToFloat(materialIndex);
+    }
 
     D_FORCEINLINE 
     float sdf(const float3 &point, const double time = 0) const
     {
-        float3 center = center1 + (center2 - center1) * time;
-        return length(point - center) - radius;
+        float3 center = getCenter1() + (getCenter2() - getCenter1()) * time;
+        return length(point - center) - getRadius();
     }
 
     /*
@@ -30,7 +51,7 @@ struct ImplicitSphere
     D_FORCEINLINE 
     float3 computeNormal(const float3 &point, const double time) const
     {
-        float3 center = center1 + (center2 - center1) * time;
+        float3 center = getCenter1() + (getCenter2() - getCenter1()) * time;
         return normalize(point - center);
     }
 
@@ -53,11 +74,8 @@ struct ImplicitSphere
             if (fabs(dist) < threshold)
             {
                 // Intersection found, fill p_hitRecord.
-                p_hitRecord.point = point;
-                p_hitRecord.normal = computeNormal(point, p_ray.time);
+                p_hitRecord.setHitInfo(point, computeNormal(point, p_ray.time), t, getMaterialIndex(), 0, HIT_SPHERE_IMPLICIT);
                 p_hitRecord.faceNormal(p_ray.direction);
-                p_hitRecord.distance = t;
-                p_hitRecord.materialIndex = materialIndex;
                 return true;
             }
             t += max(fabs(dist), minStep);

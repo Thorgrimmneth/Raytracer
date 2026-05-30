@@ -1,8 +1,8 @@
 #pragma once
 
-#include <stdint.h>
 #include "../objectsUtils/aabb.cuh"
 #include "../utils/macro.cuh"
+#include <stdint.h>
 
 enum ObjectType : uint32_t
 {
@@ -12,32 +12,21 @@ enum ObjectType : uint32_t
     IMPLICIT_SPHERE
 };
 
-struct DataMin
-{
-    float3 min;
-    ObjectType type;
-};
-
-struct DataMax
-{
-    float3 max;
-    int index;
-};
-
 struct BaseObject
 {
-    DataMin dataMin;
-    DataMax dataMax;
+    float4 minType;
+    float4 maxIndex;
 
-    BaseObject(float3 min, float3 max, ObjectType type, int index) : dataMin(DataMin{min, type}), dataMax(DataMax{max, index})
+    HD BaseObject(float3 min, float3 max, ObjectType type, int index)
+        : minType(make_float4(min, intBitsToFloat(int(type)))), maxIndex(make_float4(max, intBitsToFloat(index)))
     {
     }
 
-    HD float3 getMin() const { return dataMin.min; };
+    HD float3 getMin() const { return make_float3(minType); }
 
-    HD float3 getMax() const { return dataMax.max; };
+    HD float3 getMax() const { return make_float3(maxIndex); }
 
-    D_FORCEINLINE ObjectType getType() const { return dataMin.type; };
+    HD ObjectType getType() const { return ObjectType(floatBitsToInt(minType.w)); }
 
-    D_FORCEINLINE int getIndex() const { return dataMax.index; };
+    HD int getIndex() const { return floatBitsToInt(maxIndex.w); }
 };

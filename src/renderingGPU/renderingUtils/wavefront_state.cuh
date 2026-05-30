@@ -28,18 +28,18 @@ struct WavefrontState
 {
     Ray ray;
 
-    float3 throughput;
-    float3 radiance;
+    float3 throughput = make_float3(1.f);
+    float3 radiance = make_float3(0.f);
 
     RNG rng;
 
     int pixelIndex;
-    int depth;
-    bool active;
+    int depth = 0;
+    bool active = true;
 
-    bool isInside;
-    int lastBounceWasDelta;
-    float lastBsdfPdf;
+    bool isInside = false;
+    int lastBounceWasDelta = 0;
+    float lastBsdfPdf = 1.f;
 
     HD WavefrontState(const Ray &r, const RNG &random, int pixel)
         : ray(r), throughput(make_float3(1.f)), radiance(make_float3(0.f)), rng(random), pixelIndex(pixel), depth(0),

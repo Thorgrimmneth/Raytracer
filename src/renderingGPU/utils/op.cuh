@@ -76,6 +76,11 @@ HD_FORCEINLINE float3 operator-(const float3& a)
     return make_float3(-a.x, -a.y, -a.z);
 }
 
+HD_FORCEINLINE float4 operator-(const float4& a)
+{
+    return make_float4(-a.x, -a.y, -a.z, a.w);
+}
+
 // Garde l'overload original non-const pour ne pas changer la résolution d'overload.
 HD_FORCEINLINE float3 operator*(const float3& a, float3& b)
 {
@@ -395,4 +400,34 @@ D_FORCEINLINE float powerHeuristic(float pdfA, float pdfB)
 D_FORCEINLINE float dot3f4(const float4& a, const float3& b)
 {
     return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+HD inline float intBitsToFloat(int x)
+{
+#ifdef __CUDA_ARCH__
+    return __int_as_float(x);
+#else
+    union {
+        int i;
+        float f;
+    } u;
+
+    u.i = x;
+    return u.f;
+#endif
+}
+
+HD inline int floatBitsToInt(float x)
+{
+#ifdef __CUDA_ARCH__
+    return __float_as_int(x);
+#else
+    union {
+        float f;
+        int i;
+    } u;
+
+    u.f = x;
+    return u.i;
+#endif
 }

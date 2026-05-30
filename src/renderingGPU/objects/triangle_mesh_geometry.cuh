@@ -17,13 +17,13 @@ struct TriangleMeshGeometry{
     
 
     TriangleMeshGeometry() = default;
-    TriangleMeshGeometry(int index0, int index1, int index2, const float3* vertices){
+    TriangleMeshGeometry(int index0, int index1, int index2, const float4* vertices){
             i0 = index0;
             i1 = index1;
             i2 = index2;
-            const float3 v0 = vertices[index0];
-            const float3 v1 = vertices[index1];
-            const float3 v2 = vertices[index2];
+            const float3 v0 = make_float3(vertices[index0]);
+            const float3 v1 = make_float3(vertices[index1]);
+            const float3 v2 = make_float3(vertices[index2]);
 
             const float3 e0 = v0 - v2;
             const float3 e1 = v1 - v2;
@@ -101,11 +101,11 @@ struct TriangleMeshGeometry{
     }
 
     D_FORCEINLINE
-    const float3 computeSmoothNormal( const float2 & p_uv, const float3* normals ) const
+    const float3 computeSmoothNormal( const float2 & p_uv, const float4* normals ) const
     {
-        const float3 & n0 = normals[ i0];
-        const float3 & n1 = normals[ i1 ];
-        const float3 & n2 = normals[ i2 ];
+        const float3 & n0 = make_float3(normals[ i0]);
+        const float3 & n1 = make_float3(normals[ i1]);
+        const float3 & n2 = make_float3(normals[ i2]);
         float		  u	 = p_uv.x;
         float		  v	 = p_uv.y;
         return ( 1 - u - v ) * n0 + u * n1 + v * n2;

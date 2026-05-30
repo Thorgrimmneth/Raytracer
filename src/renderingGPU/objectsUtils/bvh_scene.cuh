@@ -121,7 +121,7 @@ struct BVHScene
 
                         if (d_spheres[objectIndex].intersect(ray, tMin, tMax, hit))
                         {
-                            tMax = hit.distance;
+                            tMax = hit.getDistance();
                             hitSomething = true;
                             hit.objectType = HIT_SPHERE;
                             hit.objectIndex = objectIndex;
@@ -133,7 +133,7 @@ struct BVHScene
 
                         if (d_meshes[objectIndex].intersect(ray, tMin, tMax, hit))
                         {
-                            tMax = hit.distance;
+                            tMax = hit.getDistance();
                             hitSomething = true;
                             hit.objectType = HIT_TRIANGLE_MESH;
                             hit.objectIndex = objectIndex;
@@ -145,7 +145,7 @@ struct BVHScene
 
                         if (d_implicitSpheres[objectIndex].intersect(ray, tMin, tMax, hit))
                         {
-                            tMax = hit.distance;
+                            tMax = hit.getDistance();
                             hitSomething = true;
                             hit.objectType = HIT_SPHERE_IMPLICIT;
                             hit.objectIndex = objectIndex;
@@ -247,7 +247,7 @@ struct BVHScene
                     {
                     case ObjectType::SPHERE: {
 
-                        const int matIdx = d_spheres[objectIndex].materialIndex;
+                        const int matIdx = d_spheres[objectIndex].getMaterialIndex();
 
                         if (materials[matIdx].type() == MaterialType::TRANSPARENT)
                         {
@@ -277,7 +277,7 @@ struct BVHScene
 
                     case ObjectType::IMPLICIT_SPHERE: {
 
-                        const int matIdx = d_implicitSpheres[objectIndex].materialIndex;
+                        const int matIdx = d_implicitSpheres[objectIndex].getMaterialIndex();
 
                         if (materials[matIdx].type() == MaterialType::TRANSPARENT)
                         {

@@ -201,9 +201,9 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
 
     setSeed(43);
 
-    impl->gpuScene = spheresScene(sunDir);
-    // impl->gpuScene = implicitSpheresScene(sunDir);
-    // impl->gpuScene = singleObject(sunDir);
+    //impl->gpuScene = spheresScene(sunDir);
+    impl->gpuScene = implicitSpheresScene(sunDir);
+    //impl->gpuScene = singleObject(sunDir);
     impl->hdrBufferSize = impl->width * impl->height * sizeof(float3);
 
     // =========================
@@ -580,15 +580,6 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         // ---------------------------------------------------------------------
 
         cudaMemcpyAsync(&h_activeCount, impl->d_nextActiveCount, sizeof(int), cudaMemcpyDeviceToHost, impl->stream);
-
-        cudaStreamSynchronize(impl->stream);
-
-        err = cudaGetLastError();
-        if (err != cudaSuccess)
-        {
-            std::cout << "cudaMemcpy nextActiveCount error: " << cudaGetErrorString(err) << std::endl;
-            return -1.f;
-        }
 
         // Swap activeQueue / nextActiveQueue
         std::swap(impl->d_activeQueue, impl->d_nextActiveQueue);
