@@ -92,15 +92,35 @@ HOST void CudaScene::uploadObjects(CudaSceneHelper &helper)
 HOST void CudaScene::uploadLights(CudaSceneHelper &helper)
 {
     nbLights = helper.lightsGPU.size();
+
     if (nbLights > 0)
     {
+        std::vector<float> cumulativeWeights;
+        std::vector<float> probabilities;
+
+        float totalWeight = 0.0f;
+        for (const Light &light : helper.lightsGPU)
+        {
+            float weight = light.getIntensity() * length(light.color_power);
+            totalWeight += weight;
+            cumulativeWeights.push_back(totalWeight);
+            probabilities.push_back(weight);
+        }
         cudaMalloc(&lights, nbLights * sizeof(Light));
 
         cudaMemcpy(lights, helper.lightsGPU.data(), nbLights * sizeof(Light), cudaMemcpyHostToDevice);
+
+        cudaMalloc(&lightCumulativeWeights, nbLights * sizeof(float));
+        cudaMemcpy(lightCumulativeWeights, cumulativeWeights.data(), nbLights * sizeof(float),
+                   cudaMemcpyHostToDevice);
+        cudaMalloc(&lightProbabilities, nbLights * sizeof(float));
+        cudaMemcpy(lightProbabilities, probabilities.data(), nbLights * sizeof(float), cudaMemcpyHostToDevice);
     }
     else
     {
         lights = nullptr;
+        lightProbabilities = nullptr;
+        lightCumulativeWeights = nullptr;
     }
 }
 
@@ -162,7 +182,7 @@ void CudaScene::sceneSize(CudaSceneHelper &helper)
            (1.f - (totalSize / 145732.f)) * 100.f);
 }
 
-void sortMaterials(CudaSceneHelper& helper)
+void sortMaterials(CudaSceneHelper &helper)
 {
     int padding[6];
     padding[0] = 0; // Account for ground plane at index 0
@@ -192,12 +212,14 @@ void sortMaterials(CudaSceneHelper& helper)
 
     for (int i = 0; i < helper.triangleMeshesGPU.size(); i++)
     {
-        helper.triangleMeshesGPU[i].materialIndex = helper.triangleMeshesGPU[i].materialIndex + padding[helper.triangleMeshType[i]];
+        helper.triangleMeshesGPU[i].materialIndex =
+            helper.triangleMeshesGPU[i].materialIndex + padding[helper.triangleMeshType[i]];
     }
 
     for (int i = 0; i < helper.implicitSpheresGPU.size(); i++)
     {
-        helper.implicitSpheresGPU[i].setMaterialIndex(helper.implicitSpheresGPU[i].getMaterialIndex() + padding[helper.sphereType[i]]);
+        helper.implicitSpheresGPU[i].setMaterialIndex(helper.implicitSpheresGPU[i].getMaterialIndex() +
+                                                      padding[helper.sphereType[i]]);
     }
 }
 
@@ -467,7 +489,8 @@ CudaScene implicitSpheresScene(float4 sunDir)
                 s.setMaterialIndex(helper.emissiveList.size() - 1);
                 helper.sphereType.push_back(4);
                 Light light;
-                light.metadata = Light::packMetadata(LightType::IMPLICIT_SPHERE_GEOM, (int)helper.implicitSpheresGPU.size());
+                light.metadata =
+                    Light::packMetadata(LightType::IMPLICIT_SPHERE_GEOM, (int)helper.implicitSpheresGPU.size());
 
                 helper.lightsGPU.push_back(light);
             }
@@ -541,7 +564,7 @@ CudaScene singleObject(float4 sunDir)
     l.direction = make_float4(sunDir.x, sunDir.y, sunDir.z, 0.f);
     l.metadata = Light::packMetadata(LightType::SUN, 0);
     helper.lightsGPU.push_back(l);
-    
+
     gpuScene.uploadObjects(helper);
     gpuScene.uploadLights(helper);
     gpuScene.uploadMaterials(helper);

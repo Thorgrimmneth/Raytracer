@@ -79,7 +79,7 @@ struct alignas(16) Light
         return make_float3(color_power);
     }
 
-    D_FORCEINLINE float getIntensity() const
+    HD_FORCEINLINE float getIntensity() const
     {
         return color_power.w;
     }

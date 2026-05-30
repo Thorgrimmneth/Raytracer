@@ -245,6 +245,11 @@ HD_FORCEINLINE float length(const float3& a)
     return sqrtf(length2(a));
 }
 
+HD_FORCEINLINE float length(const float4& a)
+{
+    return sqrtf(a.x * a.x + a.y * a.y + a.z * a.z);
+}
+
 HD_FORCEINLINE float distance2(const float3& a, const float3& b)
 {
     return length2(a - b);

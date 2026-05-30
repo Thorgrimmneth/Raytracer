@@ -6,64 +6,53 @@
 DEVICE
 int selectLightByImportance(const CudaScene &scene, RNG *rng)
 {
-    // Compute total light intensity
-    float totalIntensity = 0.0f;
-    for (int i = 0; i < scene.nbLights; i++)
-    {
-        float intensity = scene.lights[i].getIntensity();
-        float luminance = dot(scene.lights[i].getColor(), make_float3(0.299f, 0.587f, 0.114f));
-        totalIntensity += intensity * luminance;
-    }
+    // Use pre-computed cumulative weights for O(log n) binary search
+    if (scene.nbLights <= 0)
+        return 0;
     
-    if (totalIntensity <= 0.0f)
+    if (scene.nbLights == 1)
+        return 0;
+    
+    // Get total weight from last entry
+    float totalWeight = scene.lightCumulativeWeights[scene.nbLights - 1];
+    
+    if (totalWeight <= 0.0f)
     {
         // Fallback to uniform selection if no lights have intensity
         return min(int(rng->nextFloat() * scene.nbLights), scene.nbLights - 1);
     }
     
-    // Weighted random selection using rejection sampling
-    float random = rng->nextFloat() * totalIntensity;
-    float accumulated = 0.0f;
+    // Binary search in cumulative weights array
+    float random = rng->nextFloat() * totalWeight;
     
-    for (int i = 0; i < scene.nbLights; i++)
+    int left = 0;
+    int right = scene.nbLights - 1;
+    
+    while (left < right)
     {
-        float intensity = scene.lights[i].getIntensity();
-        float luminance = dot(scene.lights[i].getColor(), make_float3(0.299f, 0.587f, 0.114f));
-        accumulated += intensity * luminance;
-        
-        if (random <= accumulated)
-        {
-            return i;
-        }
+        int mid = (left + right) / 2;
+        if (scene.lightCumulativeWeights[mid] < random)
+            left = mid + 1;
+        else
+            right = mid;
     }
     
-    // Fallback (shouldn't reach here)
-    return scene.nbLights - 1;
+    return left;
 }
 
 // Helper function: Compute probability of selecting a specific light
 DEVICE
 float getLightProbability(const CudaScene &scene, int lightIndex)
 {
-    // Compute total light intensity
-    float totalIntensity = 0.0f;
-    for (int i = 0; i < scene.nbLights; i++)
-    {
-        float intensity = scene.lights[i].getIntensity();
-        float luminance = dot(scene.lights[i].getColor(), make_float3(0.299f, 0.587f, 0.114f));
-        totalIntensity += intensity * luminance;
-    }
+    // Use pre-computed light probabilities
+    if (lightIndex < 0 || lightIndex >= scene.nbLights)
+        return 0.0f;
     
-    if (totalIntensity <= 0.0f)
-    {
-        return 1.0f / scene.nbLights;
-    }
+    if (scene.nbLights <= 0)
+        return 0.0f;
     
-    // Probability of this light
-    float intensity = scene.lights[lightIndex].getIntensity();
-    float luminance = dot(scene.lights[lightIndex].getColor(), make_float3(0.299f, 0.587f, 0.114f));
-    
-    return (intensity * luminance) / totalIntensity;
+    // Return pre-computed probability
+    return scene.lightProbabilities[lightIndex];
 }
 
 DEVICE 
