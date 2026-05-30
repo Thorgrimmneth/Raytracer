@@ -54,7 +54,7 @@ class Renderer::Impl
 
     float value = 1.f;
 
-    float* d_value = nullptr;
+    float *d_value = nullptr;
     CudaScene gpuScene;
 
     float3 *d_accumBuffer = nullptr;
@@ -202,8 +202,8 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     setSeed(43);
 
     impl->gpuScene = spheresScene(sunDir);
-    //impl->gpuScene = implicitSpheresScene(sunDir);
-    //impl->gpuScene = singleObject(sunDir);
+    // impl->gpuScene = implicitSpheresScene(sunDir);
+    // impl->gpuScene = singleObject(sunDir);
     impl->hdrBufferSize = impl->width * impl->height * sizeof(float3);
 
     // =========================
@@ -279,21 +279,21 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
 }
 
 GLOBAL
-void compareBuffers(const float3 *d_currentBuffer, const float3 *d_previousBuffer, int width, int height, float* value)
+void compareBuffers(const float3 *d_currentBuffer, const float3 *d_previousBuffer, int width, int height, float *value)
 {
     // Block-level reduction without atomic operations for better performance
     __shared__ float blockSum;
-    
+
     if (threadIdx.x == 0 && threadIdx.y == 0)
         blockSum = 0.0f;
-    
+
     __syncthreads();
-    
+
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
 
     float localSum = 0.0f;
-    if(x < width && y < height)
+    if (x < width && y < height)
     {
         int idx = y * width + x;
         float3 current = d_currentBuffer[idx];
@@ -301,17 +301,17 @@ void compareBuffers(const float3 *d_currentBuffer, const float3 *d_previousBuffe
         float3 diff = abs(current - previous);
         localSum = diff.x * diff.x + diff.y * diff.y + diff.z * diff.z;
     }
-    
+
     // Warp-level reduction
     for (int offset = warpSize / 2; offset > 0; offset /= 2)
         localSum += __shfl_down_sync(0xffffffff, localSum, offset);
-    
+
     // Write warp result to shared memory
     if (threadIdx.x % warpSize == 0)
         atomicAdd(&blockSum, localSum);
-    
+
     __syncthreads();
-    
+
     // One thread writes block result
     if (threadIdx.x == 0 && threadIdx.y == 0)
         atomicAdd(value, blockSum);
@@ -381,7 +381,7 @@ void generatePrimaryRaysKernel(WavefrontState *states, int *activeQueue, int *ac
 // WAVEFRONT INTERSECTION
 GLOBAL
 void wavefrontIntersectKernel(CudaScene scene, WavefrontState *states, HitRecord *hits, int *hitMask,
-                                    const int *activeQueue, int activeCount, float tMin, float tMax)
+                              const int *activeQueue, int activeCount, float tMin, float tMax)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -420,15 +420,16 @@ void accumulateWavefrontKernel(const WavefrontState *wavefrontStates, float3 *ac
 
     if (idx >= stateCount)
         return;
-
+    
     const WavefrontState &state = wavefrontStates[idx];
-
+    
     int pixelIndex = state.pixelIndex;
 
     if (pixelIndex < 0 || pixelIndex >= width * height)
         return;
 
     accumBuffer[pixelIndex] += state.radiance;
+
 }
 
 void Renderer::applyBloom()
@@ -486,14 +487,14 @@ float Renderer::renderFrame(bool outputImage, bool convergence)
 
     applyBloom();
 
-    if(convergence)
+    if (convergence)
     {
         impl->value = 0.f;
         cudaMemcpy(impl->d_value, &impl->value, sizeof(float), cudaMemcpyHostToDevice);
-        
+
         // copy image for convergence
-        compareBuffers<<<impl->gridSize, impl->blockSize>>>(impl->d_finalHDRBuffer, impl->d_convergenceBuffer, impl->width,
-                                                        impl->height, impl->d_value);
+        compareBuffers<<<impl->gridSize, impl->blockSize>>>(impl->d_finalHDRBuffer, impl->d_convergenceBuffer,
+                                                            impl->width, impl->height, impl->d_value);
         cudaMemcpy(&impl->value, impl->d_value, sizeof(float), cudaMemcpyDeviceToHost);
         cudaMemcpy(impl->d_convergenceBuffer, impl->d_finalHDRBuffer, impl->hdrBufferSize, cudaMemcpyDeviceToDevice);
     }
@@ -562,6 +563,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
 
     for (int bounce = 0; bounce < impl->maxBounces; bounce++)
     {
+        
         if (h_activeCount == 0)
             break;
 
@@ -601,7 +603,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         // 2.3 Récupération du nombre de rayons actifs pour le prochain bounce
         // ---------------------------------------------------------------------
 
-        cudaMemcpyAsync(&h_activeCount, impl->d_nextActiveCount, sizeof(int), cudaMemcpyDeviceToHost, impl->stream);
+        cudaMemcpy(&h_activeCount, impl->d_nextActiveCount, sizeof(int), cudaMemcpyDeviceToHost);
 
         // Swap activeQueue / nextActiveQueue
         std::swap(impl->d_activeQueue, impl->d_nextActiveQueue);
@@ -617,7 +619,8 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
 
     accumulateWavefrontKernel<<<gridAllPixels, block1D>>>(impl->d_wavefrontStates, impl->d_accumBuffer, impl->width,
                                                           impl->height);
-
+    
+                                        cudaDeviceSynchronize(); // Assurer que tous les calculs sont terminés avant de vérifier les erreurs                      
     err = cudaGetLastError();
     if (err != cudaSuccess)
     {
@@ -637,7 +640,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
 
     normalizeKernel<<<impl->gridSize, impl->blockSize>>>(impl->d_accumBuffer, impl->d_normalizedBuffer,
                                                          impl->sampleCount, impl->width, impl->height);
-
+    
     err = cudaGetLastError();
     if (err != cudaSuccess)
     {
@@ -651,6 +654,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
 
     applyBloom();
 
+    // print a value from the bloom buffer for debugging
     if (!outputImage)
         return -1.f;
     // -------------------------------------------------------------------------
@@ -727,7 +731,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         return -1.f;
     }
 
-    return 0.f;
+    return impl->value;
 }
 
 float Renderer::render(bool outputImage, bool convergence)

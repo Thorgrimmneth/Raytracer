@@ -46,10 +46,10 @@ float getLightProbability(const CudaScene &scene, int lightIndex)
 {
     // Use pre-computed light probabilities
     if (lightIndex < 0 || lightIndex >= scene.nbLights)
-        return 0.0f;
+        return 1.0f;
     
     if (scene.nbLights <= 0)
-        return 0.0f;
+        return 1.0f;
     
     // Return pre-computed probability
     return scene.lightProbabilities[lightIndex];
@@ -130,7 +130,7 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const Ray &primary
                     {
                         float3 f = mtl.evalBSDF(ray, hit, ls.direction);
 
-                        float pdf_light = ls.pdf * (1.f / scene.nbLights);
+                        float pdf_light = ls.pdf * lightSelectionProb;
 
                         float pdf_bsdf = mtl.pdf(ray, hit, ls.direction);
 

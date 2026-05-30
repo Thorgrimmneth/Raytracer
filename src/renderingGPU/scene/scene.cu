@@ -93,35 +93,53 @@ HOST void CudaScene::uploadLights(CudaSceneHelper &helper)
 {
     nbLights = helper.lightsGPU.size();
 
-    if (nbLights > 0)
-    {
-        std::vector<float> cumulativeWeights;
-        std::vector<float> probabilities;
-
-        float totalWeight = 0.0f;
-        for (const Light &light : helper.lightsGPU)
-        {
-            float weight = light.getIntensity() * length(light.color_power);
-            totalWeight += weight;
-            cumulativeWeights.push_back(totalWeight);
-            probabilities.push_back(weight);
-        }
-        cudaMalloc(&lights, nbLights * sizeof(Light));
-
-        cudaMemcpy(lights, helper.lightsGPU.data(), nbLights * sizeof(Light), cudaMemcpyHostToDevice);
-
-        cudaMalloc(&lightCumulativeWeights, nbLights * sizeof(float));
-        cudaMemcpy(lightCumulativeWeights, cumulativeWeights.data(), nbLights * sizeof(float),
-                   cudaMemcpyHostToDevice);
-        cudaMalloc(&lightProbabilities, nbLights * sizeof(float));
-        cudaMemcpy(lightProbabilities, probabilities.data(), nbLights * sizeof(float), cudaMemcpyHostToDevice);
-    }
-    else
+    if (nbLights == 0)
     {
         lights = nullptr;
         lightProbabilities = nullptr;
         lightCumulativeWeights = nullptr;
+        return;
     }
+
+    std::vector<float> weights(nbLights);
+    std::vector<float> probabilities(nbLights);
+    std::vector<float> cumulativeWeights(nbLights);
+
+    float totalWeight = 0.0f;
+
+    // Compute weights
+    for (int i = 0; i < nbLights; ++i)
+    {
+        const Light &light = helper.lightsGPU[i];
+
+        float weight = length(light.getColorPower());
+
+        // Avoid zero-weight lights
+        weight = fmaxf(weight, 1e-8f);
+
+        weights[i] = weight;
+        totalWeight += weight;
+    }
+
+    // Build cumulative weights and normalized probabilities
+    float cumulative = 0.0f;
+
+    for (int i = 0; i < nbLights; ++i)
+    {
+        cumulative += weights[i];
+
+        cumulativeWeights[i] = cumulative;
+        probabilities[i] = weights[i] / totalWeight;
+    }
+
+    cudaMalloc(&lights, nbLights * sizeof(Light));
+    cudaMemcpy(lights, helper.lightsGPU.data(), nbLights * sizeof(Light), cudaMemcpyHostToDevice);
+
+    cudaMalloc(&lightCumulativeWeights, nbLights * sizeof(float));
+    cudaMemcpy(lightCumulativeWeights, cumulativeWeights.data(), nbLights * sizeof(float), cudaMemcpyHostToDevice);
+
+    cudaMalloc(&lightProbabilities, nbLights * sizeof(float));
+    cudaMemcpy(lightProbabilities, probabilities.data(), nbLights * sizeof(float), cudaMemcpyHostToDevice);
 }
 
 HOST void CudaScene::uploadMaterials(CudaSceneHelper &helper)

@@ -101,7 +101,7 @@ int Application::launchApp(int argc, char **argv)
         sunDir = computeSunDir(t);
 
         unsigned char *img_cuda_raw = win.cumulativeRendering(sunDir, width, height, convergence);
-
+        
         // end of rendering
         image.createFromRaw(img_cuda_raw, width, height);
         const std::string imageName = "cumulative.jpg";

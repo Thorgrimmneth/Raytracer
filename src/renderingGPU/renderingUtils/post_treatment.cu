@@ -1,5 +1,8 @@
 #include "post_treatment.cuh"
 
+#include <cstdio>
+#include <fstream>
+
 GLOBAL
 void extractBright(float3 *hdr, float3 *bright, int width, int height, float threshold)
 {

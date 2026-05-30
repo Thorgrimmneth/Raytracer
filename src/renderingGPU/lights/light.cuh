@@ -74,7 +74,7 @@ struct alignas(16) Light
         return metadata >> 8;
     }
 
-    D_FORCEINLINE float3 getColor() const
+    HD_FORCEINLINE float3 getColor() const
     {
         return make_float3(color_power);
     }
@@ -84,7 +84,7 @@ struct alignas(16) Light
         return color_power.w;
     }
 
-    D_FORCEINLINE float3 getColorPower() const
+    HD_FORCEINLINE float3 getColorPower() const
     {
         return getColor() * getIntensity();
     }

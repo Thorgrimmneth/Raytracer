@@ -54,7 +54,7 @@ HD_FORCEINLINE float3 operator+(const float3& a, const float3& b)
     );
 }
 
-HD_FORCEINLINE float3 operator+=(float3& a, const float3& b)
+HD_FORCEINLINE float3& operator+=(float3& a, const float3& b)
 {
     a.x += b.x;
     a.y += b.y;

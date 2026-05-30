@@ -121,9 +121,9 @@ __global__ void shadeWavefrontKernel(CudaScene scene, WavefrontState *states, Hi
         }
         sky += sunColor * sunDisk;
 
-        sky *mult *horizonFade;
+        sky = sky * mult * horizonFade;
 
-        state.radiance += state.throughput * sky * mult;
+        state.radiance += state.throughput * sky;
         state.terminate();
 
         states[idx] = state;
@@ -295,11 +295,11 @@ __global__ void shadeWavefrontKernel(CudaScene scene, WavefrontState *states, Hi
     // RUSSIAN ROULETTE
     // ------------------------------------------------------------
 
-    if (state.depth > 3)
+    if (state.depth > 2)
     {
         float p = fmaxf(state.throughput.x, fmaxf(state.throughput.y, state.throughput.z));
 
-        p = clamp(p, 0.05f, 0.95f);
+        p = clamp(p, 0.1f, 1.f);
 
         if (rng->nextFloat() > p)
         {
