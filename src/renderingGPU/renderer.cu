@@ -281,18 +281,40 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
 GLOBAL
 void compareBuffers(const float3 *d_currentBuffer, const float3 *d_previousBuffer, int width, int height, float* value)
 {
+    // Block-level reduction without atomic operations for better performance
+    __shared__ float blockSum;
+    
+    if (threadIdx.x == 0 && threadIdx.y == 0)
+        blockSum = 0.0f;
+    
+    __syncthreads();
+    
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
 
-    if(x >= width || y >= height)
-        return;
-
-    int idx = y * width + x;
-
-    float3 current = d_currentBuffer[idx];
-    float3 previous = d_previousBuffer[idx];
-    float3 diff = abs(current - previous);
-    atomicAdd(value, diff.x * diff.x + diff.y * diff.y + diff.z * diff.z);
+    float localSum = 0.0f;
+    if(x < width && y < height)
+    {
+        int idx = y * width + x;
+        float3 current = d_currentBuffer[idx];
+        float3 previous = d_previousBuffer[idx];
+        float3 diff = abs(current - previous);
+        localSum = diff.x * diff.x + diff.y * diff.y + diff.z * diff.z;
+    }
+    
+    // Warp-level reduction
+    for (int offset = warpSize / 2; offset > 0; offset /= 2)
+        localSum += __shfl_down_sync(0xffffffff, localSum, offset);
+    
+    // Write warp result to shared memory
+    if (threadIdx.x % warpSize == 0)
+        atomicAdd(&blockSum, localSum);
+    
+    __syncthreads();
+    
+    // One thread writes block result
+    if (threadIdx.x == 0 && threadIdx.y == 0)
+        atomicAdd(value, blockSum);
 }
 
 // MEGAKERNEL
