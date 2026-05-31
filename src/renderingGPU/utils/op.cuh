@@ -71,6 +71,15 @@ HD_FORCEINLINE float3 operator-(const float3& a, const float3& b)
     );
 }
 
+HD_FORCEINLINE float3 operator-(const float4& a, const float3& b)
+{
+    return make_float3(
+        a.x - b.x,
+        a.y - b.y,
+        a.z - b.z
+    );
+}
+
 HD_FORCEINLINE float3 operator-(const float3& a)
 {
     return make_float3(-a.x, -a.y, -a.z);

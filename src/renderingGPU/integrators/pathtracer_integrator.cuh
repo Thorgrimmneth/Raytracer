@@ -10,6 +10,7 @@
 #include "../raytracingUtils/ray.cuh"
 #include "../raytracingUtils/hitrecord.cuh"
 
+#include "../lights/light_selection_utils.cuh"
 
 struct PathtracerIntegrator
 {

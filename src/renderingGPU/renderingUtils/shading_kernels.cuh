@@ -5,6 +5,7 @@
 #include "../utils/constant.cuh"
 
 #include "../lights/light.cuh"
+#include "../lights/light_selection_utils.cuh"
 
 #include "../scene/scene.cuh"
 

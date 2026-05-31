@@ -34,18 +34,15 @@ struct WavefrontState
     RNG rng;
 
     int pixelIndex;
-    int depth = 0;
-    bool active = true;
+    uint depth = 0;
 
     bool isInside = false;
-    int lastBounceWasDelta = 0;
+    bool lastBounceWasDelta = false;
     float lastBsdfPdf = 1.f;
 
     HD WavefrontState(const Ray &r, const RNG &random, int pixel)
-        : ray(r), throughput(make_float3(1.f)), radiance(make_float3(0.f)), rng(random), pixelIndex(pixel), depth(0),
-          active(1), isInside(false), lastBounceWasDelta(1), lastBsdfPdf(1.f)
+        : ray(r), throughput(make_float3(1.f)), radiance(make_float3(0.f)), rng(random), pixelIndex(pixel), depth(0), isInside(false), lastBounceWasDelta(false), lastBsdfPdf(1.f)
     {
     }
 
-    D_FORCEINLINE void terminate() { active = false; }
 };

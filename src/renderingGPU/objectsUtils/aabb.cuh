@@ -23,6 +23,14 @@ struct AABB
         float nearT = tMin;
         float farT = tMax;
 
+        float3 t1 = (min - ray.origin) * ray.invdir;
+        float3 t2 = (max - ray.origin) * ray.invdir;
+
+        nearT = fmaxf(nearT, fmaxf(fminf(t1.x, t2.x), fmaxf(fminf(t1.y, t2.y), fminf(t1.z, t2.z))));
+        farT = fminf(farT, fminf(fmaxf(t1.x, t2.x), fminf(fmaxf(t1.y, t2.y), fmaxf(t1.z, t2.z))));
+        outTMin = nearT;
+        return farT >= nearT;
+        /*
         float t1 = (min.x - ray.origin.x) * ray.invdir.x;
         float t2 = (max.x - ray.origin.x) * ray.invdir.x;
         nearT = fmaxf(nearT, fminf(t1, t2));
@@ -39,7 +47,7 @@ struct AABB
         farT = fminf(farT, fmaxf(t1, t2));
 
         outTMin = nearT;
-        return farT >= nearT;
+        return farT >= nearT;*/
     }
 
     D_FORCEINLINE

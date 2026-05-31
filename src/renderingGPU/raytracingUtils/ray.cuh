@@ -5,7 +5,7 @@
 
 struct Ray
 {
-    double time = 0;
+    float time = 0.f;
     float3 origin;
     float3 direction;
     float3 invdir;

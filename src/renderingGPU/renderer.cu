@@ -40,7 +40,7 @@ class Renderer::Impl
 {
 
   public:
-    RenderMode renderMode = RenderMode::Megakernel;
+    RenderMode renderMode = RenderMode::Wavefront;
     int width = 1920;
     int height = 1080;
 
@@ -171,8 +171,8 @@ HOST void initConstant(int width, int height, float4 sunDir)
     float c_earthRadius = 6360e3f;
     float3 c_sunDirection = toFloat3(sunDir);
     int c_skyColorSamples = 4;
-    float c_hr = 7994.f;
-    float c_hm = 1200.f;
+    float c_hr = 1.f / 7994.f;
+    float c_hm = 1.f / 1200.f;
     float3 c_betaR = make_float3(3.8e-6f, 13.5e-6f, 33.1e-6f);
     float3 c_betaM = make_float3(21e-6f);
     float c_exposure = 1.f;
@@ -348,7 +348,7 @@ void renderKernel(CudaScene gpuScene, float3 *d_accumBuffer, int width, int heig
 // WAVEFRONT INIT
 GLOBAL
 void generatePrimaryRaysKernel(WavefrontState *states, int *activeQueue, int *activeCount, int width, int height,
-                               int sampleCount)
+                               int sampleCount, float invWidth, float invHeight)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -361,8 +361,8 @@ void generatePrimaryRaysKernel(WavefrontState *states, int *activeQueue, int *ac
     uint seed = (pixelIndex * 0x9E3779B9u) ^ (sampleCount * 0x6C078965u);
     RNG rng(seed);
 
-    float sx = (x + rng.nextFloat()) / (float)(width - 1);
-    float sy = (y + rng.nextFloat()) / (float)(height - 1);
+    float sx = (x + rng.nextFloat()) * invWidth;
+    float sy = (y + rng.nextFloat()) * invHeight;
 
     float3 rayTarget = toFloat3(camera.topLeft + sx * camera.viewPortU - sy * camera.viewPortV);
 
@@ -390,24 +390,12 @@ void wavefrontIntersectKernel(CudaScene scene, WavefrontState *states, HitRecord
 
     int idx = activeQueue[qid];
 
-    WavefrontState state = states[idx];
-
-    if (!state.active)
-    {
-        hitMask[idx] = 0;
-        return;
-    }
-
     HitRecord hit;
-
-    if (scene.intersect(state.ray, tMin, tMax, hit))
+    hitMask[idx] = 0;
+    if (scene.intersect(states[idx].ray, tMin, tMax, hit))
     {
         hits[idx] = hit;
         hitMask[idx] = 1;
-    }
-    else
-    {
-        hitMask[idx] = 0;
     }
 }
 
@@ -421,14 +409,12 @@ void accumulateWavefrontKernel(const WavefrontState *wavefrontStates, float3 *ac
     if (idx >= stateCount)
         return;
     
-    const WavefrontState &state = wavefrontStates[idx];
-    
-    int pixelIndex = state.pixelIndex;
+    int pixelIndex = wavefrontStates[idx].pixelIndex;
 
     if (pixelIndex < 0 || pixelIndex >= width * height)
         return;
 
-    accumBuffer[pixelIndex] += state.radiance;
+    accumBuffer[pixelIndex] += wavefrontStates[idx].radiance;
 
 }
 
@@ -544,9 +530,10 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
     // -------------------------------------------------------------------------
 
     cudaMemset(impl->d_activeCount, 0, sizeof(int));
-
+    float invWidth = 1.f / (float)(impl->width - 1);
+    float invHeight = 1.f / (float)(impl->height - 1);
     generatePrimaryRaysKernel<<<grid2D, block2D>>>(impl->d_wavefrontStates, impl->d_activeQueue, impl->d_activeCount,
-                                                   impl->width, impl->height, impl->sampleCount);
+                                                   impl->width, impl->height, impl->sampleCount, invWidth, invHeight);
 
     err = cudaGetLastError();
     if (err != cudaSuccess)

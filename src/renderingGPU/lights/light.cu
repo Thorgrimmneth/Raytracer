@@ -199,7 +199,7 @@ LightSample Light::sampleSphereGeom(const float3 &p_point, RNG *rng, const CudaS
     ls.radiance = m.color() * m.intensity();
 
     ls.pdf = pdf;
-    ls.normal = n;
+    //ls.normal = n;
 
     return ls;
 }
@@ -243,7 +243,7 @@ LightSample Light::sampleImplicitSphereGeom(const float3 &p_point, RNG *rng, con
     ls.radiance = m.color() * m.intensity();
 
     ls.pdf = pdf;
-    ls.normal = n;
+    //ls.normal = n;
 
     return ls;
 }
@@ -311,7 +311,7 @@ LightSample Light::sampleMeshGeom(const float3 &p_point, RNG *rng, const CudaSce
     ls.radiance = m.color() * m.intensity();
 
     ls.pdf = pdf;
-    ls.normal = n;
+    //ls.normal = n;
 
     return ls;
 }
