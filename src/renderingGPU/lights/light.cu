@@ -271,13 +271,13 @@ LightSample Light::sampleMeshGeom(const float3 &p_point, RNG *rng, const CudaSce
         ++triIndex;
     }
 
-    const TriangleMeshGeometry &tri = mesh.triangles[triIndex];
+    const uint3 &tri = mesh.triangles[triIndex];
 
-    const float4 *vertices = mesh.vertices;
+    const float3 *vertices = mesh.vertices;
 
-    float3 v0 = make_float3(vertices[tri.i0]);
-    float3 v1 = make_float3(vertices[tri.i1]);
-    float3 v2 = make_float3(vertices[tri.i2]);
+    float3 v0 = vertices[tri.x];
+    float3 v1 = vertices[tri.y];
+    float3 v2 = vertices[tri.z];
 
     float u = rng->nextFloat();
     float v = rng->nextFloat();

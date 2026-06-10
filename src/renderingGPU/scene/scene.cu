@@ -1,6 +1,12 @@
 
+#include "../../../devicePrograms/optix_launch_params_manager.h"
+#include "../optix/optix_context.h"
+#include "../optix/optix_gas.h"
+#include "../optix/optix_module_manager.h"
+#include "../optix/optix_pipeline_manager.h"
+#include "../optix/optix_program_group_manager.h"
+#include "../optix/optix_sbt_manager.h"
 #include "scene.cuh"
-
 #include "scene_helper.cuh"
 
 HOST void CudaScene::uploadObjects(CudaSceneHelper &helper)
@@ -571,7 +577,7 @@ CudaScene singleObject(float4 sunDir)
 
     Material mat = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), LAMBERT, 1.0f);
     helper.materialsGPU.push_back(mat);
-    Quaternion rotation = quaternionFromAxisAngle(make_float3(0.f, 1.f, 0.f), 00.f);
+    Quaternion rotation = quaternionFromAxisAngle(make_float3(0.f, 1.f, 0.f), 0.f);
     MeshAndPrimitive meshAndPrim =
         loadTriangleMesh("data/bunny/Bunny.obj", helper.materialsGPU.size() - 1, helper.triangleMeshesGPU.size(),
                          make_float3(2.f, 2.f, 2.f), rotation, make_float3(0.f, 0.f, 0.f));
@@ -583,9 +589,73 @@ CudaScene singleObject(float4 sunDir)
     l.metadata = Light::packMetadata(LightType::SUN, 0);
     helper.lightsGPU.push_back(l);
 
+    OptixContext context;
+    context.initialize();
+
+    OptixModuleManager raygenModuleManager;
+
+    raygenModuleManager.createFromPath(context.deviceContext, "build/raygen.ptx");
+
+    std::cout << "Optix module created successfully" << std::endl;
+
+    OptixModuleManager missModuleManager;
+    missModuleManager.createFromPath(context.deviceContext, "build/miss.ptx");
+
+    OptixModuleManager chitModuleManager;
+    chitModuleManager.createFromPath(context.deviceContext, "build/closesthit.ptx");
+
+    OptixProgramGroupManager programGroupManager;
+    programGroupManager.create(context.deviceContext, raygenModuleManager.module, missModuleManager.module,
+                               chitModuleManager.module);
+
+    std::cout << "RaygenPG = " << programGroupManager.raygenPG << "\nMissPG   = " << programGroupManager.missPG
+              << "\nHitPG    = " << programGroupManager.hitPG << std::endl;
+
+    OptixPipelineManager pipelineManager;
+
+    pipelineManager.create(context.deviceContext, raygenModuleManager.getPipelineCompileOptions(),
+                           programGroupManager.raygenPG, programGroupManager.missPG, programGroupManager.hitPG);
+
+    std::cout << "Pipeline = " << pipelineManager.pipeline << std::endl;
+
+    OptixSBTManager sbtManager;
+    sbtManager.create(programGroupManager);
+
+    std::cout << "raygenRecord = " << sbtManager.sbt.raygenRecord << "\nmissCount = " << sbtManager.sbt.missRecordCount
+              << "\nhitCount = " << sbtManager.sbt.hitgroupRecordCount << std::endl;
+
+    OptixLaunchParamsManager launchParamsManager;
+    launchParamsManager.create(1920, 1080);
+    std::cout << "d_params = " << launchParamsManager.d_params << std::endl;
+
+    OPTIX_CHECK(optixPipelineSetStackSize(pipelineManager.pipeline,
+                                          2 * 1024, // directCallableStackSizeFromTraversal
+                                          2 * 1024, // directCallableStackSizeFromState
+                                          2 * 1024, // continuationStackSize
+                                          1         // maxTraversableGraphDepth
+                                          ));
+
+    OptixGAS gas;
+    gas.build(context.deviceContext, context.stream, meshAndPrim.mesh.vertices, meshAndPrim.mesh.vertexCount,
+              meshAndPrim.mesh.triangles, meshAndPrim.mesh.triangleCount);
+    std::cout << "GAS handle = " << gas.handle << std::endl;
+    std::cout << "Vertices  : " << meshAndPrim.mesh.vertexCount << std::endl;
+
+    std::cout << "Triangles : " << meshAndPrim.mesh.triangleCount << std::endl;
+    launchParamsManager.params.traversable = gas.handle;
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManager.d_params), &launchParamsManager.params,
+                          sizeof(LaunchParams), cudaMemcpyHostToDevice));
+
+    OPTIX_CHECK(optixLaunch(pipelineManager.pipeline,
+                            0, // stream
+                            launchParamsManager.d_params, sizeof(LaunchParams), &sbtManager.sbt,
+                            launchParamsManager.params.width, launchParamsManager.params.height, 1));
+    CUDA_CHECK(cudaDeviceSynchronize());
+    auto framebuffer = launchParamsManager.downloadFramebuffer();
+
     gpuScene.uploadObjects(helper);
     gpuScene.uploadLights(helper);
     gpuScene.uploadMaterials(helper);
-    gpuScene.sceneSize(helper);
+    // gpuScene.sceneSize(helper);
     return gpuScene;
 }

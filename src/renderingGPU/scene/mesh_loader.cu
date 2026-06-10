@@ -18,10 +18,10 @@ MeshAndPrimitive loadTriangleMesh(const std::string &p_path, int materialIndex, 
     }
 
     // Aggregate all meshes into one
-    std::vector<float4> vertices;
-    std::vector<float4> normals;
+    std::vector<float3> vertices;
+    std::vector<float3> normals;
     std::vector<float2> uvs;
-    std::vector<TriangleMeshGeometry> triangles;
+    std::vector<uint3> triangles;
 
     unsigned int cptTriangles = 0;
     unsigned int cptVertices = 0;
@@ -50,13 +50,13 @@ MeshAndPrimitive loadTriangleMesh(const std::string &p_path, int materialIndex, 
 
             mini = getMin(mini, vertex);
             maxi = getMax(maxi, vertex);
-            vertices.push_back(make_float4(vertex.x, vertex.y, vertex.z, 1.0f));
+            vertices.push_back(make_float3(vertex.x, vertex.y, vertex.z));
 
             float3 normal = make_float3(mesh->mNormals[v].x, mesh->mNormals[v].y, mesh->mNormals[v].z);
 
             normal = transformNormal(normal, rotation);
 
-            normals.push_back(make_float4(normal.x, normal.y, normal.z, 0.0f));
+            normals.push_back(make_float3(normal.x, normal.y, normal.z));
 
             if (hasUV)
             {
@@ -72,11 +72,13 @@ MeshAndPrimitive loadTriangleMesh(const std::string &p_path, int materialIndex, 
         for (unsigned int f = 0; f < mesh->mNumFaces; ++f)
         {
             const aiFace &face = mesh->mFaces[f];
-            TriangleMeshGeometry tri(vertexOffset + face.mIndices[0], vertexOffset + face.mIndices[1],
-                                     vertexOffset + face.mIndices[2], vertices.data());
+            uint3 tri;
+            tri.x = vertexOffset + face.mIndices[0];
+            tri.y = vertexOffset + face.mIndices[1];
+            tri.z = vertexOffset + face.mIndices[2];
             float area =
-                0.5f * abs((vertices[tri.i1].x - vertices[tri.i0].x) * (vertices[tri.i2].y - vertices[tri.i0].y) -
-                           (vertices[tri.i1].y - vertices[tri.i0].y) * (vertices[tri.i2].x - vertices[tri.i0].x));
+                0.5f * abs((vertices[tri.y].x - vertices[tri.x].x) * (vertices[tri.z].y - vertices[tri.x].y) -
+                           (vertices[tri.y].y - vertices[tri.x].y) * (vertices[tri.z].x - vertices[tri.x].x));
             totalArea += area;
             areaCdf.push_back(area);
             triangles.push_back(tri);
@@ -106,44 +108,32 @@ MeshAndPrimitive loadTriangleMesh(const std::string &p_path, int materialIndex, 
     triMesh.uvs = nullptr;
     triMesh.triangleAreaCdf = nullptr;
 
-    // Mesh BVH
-    triMesh.bvhNodes = nullptr;
-    triMesh.bvhNodeCount = 0;
-
-    // BVH/SBVH triangle references
-    triMesh.triangleRefIndices = nullptr;
-    triMesh.refCount = 0;
-
     // Sampling data
     triMesh.meshArea = totalArea;
-
-    // Build mesh BVH on host, allocate BVH nodes and triangle refs on device
-    triMesh.bvhNodes = buildBVH(triangles.data(), triMesh.triangleCount, vertices.data(), normals.data(), uvs.data(),
-                                triMesh.bvhNodeCount, triMesh.triangleRefIndices, triMesh.refCount);
 
     // Allocate and copy triangles to GPU
     if (!triangles.empty())
     {
-        cudaMalloc(&triMesh.triangles, triangles.size() * sizeof(TriangleMeshGeometry));
+        cudaMalloc(&triMesh.triangles, triangles.size() * sizeof(uint3));
 
-        cudaMemcpy(triMesh.triangles, triangles.data(), triangles.size() * sizeof(TriangleMeshGeometry),
+        cudaMemcpy(triMesh.triangles, triangles.data(), triangles.size() * sizeof(uint3),
                    cudaMemcpyHostToDevice);
     }
 
     // Allocate and copy vertices to GPU
     if (!vertices.empty())
     {
-        cudaMalloc(&triMesh.vertices, vertices.size() * sizeof(float4));
+        cudaMalloc(&triMesh.vertices, vertices.size() * sizeof(float3));
 
-        cudaMemcpy(triMesh.vertices, vertices.data(), vertices.size() * sizeof(float4), cudaMemcpyHostToDevice);
+        cudaMemcpy(triMesh.vertices, vertices.data(), vertices.size() * sizeof(float3), cudaMemcpyHostToDevice);
     }
 
     // Allocate and copy normals to GPU
     if (!normals.empty())
     {
-        cudaMalloc(&triMesh.normals, normals.size() * sizeof(float4));
+        cudaMalloc(&triMesh.normals, normals.size() * sizeof(float3));
 
-        cudaMemcpy(triMesh.normals, normals.data(), normals.size() * sizeof(float4), cudaMemcpyHostToDevice);
+        cudaMemcpy(triMesh.normals, normals.data(), normals.size() * sizeof(float3), cudaMemcpyHostToDevice);
     }
 
     // Allocate and copy UVs to GPU

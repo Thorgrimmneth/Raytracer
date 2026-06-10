@@ -201,9 +201,9 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
 
     setSeed(43);
 
-    impl->gpuScene = spheresScene(sunDir);
-    // impl->gpuScene = implicitSpheresScene(sunDir);
-    // impl->gpuScene = singleObject(sunDir);
+    //impl->gpuScene = spheresScene(sunDir);
+    //impl->gpuScene = implicitSpheresScene(sunDir);
+    impl->gpuScene = singleObject(sunDir);
     impl->hdrBufferSize = impl->width * impl->height * sizeof(float3);
 
     // =========================

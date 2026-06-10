@@ -129,18 +129,6 @@ struct BVHScene
                         break;
                     }
 
-                    case ObjectType::TRIANGLE: {
-
-                        if (d_meshes[objectIndex].intersect(ray, tMin, tMax, hit))
-                        {
-                            tMax = hit.getDistance();
-                            hitSomething = true;
-                            hit.objectType = HIT_TRIANGLE_MESH;
-                            hit.objectIndex = objectIndex;
-                        }
-                        break;
-                    }
-
                     case ObjectType::IMPLICIT_SPHERE: {
 
                         if (d_implicitSpheres[objectIndex].intersect(ray, tMin, tMax, hit))
@@ -255,21 +243,6 @@ struct BVHScene
                         }
 
                         if (d_spheres[objectIndex].intersectAny(ray, tMin, tMax))
-                            return true;
-
-                        break;
-                    }
-
-                    case ObjectType::TRIANGLE: {
-
-                        const int matIdx = d_meshes[objectIndex].materialIndex;
-
-                        if (materials[matIdx].type() == MaterialType::TRANSPARENT)
-                        {
-                            break;
-                        }
-
-                        if (d_meshes[objectIndex].intersectAny(ray, tMin, tMax, materials))
                             return true;
 
                         break;
