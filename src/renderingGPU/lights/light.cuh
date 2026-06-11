@@ -1,10 +1,13 @@
 #pragma once
 
-#include "lightsample.cuh"
+#include <stdint.h>
+
 #include "../utils/cuda_defines.cuh"
 #include "../utils/op.cuh"
 #include "../utils/rng.cuh"
-#include <stdint.h>
+#include "../utils/macro.cuh"
+
+#include "lightsample.cuh"
 
 struct CudaScene;
 
@@ -44,8 +47,7 @@ struct alignas(16) Light
     float4 direction;
 
     // xyz = v
-    // w   = geomIndex
-    float3 v;
+    float4 vSample;
 
     uint32_t metadata;
 
@@ -62,135 +64,135 @@ struct alignas(16) Light
     // ACCESSORS
     //
 
-    __device__ inline LightType getType() const
+    D_FORCEINLINE LightType getType() const
     {
         return LightType(uint8_t(metadata & 0xFF));
     }
 
-    __device__ inline uint32_t getGeomIndex() const
+    D_FORCEINLINE uint32_t getGeomIndex() const
     {
         return metadata >> 8;
     }
 
-    __device__ inline float3 getColor() const
+    HD_FORCEINLINE float3 getColor() const
     {
         return make_float3(color_power);
     }
 
-    __device__ inline float getIntensity() const
+    HD_FORCEINLINE float getIntensity() const
     {
         return color_power.w;
     }
 
-    __device__ inline float3 getColorPower() const
+    HD_FORCEINLINE float3 getColorPower() const
     {
         return getColor() * getIntensity();
     }
 
-    __device__ inline float3 getPosition() const
+    D_FORCEINLINE float3 getPosition() const
     {
         return make_float3(position_radius);
     }
 
-    __device__ inline float getRadius() const
+    D_FORCEINLINE float getRadius() const
     {
         return position_radius.w;
     }
 
-    __device__ inline float3 getNormal() const
+    D_FORCEINLINE float3 getNormal() const
     {
         return make_float3(normal_height);
     }
 
-    __device__ inline float getHeight() const
+    D_FORCEINLINE float getHeight() const
     {
         return normal_height.w;
     }
 
-    __device__ inline float3 getDirection() const
+    D_FORCEINLINE float3 getDirection() const
     {
         return make_float3(direction);
     }
 
-    __device__ inline float3 getV() const
+    D_FORCEINLINE float3 getV() const
     {
-        return v;
+        return make_float3(vSample);
     }
 
     //
     // SAMPLING
     //
 
-    __device__
+    DEVICE
     LightSample sampleSphereGeom(
         const float3& p_point,
-        RNG* rng,
+        RNG& rng,
         const CudaScene& scene
     ) const;
 
-    __device__
+    DEVICE
     LightSample sampleImplicitSphereGeom(
         const float3& p_point,
-        RNG* rng,
+        RNG& rng,
         const CudaScene& scene
     ) const;
 
-    __device__
+    DEVICE
     LightSample samplePlaneGeom(
         const float3& p_point,
-        RNG* rng,
+        RNG& rng,
         const CudaScene& scene
     ) const;
 
-    __device__
+    DEVICE
     LightSample sampleMeshGeom(
         const float3& p_point,
-        RNG* rng,
+        RNG& rng,
         const CudaScene& scene
     ) const;
 
-    __device__
+    DEVICE
     LightSample sampleCylinder(
         const float3& p_point,
-        RNG* rng
+        RNG& rng
     ) const;
 
-    __device__
+    DEVICE
     LightSample sampleDirectionnal(
         const float3& p_point
     ) const;
 
-    __device__
+    DEVICE
     LightSample samplePoint(
         const float3& p_point
     ) const;
 
-    __device__
+    DEVICE
     LightSample sampleCone(
         const float3& p_point,
-        RNG* rng
+        RNG& rng
     ) const;
 
-    __device__
+    DEVICE
     LightSample sampleQuad(
         const float3& p_point,
-        RNG* rng
+        RNG& rng
     ) const;
 
-    __device__
+    DEVICE
     LightSample sample(
         const float3& p_point,
-        RNG* rng,
+        RNG& rng,
         const CudaScene& scene
     ) const;
 
-    __device__
+    DEVICE
     LightSample sample(
         const float3& p_point,
-        RNG* rng
+        RNG& rng
     ) const;
 
-    __device__
+    DEVICE
     LightSample sample(
         const float3& p_point
     ) const;

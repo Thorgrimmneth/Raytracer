@@ -6,19 +6,18 @@
 #include "../utils/rng.cuh"
 
 #include "../lights/lightsample.cuh"
-
-#include "../raytracingUtils/hitrecord.cuh"
 #include "../raytracingUtils/ray.cuh"
 
+#include "../../../devicePrograms/launch_params.cuh"
 
 enum MaterialType
 {
     LAMBERT,
-    EMISSIVE,
     METAL,
-    MIRROR,
     PLASTIC,
-    TRANSPARENT
+    TRANSPARENT,
+    EMISSIVE,
+    MIRROR
 };
 
 struct BSDFVal
@@ -105,7 +104,7 @@ struct Material
     // ==== LAMBERT ====
     DEVICE float3 evaluateLambert() const;
 
-    DEVICE float3 samplingLambert(const float3 normal, RNG *rngStates) const;
+    DEVICE float3 samplingLambert(const float3 normal, RNG&rngStates) const;
     DEVICE float pdfLambert(const float3 normal, const float3 direction) const;
 
     // ==== GGX ====
@@ -119,7 +118,7 @@ struct Material
 
     DEVICE float3 evaluateGGX(const float3 &wo, const float3 &normal, const float3 &wi, const float3 &F0) const;
 
-    DEVICE float3 samplingGGX(const float3 &wo, const float3 &normal, RNG *rngStates) const;
+    DEVICE float3 samplingGGX(const float3 &wo, const float3 &normal, RNG&rngStates) const;
 
     DEVICE float pdfGGX(const float3 n, const float3 direction, const float3 wo) const;
 
@@ -128,33 +127,55 @@ struct Material
 
     DEVICE void createONB(const float3 &n, float3 &tangent, float3 &bitangent) const;
 
-    DEVICE float3 fresnelSchlick(float cosTheta, const float3 &F0) const;
+    D_FORCEINLINE
+    float3 fresnelSchlick(float cosTheta, const float3& F0) const
+    {
+        float m  = saturate(1.f - fabsf(cosTheta));
+        float m2 = m * m;
+        float m5 = m2 * m2 * m;
+        return F0 + (make_float3(1.f) - F0) * m5;
+    }
 
-    DEVICE BSDFVal getLambertBSDF(const Ray &ray, const HitRecord &hit, RNG *rngStates) const;
+    D_FORCEINLINE
+    float3 computeTransmission() const
+    {
+        // Energy-based transmission: Fresnel at normal incidence
+        // Uses IOR to compute the reflection coefficient at normal angle
+        float ior = this->ior();
+        float eta = 1.f / ior;  // ratio of refraction indices (air to material)
+        float r0 = (1.f - eta) / (1.f + eta);  // reflection coefficient at normal incidence
+        r0 *= r0;
+        float transmission = 1.f - r0;  // transmission = 1 - reflection
+        
+        // Apply material color to the transmission
+        return color() * transmission;
+    }
 
-    DEVICE BSDFVal getMetalBSDF(const Ray &ray, const HitRecord &hit, RNG *rngStates) const;
+    DEVICE BSDFVal getLambertBSDF(const Ray &ray, const OptixHit &hit, RNG &rngStates) const;
 
-    DEVICE BSDFVal getPlasticBSDF(const Ray &ray, const HitRecord &hit, RNG *rngStates) const;
+    DEVICE BSDFVal getMetalBSDF(const Ray &ray, const OptixHit &hit, RNG &rngStates) const;
 
-    DEVICE BSDFVal getMirrorBSDF(const Ray &ray, const HitRecord &hit) const;
+    DEVICE BSDFVal getPlasticBSDF(const Ray &ray, const OptixHit &hit, RNG &rngStates) const;
 
-    DEVICE BSDFVal getTransparentBSDF(const Ray &ray, const HitRecord &hit, RNG *rngStates, bool &isInside) const;
+    DEVICE BSDFVal getMirrorBSDF(const Ray &ray, const OptixHit &hit) const;
 
-    DEVICE BSDFVal getBSDF(const Ray &ray, const HitRecord &hit, RNG *rngStates, bool &isInside) const;
+    DEVICE BSDFVal getTransparentBSDF(const Ray &ray, const OptixHit &hit, RNG &rngStates, bool &isInside) const;
+
+    DEVICE BSDFVal getBSDF(const Ray &ray, const OptixHit &hit, RNG &rngStates, bool &isInside) const;
 
     DEVICE float3 evalLambertBSDF() const;
 
-    DEVICE float3 evalMetalBSDF(const Ray &ray, const HitRecord &hit, const float3 &wi) const;
+    DEVICE float3 evalMetalBSDF(const Ray &ray, const OptixHit &hit, const float3 &wi) const;
 
-    DEVICE float3 evalPlasticBSDF(const Ray &ray, const HitRecord &hit, const float3 &wi) const;
+    DEVICE float3 evalPlasticBSDF(const Ray &ray, const OptixHit &hit, const float3 &wi) const;
 
-    DEVICE float3 evalBSDF(const Ray &ray, const HitRecord &hit, const float3 &wi) const;
+    DEVICE float3 evalBSDF(const Ray &ray, const OptixHit &hit, const float3 &wi) const;
 
-    DEVICE float lambertPDF(const Ray &ray, const HitRecord &hit, const float3 &wi) const;
+    DEVICE float lambertPDF(const Ray &ray, const OptixHit &hit, const float3 &wi) const;
 
-    DEVICE float metalPDF(const Ray &ray, const HitRecord &hit, const float3 &wi) const;
+    DEVICE float metalPDF(const Ray &ray, const OptixHit &hit, const float3 &wi) const;
 
-    DEVICE float plasticPDF(const Ray &ray, const HitRecord &hit, const float3 &wi) const;
+    DEVICE float plasticPDF(const Ray &ray, const OptixHit &hit, const float3 &wi) const;
 
-    DEVICE float pdf(const Ray &ray, const HitRecord &hit, const float3 &wi) const;
+    DEVICE float pdf(const Ray &ray, const OptixHit &hit, const float3 &wi) const;
 };

@@ -6,7 +6,8 @@
 // ============================================================
 
 #include "macro.cuh"
-
+#include <cuda_runtime.h>
+#include <math.h>
 // ============================================================
 // Constructors / conversions
 // ============================================================
@@ -54,7 +55,7 @@ HD_FORCEINLINE float3 operator+(const float3& a, const float3& b)
     );
 }
 
-HD_FORCEINLINE float3 operator+=(float3& a, const float3& b)
+HD_FORCEINLINE float3& operator+=(float3& a, const float3& b)
 {
     a.x += b.x;
     a.y += b.y;
@@ -71,9 +72,23 @@ HD_FORCEINLINE float3 operator-(const float3& a, const float3& b)
     );
 }
 
+HD_FORCEINLINE float3 operator-(const float4& a, const float3& b)
+{
+    return make_float3(
+        a.x - b.x,
+        a.y - b.y,
+        a.z - b.z
+    );
+}
+
 HD_FORCEINLINE float3 operator-(const float3& a)
 {
     return make_float3(-a.x, -a.y, -a.z);
+}
+
+HD_FORCEINLINE float4 operator-(const float4& a)
+{
+    return make_float4(-a.x, -a.y, -a.z, a.w);
 }
 
 // Garde l'overload original non-const pour ne pas changer la résolution d'overload.
@@ -224,7 +239,7 @@ HD_FORCEINLINE float3 normalize(const float3& a)
 
     if (len2 > 0.0f)
     {
-        return a * rsqrtf(len2);
+        return a * (1.0f / sqrtf(len2));
     }
 
     return make_float3(0.0f);
@@ -240,6 +255,11 @@ HD_FORCEINLINE float length(const float3& a)
     return sqrtf(length2(a));
 }
 
+HD_FORCEINLINE float length(const float4& a)
+{
+    return sqrtf(a.x * a.x + a.y * a.y + a.z * a.z);
+}
+
 HD_FORCEINLINE float distance2(const float3& a, const float3& b)
 {
     return length2(a - b);
@@ -250,6 +270,10 @@ HD_FORCEINLINE float distance(const float3& a, const float3& b)
     return length(a - b);
 }
 
+D_FORCEINLINE float3 abs(const float3& a)
+{
+    return make_float3(fabsf(a.x), fabsf(a.y), fabsf(a.z));
+}
 // ============================================================
 // Scalar helpers
 // ============================================================
@@ -257,6 +281,15 @@ HD_FORCEINLINE float distance(const float3& a, const float3& b)
 HD_FORCEINLINE float clamp(const float x, const float lo, const float hi)
 {
     return fminf(fmaxf(x, lo), hi);
+}
+
+D_FORCEINLINE float3 clamp(const float3 x, const float3 lo, const float3 hi)
+{
+    return make_float3(
+        clamp(x.x, lo.x, hi.x),
+        clamp(x.y, lo.y, hi.y),
+        clamp(x.z, lo.z, hi.z)
+    );
 }
 
 HD_INLINE float3 lerp(const float3& a, const float3& b, const float c)
@@ -278,7 +311,6 @@ HD_INLINE float getAxis(const float4& v, int axis)
 
 // ============================================================
 // Reflection / refraction
-// reflect garde normalize(), indispensable avec ton code actuel
 // ============================================================
 
 HD_FORCEINLINE float3 reflect(const float3& a, const float3& b)
@@ -320,27 +352,27 @@ HD_FORCEINLINE bool refract(const float3& a, const float3& b, const float c, flo
 H_INLINE float3 getMin(const float3& a, const float3& b)
 {
     return make_float3(
-        min(a.x, b.x),
-        min(a.y, b.y),
-        min(a.z, b.z)
+        std::min(a.x, b.x),
+        std::min(a.y, b.y),
+        std::min(a.z, b.z)
     );
 }
 
 H_INLINE float3 getMax(const float3& a, const float3& b)
 {
     return make_float3(
-        max(a.x, b.x),
-        max(a.y, b.y),
-        max(a.z, b.z)
+        std::max(a.x, b.x),
+        std::max(a.y, b.y),
+        std::max(a.z, b.z)
     );
 }
 
 H_INLINE float4 getMin(const float4& a, const float4& b)
 {
     return make_float4(
-        min(a.x, b.x),
-        min(a.y, b.y),
-        min(a.z, b.z),
+        std::min(a.x, b.x),
+        std::min(a.y, b.y),
+        std::min(a.z, b.z),
         0.f
     );
 }
@@ -348,9 +380,9 @@ H_INLINE float4 getMin(const float4& a, const float4& b)
 H_INLINE float4 getMax(const float4& a, const float4& b)
 {
     return make_float4(
-        max(a.x, b.x),
-        max(a.y, b.y),
-        max(a.z, b.z),
+        std::max(a.x, b.x),
+        std::max(a.y, b.y),
+        std::max(a.z, b.z),
         0.f
     );
 }
@@ -383,4 +415,34 @@ D_FORCEINLINE float powerHeuristic(float pdfA, float pdfB)
 D_FORCEINLINE float dot3f4(const float4& a, const float3& b)
 {
     return a.x * b.x + a.y * b.y + a.z * b.z;
+}
+
+HD inline float intBitsToFloat(int x)
+{
+#ifdef __CUDA_ARCH__
+    return __int_as_float(x);
+#else
+    union {
+        int i;
+        float f;
+    } u;
+
+    u.i = x;
+    return u.f;
+#endif
+}
+
+HD inline int floatBitsToInt(float x)
+{
+#ifdef __CUDA_ARCH__
+    return __float_as_int(x);
+#else
+    union {
+        float f;
+        int i;
+    } u;
+
+    u.f = x;
+    return u.i;
+#endif
 }

@@ -9,14 +9,14 @@
 #include "aabb.cuh"
 
 #include "../objects/base_object.cuh"
-#include "../objects/implicitSphere.cuh"
+#include "../objects/implicit_sphere.cuh"
 #include "../objects/plane.cuh"
 #include "../objects/sphere.cuh"
 #include "../objects/triangle_mesh.cuh"
 
 #include "../materials/material.cuh"
 
-#include "../raytracingUtils/hitrecord.cuh"
+#include "../../../devicePrograms/launch_params.cuh"
 
 struct Current
 {
@@ -77,7 +77,7 @@ struct BVHScene
     size_t getDeviceSize() const;
 
     D_FORCEINLINE 
-    bool intersect(const Ray &ray, const float tMin, const float tMaxInit, HitRecord &hit) const
+    bool intersect(const Ray &ray, const float tMin, const float tMaxInit, OptixHit &hit) const
     {
         constexpr int STACK_SIZE = 32;
 
@@ -121,21 +121,9 @@ struct BVHScene
 
                         if (d_spheres[objectIndex].intersect(ray, tMin, tMax, hit))
                         {
-                            tMax = hit.distance;
+                            tMax = hit.t;
                             hitSomething = true;
                             hit.objectType = HIT_SPHERE;
-                            hit.objectIndex = objectIndex;
-                        }
-                        break;
-                    }
-
-                    case ObjectType::TRIANGLE: {
-
-                        if (d_meshes[objectIndex].intersect(ray, tMin, tMax, hit))
-                        {
-                            tMax = hit.distance;
-                            hitSomething = true;
-                            hit.objectType = HIT_TRIANGLE_MESH;
                             hit.objectIndex = objectIndex;
                         }
                         break;
@@ -145,7 +133,7 @@ struct BVHScene
 
                         if (d_implicitSpheres[objectIndex].intersect(ray, tMin, tMax, hit))
                         {
-                            tMax = hit.distance;
+                            tMax = hit.t;
                             hitSomething = true;
                             hit.objectType = HIT_SPHERE_IMPLICIT;
                             hit.objectIndex = objectIndex;
@@ -247,7 +235,7 @@ struct BVHScene
                     {
                     case ObjectType::SPHERE: {
 
-                        const int matIdx = d_spheres[objectIndex].materialIndex;
+                        const int matIdx = d_spheres[objectIndex].getMaterialIndex();
 
                         if (materials[matIdx].type() == MaterialType::TRANSPARENT)
                         {
@@ -260,24 +248,9 @@ struct BVHScene
                         break;
                     }
 
-                    case ObjectType::TRIANGLE: {
-
-                        const int matIdx = d_meshes[objectIndex].materialIndex;
-
-                        if (materials[matIdx].type() == MaterialType::TRANSPARENT)
-                        {
-                            break;
-                        }
-
-                        if (d_meshes[objectIndex].intersectAny(ray, tMin, tMax, materials))
-                            return true;
-
-                        break;
-                    }
-
                     case ObjectType::IMPLICIT_SPHERE: {
 
-                        const int matIdx = d_implicitSpheres[objectIndex].materialIndex;
+                        const int matIdx = d_implicitSpheres[objectIndex].getMaterialIndex();
 
                         if (materials[matIdx].type() == MaterialType::TRANSPARENT)
                         {

@@ -45,10 +45,10 @@ inline float3 Material::evaluateLambert() const
 }
 
 DEVICE
-float3 Material::samplingLambert(const float3 normal, RNG* rngStates) const
+float3 Material::samplingLambert(const float3 normal, RNG& rngStates) const
 {
-    float e1  = rngStates->nextFloat();
-    float e2  = rngStates->nextFloat();
+    float e1  = rngStates.nextFloat();
+    float e2  = rngStates.nextFloat();
     float r   = sqrtf(e1);
     float phi = 2.f * GPUPIf * e2;
     float x   = r * cosf(phi);
@@ -139,7 +139,7 @@ inline float3 Material::evaluateGGX(
 DEVICE
 float3 Material::samplingGGX(
     const float3& wo, const float3& normal,
-    RNG* rngStates) const
+    RNG& rngStates) const
 {   
     float roughness = this->roughness();
     float alpha = roughness * roughness;
@@ -157,8 +157,8 @@ float3 Material::samplingGGX(
         : make_float3(1.f, 0.f, 0.f);
     float3 T2 = cross(V, T1);
 
-    float e1  = rngStates->nextFloat();
-    float e2  = rngStates->nextFloat();
+    float e1  = rngStates.nextFloat();
+    float e2  = rngStates.nextFloat();
     float r   = sqrtf(e1);
     float phi = 2.f * GPUPIf * e2;
 
@@ -201,19 +201,6 @@ float Material::pdfGGX(
     return (G1 * D) / (4.f * NdotV);
 }
 
-// ------------------------------------------------------------
-//  Fresnel (Schlick)
-// ------------------------------------------------------------
-
-DEVICE
-float3 Material::fresnelSchlick(float cosTheta, const float3& F0) const
-{
-    float m  = saturate(1.f - fabsf(cosTheta));
-    float m2 = m * m;
-    float m5 = m2 * m2 * m;
-    return F0 + (make_float3(1.f) - F0) * m5;
-}
-
 // ============================================================
 //  getBSDF helpers
 // ============================================================
@@ -221,8 +208,8 @@ float3 Material::fresnelSchlick(float cosTheta, const float3& F0) const
 DEVICE
 BSDFVal Material::getMetalBSDF(
     const Ray&       ray,
-    const HitRecord& hit,
-    RNG*             rngStates) const
+    const OptixHit& hit,
+    RNG&             rngStates) const
 {
     float3  normal = hit.normal;
     float3  wo     = -ray.direction;
@@ -249,8 +236,8 @@ BSDFVal Material::getMetalBSDF(
 DEVICE
 BSDFVal Material::getLambertBSDF(
     const Ray&       ray,
-    const HitRecord& hit,
-    RNG*             rngStates) const
+    const OptixHit& hit,
+    RNG&             rngStates) const
 {
     float3  normal = hit.normal;
     BSDFVal bsdf;
@@ -266,8 +253,8 @@ BSDFVal Material::getLambertBSDF(
 DEVICE
 BSDFVal Material::getPlasticBSDF(
     const Ray&       ray,
-    const HitRecord& hit,
-    RNG*             rngStates) const
+    const OptixHit& hit,
+    RNG&             rngStates) const
 {
     float3  normal = hit.normal;
     float3  wo     = -ray.direction;
@@ -278,7 +265,7 @@ BSDFVal Material::getPlasticBSDF(
     float3 F        = fresnelSchlick(cosTheta, F0);
     float  specW    = (F.x + F.y + F.z) / 3.f;
 
-    if (rngStates->nextFloat() < specW) {
+    if (rngStates.nextFloat() < specW) {
         bsdf.direction = samplingGGX(wo, normal, rngStates);
 
         if (dot(normal, bsdf.direction) <= 0.f) {
@@ -306,7 +293,7 @@ BSDFVal Material::getPlasticBSDF(
 DEVICE
 BSDFVal Material::getMirrorBSDF(
     const Ray&       ray,
-    const HitRecord& hit) const
+    const OptixHit& hit) const
 {
     float3  normal = hit.normal;
     BSDFVal bsdf;
@@ -322,8 +309,8 @@ BSDFVal Material::getMirrorBSDF(
 DEVICE
 BSDFVal Material::getTransparentBSDF(
     const Ray&       ray,
-    const HitRecord& hit,
-    RNG*             rngStates,
+    const OptixHit& hit,
+    RNG&             rngStates,
     bool&            isInside) const
 {
     float3  normal = hit.normal;
@@ -366,7 +353,7 @@ BSDFVal Material::getTransparentBSDF(
     rp *= rp;
 
     float reff = 0.5f * (rs + rp);
-    float xi   = rngStates->nextFloat();
+    float xi   = rngStates.nextFloat();
 
     if (xi < reff) {
         bsdf.direction = reflect(wo, n);
@@ -395,8 +382,8 @@ BSDFVal Material::getTransparentBSDF(
 DEVICE
 BSDFVal Material::getBSDF(
     const Ray&       ray,
-    const HitRecord& hit,
-    RNG*             rngStates,
+    const OptixHit& hit,
+    RNG&             rngStates,
     bool&            isInside) const
 {
     switch (type())
@@ -442,7 +429,7 @@ float3 Material::evalLambertBSDF() const
 DEVICE
 float3 Material::evalMetalBSDF(
     const Ray&       ray,
-    const HitRecord& hit,
+    const OptixHit& hit,
     const float3&    wi) const
 {
     float3 normal = hit.normal;
@@ -459,7 +446,7 @@ float3 Material::evalMetalBSDF(
 DEVICE
 float3 Material::evalPlasticBSDF(
     const Ray&       ray,
-    const HitRecord& hit,
+    const OptixHit& hit,
     const float3&    wi) const
 {
     float3 normal = hit.normal;
@@ -485,7 +472,7 @@ float3 Material::evalPlasticBSDF(
 DEVICE
 float3 Material::evalBSDF(
     const Ray&       ray,
-    const HitRecord& hit,
+    const OptixHit& hit,
     const float3&    wi) const
 {
     switch (type())
@@ -515,7 +502,7 @@ float3 Material::evalBSDF(
 DEVICE
 float Material::lambertPDF(
     const Ray&       ray,
-    const HitRecord& hit,
+    const OptixHit& hit,
     const float3&    wi) const
 {
     float3 normal = hit.normal;
@@ -526,7 +513,7 @@ float Material::lambertPDF(
 DEVICE
 float Material::metalPDF(
     const Ray&       ray,
-    const HitRecord& hit,
+    const OptixHit& hit,
     const float3&    wi) const
 {
     float3 normal = hit.normal;
@@ -541,7 +528,7 @@ float Material::metalPDF(
 DEVICE
 float Material::plasticPDF(
     const Ray&       ray,
-    const HitRecord& hit,
+    const OptixHit& hit,
     const float3&    wi) const
 {
     float3 normal = hit.normal;
@@ -566,7 +553,7 @@ float Material::plasticPDF(
 DEVICE
 float Material::pdf(
     const Ray&       ray,
-    const HitRecord& hit,
+    const OptixHit& hit,
     const float3&    wi) const
 {
     switch (type())

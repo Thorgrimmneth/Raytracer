@@ -1,24 +1,28 @@
 #pragma once
 
-#include "../utils/objects.cuh"
 #include "../materials/material.cuh"
-
+#include "../../../devicePrograms/launch_params.cuh"
 struct Plane
 {
-    float3 normal;
-    float delta;
+    float4 normal; // xyz = normal, w = delta
     int materialIndex;
 
     Plane() = default;
-    Plane(float3 pos, float3 n) : normal(n), delta(dot(-n, pos)) {}
+    Plane(float3 pos, float3 n) : normal(make_float4(n, 0)), materialIndex(0) {}
+
+    D_FORCEINLINE
+    float3 getNormal() const { return make_float3(normal); }
+
+    D_FORCEINLINE
+    float getDelta() const { return normal.w; }
 
     D_FORCEINLINE 
-    bool intersect(const Ray &ray, const float tMin, const float tMax, HitRecord &hitRecord) const
+    bool intersect(const Ray &ray, const float tMin, const float tMax, OptixHit &hitRecord) const
     {
         float t;
 
         // Fast path pour le sol horizontal y = 0
-        if (normal.x == 0.0f && normal.y == 1.0f && normal.z == 0.0f && delta == 0.0f)
+        if (normal.x == 0.0f && normal.y == 1.0f && normal.z == 0.0f && getDelta() == 0.0f)
         {
             const float dy = ray.direction.y;
 
@@ -29,26 +33,22 @@ struct Plane
         }
         else
         {
-            const float nd = dot(normal, ray.direction);
+            const float nd = dot(getNormal(), ray.direction);
 
             if (fabsf(nd) < 1e-6f)
                 return false;
 
-            t = -(dot(normal, ray.origin) + delta) / nd;
+            t = -(dot(getNormal(), ray.origin) + getDelta()) / nd;
         }
 
         if (t <= tMin || t >= tMax)
             return false;
 
         const float3 p = ray.origin + t * ray.direction;
-        float3 n = normal;
+        float3 n = getNormal();
 
-        hitRecord.point = p;
-        hitRecord.normal = n;
+        hitRecord.setHitInfo(p, n, t, materialIndex, 0, HIT_PLANE);
         hitRecord.faceNormal(ray.direction);
-        hitRecord.distance = t;
-        hitRecord.materialIndex = materialIndex;
-
         return true;
     }
 
@@ -60,7 +60,8 @@ struct Plane
             return false;
 
         // Fast path ultra-court pour sol horizontal y = 0
-        if (normal.x == 0.0f && normal.y == 1.0f && normal.z == 0.0f && delta == 0.0f)
+        float3 n = getNormal();
+        if (n.x == 0.0f && n.y == 1.0f && n.z == 0.0f && getDelta() == 0.0f)
         {
             const float oy = ray.origin.y;
             const float dy = ray.direction.y;
@@ -79,12 +80,12 @@ struct Plane
             return t > tMin && t < tMax;
         }
 
-        const float ND = dot(normal, ray.direction);
+        const float ND = dot(getNormal(), ray.direction);
 
         if (fabsf(ND) < 1e-6f)
             return false;
 
-        const float t = -(dot(normal, ray.origin) + delta) / ND;
+        const float t = -(dot(getNormal(), ray.origin) + getDelta()) / ND;
 
         return t > tMin && t < tMax;
     }

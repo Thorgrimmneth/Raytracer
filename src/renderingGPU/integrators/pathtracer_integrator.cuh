@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../scene.cuh"
+#include "../scene/scene.cuh"
 
 #include "../utils/cuda_defines.cuh"
 #include "../utils/rng.cuh"
@@ -10,6 +10,7 @@
 #include "../raytracingUtils/ray.cuh"
 #include "../raytracingUtils/hitrecord.cuh"
 
+#include "../lights/light_selection_utils.cuh"
 
 struct PathtracerIntegrator
 {
@@ -19,12 +20,12 @@ struct PathtracerIntegrator
         const Ray &primaryRay,
         const float tMin,
         const float tMax,
-        RNG *rng);
+        RNG &rng);
 
     DEVICE
     void intersect(const CudaScene &scene, const Ray &ray, const float tMin, const float tMax, HitRecord &hit);
 
-    DEVICE static float3 getSkyColor(const Ray &p_ray);
+    DEVICE static float3 getSkyColor(const Ray &p_ray, bool safeSun);
 
     
 };

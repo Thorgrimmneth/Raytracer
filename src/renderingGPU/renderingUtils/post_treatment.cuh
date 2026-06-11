@@ -2,8 +2,8 @@
 
 #include <curand_kernel.h>
 
-#include "utils/macro.cuh"
-#include "utils/op.cuh"
+#include "../utils/macro.cuh"
+#include "../utils/op.cuh"
 
 
 GLOBAL
@@ -11,12 +11,6 @@ void extractBright(float3 *hdr, float3 *bright, int width, int height, float thr
 
 GLOBAL
 void downsample(float3 *input, float3 *output, int width, int height);
-
-GLOBAL
-void blurHorizontal(float3 *input, float3 *output, int width, int height);
-
-GLOBAL
-void blurVertical(float3 *input, float3 *output, int width, int height);
 
 GLOBAL
 void upsampleAdd(float3 *lowRes, float3 *highRes, int lowWidth, int lowHeight, int highWidth, float strength);
