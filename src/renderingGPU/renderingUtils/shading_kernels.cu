@@ -1,9 +1,9 @@
 #include "shading_kernels.cuh"
 
-
-__global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, WavefrontState *states, OptixHit *hits, int *hitMask,
-                                     const int *activeQueue, int activeCount, int *nextActiveQueue,
-                                     int *nextActiveCount, bool safeSun)
+__global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, float3 *p_throughput, float3 *p_radiance, int *pixelIndices, RNG *p_rng,
+                                     bool *p_isInside, bool *p_lastBounceWasDelta, float *p_lastBsdfPdf, OptixHit *p_hits,
+                                     int *hitMask, const int *activeQueue, int activeCount, int *nextActiveQueue,
+                                     int *nextActiveCount, bool safeSun, uint depth)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -12,7 +12,12 @@ __global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, WavefrontState 
 
     int idx = activeQueue[qid];
 
-    WavefrontState &state = states[idx];
+    float3 &throughput = p_throughput[idx];
+    float3 &radiance = p_radiance[idx];
+    RNG &rng = p_rng[idx];
+    bool &isInside = p_isInside[idx];
+    bool &lastBounceWasDelta = p_lastBounceWasDelta[idx];
+    float &lastBsdfPdf = p_lastBsdfPdf[idx];
 
     Ray &ray = rays[idx];
 
@@ -30,9 +35,7 @@ __global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, WavefrontState 
 
         if (horizonFade <= 0.0f)
         {
-            state.radiance += state.throughput * make_float3(0.0f);
-
-            states[idx] = state;
+            radiance += throughput * make_float3(0.0f);
             return;
         }
 
@@ -120,9 +123,8 @@ __global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, WavefrontState 
         float mult = 1.0f + 19.0f * t * t * t;
         sky = sky * mult * horizonFade;
 
-        state.radiance += state.throughput * sky;
+        radiance += throughput * sky;
 
-        states[idx] = state;
         return;
     }
 
@@ -130,7 +132,7 @@ __global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, WavefrontState 
     // HIT
     // ------------------------------------------------------------
 
-    OptixHit hit = hits[idx];
+    OptixHit hit = p_hits[idx];
     Material mtl = scene.materials[hit.materialIndex];
 
     // ------------------------------------------------------------
@@ -140,24 +142,21 @@ __global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, WavefrontState 
     {
         float3 emission = mtl.color() * mtl.intensity();
 
-        if (state.lastBounceWasDelta)
+        if (lastBounceWasDelta)
         {
-            state.radiance += state.throughput * emission;
+            radiance += throughput * emission;
         }
         else
         {
             float lightPdf = scene.lightPdf(ray.origin, ray.direction);
 
-            float w = powerHeuristic(state.lastBsdfPdf, lightPdf);
+            float w = powerHeuristic(lastBsdfPdf, lightPdf);
 
-            state.radiance += state.throughput * emission * w;
+            radiance += throughput * emission * w;
         }
 
-        states[idx] = state;
         return;
     }
-
-    RNG *rng = &state.rng;
 
     BSDFVal bsdf;
 
@@ -180,17 +179,15 @@ __global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, WavefrontState 
         break;
 
     case TRANSPARENT:
-        bsdf = mtl.getTransparentBSDF(ray, hit, rng, state.isInside);
+        bsdf = mtl.getTransparentBSDF(ray, hit, rng, isInside);
         break;
 
     default:
-        states[idx] = state;
         return;
     }
 
     if (bsdf.pdf <= 1e-4f)
     {
-        states[idx] = state;
         return;
     }
 
@@ -255,7 +252,7 @@ __global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, WavefrontState 
                     {
                         float w = powerHeuristic(pdf_light, pdf_bsdf);
 
-                        state.radiance += state.throughput * f * ls.radiance * shadowTint * cosTheta * w / pdf_light;
+                        radiance += throughput * f * ls.radiance * shadowTint * cosTheta * w / pdf_light;
                     }
                 }
             }
@@ -268,13 +265,13 @@ __global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, WavefrontState 
 
     if (bsdf.isDelta)
     {
-        state.throughput *= bsdf.brdf;
+        throughput *= bsdf.brdf;
     }
     else
     {
         float cosTheta = fmaxf(dot(hit.normal, bsdf.direction), 0.0f);
 
-        state.throughput = state.throughput * bsdf.brdf * cosTheta / bsdf.pdf;
+        throughput = throughput * bsdf.brdf * cosTheta / bsdf.pdf;
     }
 
     // ------------------------------------------------------------
@@ -283,28 +280,25 @@ __global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, WavefrontState 
 
     rays[idx] = Ray(hit.position + bsdf.direction * 1e-3f, bsdf.direction, ray.time);
 
-    state.depth += 1;
-
-    state.lastBounceWasDelta = bsdf.isDelta;
-    state.lastBsdfPdf = bsdf.pdf;
+    lastBounceWasDelta = bsdf.isDelta;
+    lastBsdfPdf = bsdf.pdf;
 
     // ------------------------------------------------------------
     // RUSSIAN ROULETTE
     // ------------------------------------------------------------
 
-    if (state.depth > 2)
+    if (depth> 2)
     {
-        float p = fmaxf(state.throughput.x, fmaxf(state.throughput.y, state.throughput.z));
+        float p = fmaxf(throughput.x, fmaxf(throughput.y, throughput.z));
 
         p = clamp(p, 0.1f, 1.f);
 
-        if (rng->nextFloat() > p)
+        if (rng.nextFloat() > p)
         {
-            states[idx] = state;
             return;
         }
 
-        state.throughput /= p;
+        throughput /= p;
     }
 
     // ------------------------------------------------------------
@@ -313,8 +307,6 @@ __global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, WavefrontState 
 
     int dst = atomicAdd(nextActiveCount, 1);
     nextActiveQueue[dst] = idx;
-
-    states[idx] = state;
 }
 
 /*__global__
@@ -409,7 +401,7 @@ void shadeMissKernel(WavefrontState* states, int* missQueue, int missCount)
     float3 sky = sumR * betaR * phaseR +
                  sumM * betaM * phaseM * 0.3f;
 
-    state.radiance += state.throughput * sky * mult;
+    radiance += throughput * sky * mult;
 
     states[idx] = state;
     return;
@@ -435,17 +427,17 @@ emissiveCount)
     Material mtl = gpuScene.materials[hits[idx].materialIndex];
     float3 emission = mtl.color() * mtl.intensity();
 
-    if(state.lastBounceWasDelta)
+    if(lastBounceWasDelta)
     {
-        state.radiance += state.throughput * emission;
+        radiance += throughput * emission;
     }
     else
     {
         float lightPdf = gpuScene.lightPdf(ray.origin, ray.direction);
 
-        float w = powerHeuristic(state.lastBsdfPdf, lightPdf);
+        float w = powerHeuristic(lastBsdfPdf, lightPdf);
 
-        state.radiance += state.throughput * emission * w;
+        radiance += throughput * emission * w;
     }
 
     states[idx] = state;
@@ -477,7 +469,7 @@ void shadeMetalKernel(
     OptixHit hit = hits[idx];
     Material mtl = gpuScene.materials[hit.materialIndex];
 
-    RNG* rng = &state.rng;
+    RNG* rng = &rng;
 
     BSDFVal bsdf = mtl.getMetalBSDF(ray, hit, rng);
 
@@ -493,7 +485,7 @@ void shadeMetalKernel(
     // ------------------------------------------------------------
     if (gpuScene.nbLights > 0)
     {
-        int lightIndex = int(rng->nextFloat() * gpuScene.nbLights);
+        int lightIndex = int(rng.nextFloat() * gpuScene.nbLights);
         lightIndex = min(lightIndex, gpuScene.nbLights - 1);
 
         const Light& light = gpuScene.lights[lightIndex];
@@ -517,8 +509,8 @@ void shadeMetalKernel(
 
                     float w = powerHeuristic(pdf_light, pdf_bsdf);
 
-                    state.radiance +=
-                        state.throughput *
+                    radiance +=
+                        throughput *
                         f *
                         ls.radiance *
                         cosTheta *
@@ -534,8 +526,8 @@ void shadeMetalKernel(
     // ------------------------------------------------------------
     float cosTheta = fmaxf(dot(hit.normal, bsdf.direction), 0.0f);
 
-    state.throughput =
-        state.throughput *
+    throughput =
+        throughput *
         bsdf.brdf *
         cosTheta /
         bsdf.pdf;
@@ -546,8 +538,8 @@ void shadeMetalKernel(
         ray.time
     );
 
-    state.lastBounceWasDelta = false;
-    state.lastBsdfPdf = bsdf.pdf;
+    lastBounceWasDelta = false;
+    lastBsdfPdf = bsdf.pdf;
 
     states[idx] = state;
 
@@ -579,7 +571,7 @@ void shadeLambertKernel(
     OptixHit hit = hits[idx];
     Material mtl = gpuScene.materials[hit.materialIndex];
 
-    RNG* rng = &state.rng;
+    RNG* rng = &rng;
 
     BSDFVal bsdf = mtl.getLambertBSDF(ray, hit, rng);
 
@@ -595,7 +587,7 @@ void shadeLambertKernel(
     // ------------------------------------------------------------
     if (gpuScene.nbLights > 0)
     {
-        int lightIndex = int(rng->nextFloat() * gpuScene.nbLights);
+        int lightIndex = int(rng.nextFloat() * gpuScene.nbLights);
         lightIndex = min(lightIndex, gpuScene.nbLights - 1);
 
         const Light& light = gpuScene.lights[lightIndex];
@@ -619,8 +611,8 @@ void shadeLambertKernel(
 
                     float w = powerHeuristic(pdf_light, pdf_bsdf);
 
-                    state.radiance +=
-                        state.throughput *
+                    radiance +=
+                        throughput *
                         f *
                         ls.radiance *
                         cosTheta *
@@ -636,8 +628,8 @@ void shadeLambertKernel(
     // ------------------------------------------------------------
     float cosTheta = fmaxf(dot(hit.normal, bsdf.direction), 0.0f);
 
-    state.throughput =
-        state.throughput *
+    throughput =
+        throughput *
         bsdf.brdf *
         cosTheta /
         bsdf.pdf;
@@ -648,8 +640,8 @@ void shadeLambertKernel(
         ray.time
     );
 
-    state.lastBounceWasDelta = false;
-    state.lastBsdfPdf = bsdf.pdf;
+    lastBounceWasDelta = false;
+    lastBsdfPdf = bsdf.pdf;
 
     states[idx] = state;
 
@@ -681,7 +673,7 @@ void shadePlasticKernel(
     OptixHit hit = hits[idx];
     Material mtl = gpuScene.materials[hit.materialIndex];
 
-    RNG* rng = &state.rng;
+    RNG* rng = &rng;
 
     BSDFVal bsdf = mtl.getPlasticBSDF(ray, hit, rng);
 
@@ -697,7 +689,7 @@ void shadePlasticKernel(
     // ------------------------------------------------------------
     if (gpuScene.nbLights > 0)
     {
-        int lightIndex = int(rng->nextFloat() * gpuScene.nbLights);
+        int lightIndex = int(rng.nextFloat() * gpuScene.nbLights);
         lightIndex = min(lightIndex, gpuScene.nbLights - 1);
 
         const Light& light = gpuScene.lights[lightIndex];
@@ -721,8 +713,8 @@ void shadePlasticKernel(
 
                     float w = powerHeuristic(pdf_light, pdf_bsdf);
 
-                    state.radiance +=
-                        state.throughput *
+                    radiance +=
+                        throughput *
                         f *
                         ls.radiance *
                         cosTheta *
@@ -738,8 +730,8 @@ void shadePlasticKernel(
     // ------------------------------------------------------------
     float cosTheta = fmaxf(dot(hit.normal, bsdf.direction), 0.0f);
 
-    state.throughput =
-        state.throughput *
+    throughput =
+        throughput *
         bsdf.brdf *
         cosTheta /
         bsdf.pdf;
@@ -750,8 +742,8 @@ void shadePlasticKernel(
         ray.time
     );
 
-    state.lastBounceWasDelta = false;
-    state.lastBsdfPdf = bsdf.pdf;
+    lastBounceWasDelta = false;
+    lastBsdfPdf = bsdf.pdf;
 
     states[idx] = state;
 
@@ -792,7 +784,7 @@ void shadeMirrorKernel(
         return;
     }
 
-    state.throughput *= bsdf.brdf;
+    throughput *= bsdf.brdf;
 
     state.ray = Ray(
         hit.point + bsdf.direction * 1e-3f,
@@ -800,8 +792,8 @@ void shadeMirrorKernel(
         ray.time
     );
 
-    state.lastBounceWasDelta = true;
-    state.lastBsdfPdf = bsdf.pdf;
+    lastBounceWasDelta = true;
+    lastBsdfPdf = bsdf.pdf;
 
     states[idx] = state;
 
@@ -833,13 +825,13 @@ void shadeTransparentKernel(
     OptixHit hit = hits[idx];
     Material mtl = gpuScene.materials[hit.materialIndex];
 
-    RNG* rng = &state.rng;
+    RNG* rng = &rng;
 
     BSDFVal bsdf = mtl.getTransparentBSDF(
         ray,
         hit,
         rng,
-        state.isInside
+        isInside
     );
 
     if (bsdf.pdf <= 1e-4f)
@@ -849,7 +841,7 @@ void shadeTransparentKernel(
         return;
     }
 
-    state.throughput *= bsdf.brdf;
+    throughput *= bsdf.brdf;
 
     state.ray = Ray(
         hit.point + bsdf.direction * 1e-3f,
@@ -857,8 +849,8 @@ void shadeTransparentKernel(
         ray.time
     );
 
-    state.lastBounceWasDelta = true;
-    state.lastBsdfPdf = bsdf.pdf;
+    lastBounceWasDelta = true;
+    lastBsdfPdf = bsdf.pdf;
 
     states[idx] = state;
 

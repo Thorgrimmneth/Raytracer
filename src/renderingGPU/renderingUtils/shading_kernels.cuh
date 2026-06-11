@@ -1,7 +1,5 @@
 #pragma once
 
-#include "wavefront_state.cuh"
-
 #include "../utils/constant.cuh"
 
 #include "../lights/light.cuh"
@@ -11,6 +9,7 @@
 
 #include "../../../devicePrograms/launch_params.cuh"
 
-__global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, WavefrontState *states, OptixHit *hits, int *hitMask,
-                                     const int *activeQueue, int activeCount, int *nextActiveQueue,
-                                     int *nextActiveCount, bool safeSun);
+__global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, float3 *throughput, float3 *radiance, int *pixelIndices, RNG *rng,
+                                     bool *isInside, bool *lastBounceWasDelta, float *lastBsdfPdf, OptixHit *hits,
+                                     int *hitMask, const int *activeQueue, int activeCount, int *nextActiveQueue,
+                                     int *nextActiveCount, bool safeSun, uint depth);

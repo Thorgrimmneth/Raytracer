@@ -8,11 +8,11 @@
 
 #include "../utils/defines.hpp"
 #include "utils/constant.cuh"
+#include "utils/fill_buffers.cuh"
 #include "utils/macro.cuh"
 
 #include "renderingUtils/post_treatment.cuh"
 #include "renderingUtils/shading_kernels.cuh"
-#include "renderingUtils/wavefront_state.cuh"
 
 #include <cstdio>
 #include <cuda_runtime.h>
@@ -58,6 +58,18 @@ class Renderer::Impl
     float *d_value = nullptr;
     CudaScene gpuScene;
 
+    float3 *d_throughput = nullptr;
+    float3 *d_radiance = nullptr;
+
+    int *d_pixelIndices = nullptr;
+    RNG *d_rng;
+
+    uint depth = 0;
+
+    bool *d_isInside = nullptr;
+    bool *d_lastBounceWasDelta = nullptr;
+    float *d_lastBsdfPdf = nullptr;
+
     float3 *d_accumBuffer = nullptr;
     float3 *d_normalizedBuffer = nullptr;
 
@@ -69,7 +81,6 @@ class Renderer::Impl
 
     float3 *d_convergenceBuffer = nullptr;
 
-    WavefrontState *d_wavefrontStates = nullptr;
     Ray *d_rays = nullptr;
 
     OptixHit *d_hits = nullptr;
@@ -162,8 +173,8 @@ HOST Camera initCamera(int width, int height)
     float3 viewportV = v * viewportHeight;
 
     float3 topLeft = camPos - w * focalDistance + viewportV * 0.5f - viewportU * 0.5f;
-    Camera camera = Camera{
-        fov, aspect, focalDistance, toFloat4(camPos), toFloat4(topLeft), toFloat4(viewportU), toFloat4(viewportV)};
+    Camera camera = Camera{make_float4(camPos, 1.f), make_float4(topLeft, 1.f), make_float4(viewportU, 1.f),
+                           make_float4(viewportV, 1.f)};
     return camera;
 }
 
@@ -212,6 +223,14 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     // GPU buffers
     // =========================
 
+    cudaMalloc(&impl->d_throughput, impl->width * impl->height * sizeof(float3));
+    cudaMalloc(&impl->d_radiance, impl->width * impl->height * sizeof(float3));
+    cudaMalloc(&impl->d_pixelIndices, impl->width * impl->height * sizeof(int));
+    cudaMalloc(&impl->d_rng, impl->width * impl->height * sizeof(RNG));
+    cudaMalloc(&impl->d_isInside, impl->width * impl->height * sizeof(bool));
+    cudaMalloc(&impl->d_lastBounceWasDelta, impl->width * impl->height * sizeof(bool));
+    cudaMalloc(&impl->d_lastBsdfPdf, impl->width * impl->height * sizeof(float));
+
     cudaMalloc(&impl->d_accumBuffer, impl->hdrBufferSize);
 
     cudaMalloc(&impl->d_normalizedBuffer, impl->hdrBufferSize);
@@ -226,7 +245,6 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     cudaMalloc(&impl->d_value, sizeof(float));
 
     size_t pixelCount = impl->width * impl->height;
-    cudaMalloc(&impl->d_wavefrontStates, pixelCount * sizeof(WavefrontState));
     cudaMalloc(&impl->d_rays, pixelCount * sizeof(Ray));
     cudaMalloc(&impl->d_hits, pixelCount * sizeof(OptixHit));
     cudaMalloc(&impl->d_hitMask, pixelCount * sizeof(int));
@@ -343,14 +361,14 @@ void renderKernel(CudaScene gpuScene, float3 *d_accumBuffer, int width, int heig
     float3 direction = normalize(rayTarget - toFloat3(camera.cameraPos));
 
     Ray ray(toFloat3(camera.cameraPos), direction);
-    finalColor += PathtracerIntegrator::lighting(gpuScene, ray, 0, 1e20f, &localState);
+    finalColor += PathtracerIntegrator::lighting(gpuScene, ray, 0, 1e20f, localState);
 
     d_accumBuffer[pixelIndex] += finalColor;
 }
 
 // WAVEFRONT INIT
 GLOBAL
-void generatePrimaryRaysKernel(Ray *rays, WavefrontState *states, int *activeQueue, int *activeCount, int width, int height,
+void generatePrimaryRaysKernel(Ray *rays, RNG *p_rng, int *p_pixelIndices, int *activeQueue, int *activeCount, int width, int height,
                                int sampleCount, float invWidth, float invHeight)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -370,13 +388,13 @@ void generatePrimaryRaysKernel(Ray *rays, WavefrontState *states, int *activeQue
     float3 rayTarget = toFloat3(camera.topLeft + sx * camera.viewPortU - sy * camera.viewPortV);
 
     float3 direction = normalize(rayTarget - toFloat3(camera.cameraPos));
-    states[pixelIndex] = WavefrontState(rng, pixelIndex);
+    p_rng[pixelIndex] = rng;
+
     Ray primaryRay(toFloat3(camera.cameraPos), direction);
 
     rays[pixelIndex] = primaryRay;
-
+    p_pixelIndices[pixelIndex] = pixelIndex;
     activeQueue[pixelIndex] = pixelIndex;
-
     if (pixelIndex == 0)
         *activeCount = width * height;
 }
@@ -405,7 +423,7 @@ void wavefrontIntersectKernel(CudaScene scene, Ray *rays, OptixHit *hits, int *h
 
 // WAVEFRONT ACCUMULATION
 GLOBAL
-void accumulateWavefrontKernel(const WavefrontState *wavefrontStates, float3 *accumBuffer, int width, int height)
+void accumulateWavefrontKernel(int *pixelIndices, float3 *radiance, float3 *accumBuffer, int width, int height)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     int stateCount = width * height;
@@ -413,12 +431,12 @@ void accumulateWavefrontKernel(const WavefrontState *wavefrontStates, float3 *ac
     if (idx >= stateCount)
         return;
 
-    int pixelIndex = wavefrontStates[idx].pixelIndex;
+    int pixelIndex = pixelIndices[idx];
 
     if (pixelIndex < 0 || pixelIndex >= width * height)
         return;
 
-    accumBuffer[pixelIndex] += wavefrontStates[idx].radiance;
+    accumBuffer[pixelIndex] += radiance[idx];
 }
 
 void Renderer::applyBloom()
@@ -535,7 +553,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
     cudaMemset(impl->d_activeCount, 0, sizeof(int));
     float invWidth = 1.f / (float)(impl->width - 1);
     float invHeight = 1.f / (float)(impl->height - 1);
-    generatePrimaryRaysKernel<<<grid2D, block2D>>>(impl->d_rays, impl->d_wavefrontStates, impl->d_activeQueue, impl->d_activeCount,
+    generatePrimaryRaysKernel<<<grid2D, block2D>>>(impl->d_rays, impl->d_rng, impl->d_pixelIndices, impl->d_activeQueue, impl->d_activeCount,
                                                    impl->width, impl->height, impl->sampleCount, invWidth, invHeight);
 
     err = cudaGetLastError();
@@ -544,6 +562,19 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         std::cout << "generatePrimaryRaysKernel error: " << cudaGetErrorString(err) << std::endl;
         return -1.f;
     }
+
+    int threads = 256;
+    int blocks = (pixelCount + threads - 1) / threads;
+
+    initFloat3Buffer<<<blocks, threads>>>(impl->d_throughput, pixelCount, make_float3(1.f));
+
+    initFloat3Buffer<<<blocks, threads>>>(impl->d_radiance, pixelCount, make_float3(0.f));
+
+    initBoolBuffer<<<blocks, threads>>>(impl->d_isInside, pixelCount, false);
+
+    initBoolBuffer<<<blocks, threads>>>(impl->d_lastBounceWasDelta, pixelCount, false);
+
+    initFloatBuffer<<<blocks, threads>>>(impl->d_lastBsdfPdf, pixelCount, 1.f);
 
     int h_activeCount = pixelCount;
 
@@ -587,10 +618,11 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         // ---------------------------------------------------------------------
         // 2.2 Shading + compaction nextActiveQueue
         // ---------------------------------------------------------------------
-
+            
         shadeWavefrontKernel<<<gridForCount(h_activeCount), block1D>>>(
-            impl->gpuScene, impl->d_rays, impl->d_wavefrontStates, impl->d_hits, impl->d_hitMask, impl->d_activeQueue, h_activeCount,
-            impl->d_nextActiveQueue, impl->d_nextActiveCount, bounce == 0);
+            impl->gpuScene, impl->d_rays, impl->d_throughput, impl->d_radiance, impl->d_pixelIndices, impl->d_rng, impl->d_isInside,
+            impl->d_lastBounceWasDelta, impl->d_lastBsdfPdf, impl->d_hits, impl->d_hitMask, impl->d_activeQueue,
+            h_activeCount, impl->d_nextActiveQueue, impl->d_nextActiveCount, bounce == 0, bounce);
 
         err = cudaGetLastError();
         if (err != cudaSuccess)
@@ -617,7 +649,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
 
     dim3 gridAllPixels((pixelCount + block1D.x - 1) / block1D.x);
 
-    accumulateWavefrontKernel<<<gridAllPixels, block1D>>>(impl->d_wavefrontStates, impl->d_accumBuffer, impl->width,
+    accumulateWavefrontKernel<<<gridAllPixels, block1D>>>(impl->d_pixelIndices, impl->d_radiance, impl->d_accumBuffer, impl->width,
                                                           impl->height);
 
     cudaDeviceSynchronize(); // Assurer que tous les calculs sont terminés avant de vérifier les erreurs
@@ -754,6 +786,13 @@ void Renderer::cleanUp()
     cudaFree(impl->d_value);
     cudaFree(impl->d_accumBuffer);
 
+    cudaFree(impl->d_throughput);
+    cudaFree(impl->d_radiance);
+    cudaFree(impl->d_pixelIndices);
+    cudaFree(impl->d_rng);
+    cudaFree(impl->d_isInside);
+    cudaFree(impl->d_lastBounceWasDelta);
+    cudaFree(impl->d_lastBsdfPdf);
     cudaFree(impl->d_normalizedBuffer);
 
     cudaFree(impl->d_brightBuffer);
@@ -766,7 +805,6 @@ void Renderer::cleanUp()
 
     cudaFree(impl->d_convergenceBuffer);
 
-    cudaFree(impl->d_wavefrontStates);
     cudaFree(impl->d_rays);
     cudaFree(impl->d_hits);
     cudaFree(impl->d_hitMask);
