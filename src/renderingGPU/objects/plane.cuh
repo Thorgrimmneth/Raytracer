@@ -1,8 +1,7 @@
 #pragma once
 
-#include "../utils/objects.cuh"
 #include "../materials/material.cuh"
-
+#include "../../../devicePrograms/launch_params.cuh"
 struct Plane
 {
     float4 normal; // xyz = normal, w = delta
@@ -18,7 +17,7 @@ struct Plane
     float getDelta() const { return normal.w; }
 
     D_FORCEINLINE 
-    bool intersect(const Ray &ray, const float tMin, const float tMax, HitRecord &hitRecord) const
+    bool intersect(const Ray &ray, const float tMin, const float tMax, OptixHit &hitRecord) const
     {
         float t;
 

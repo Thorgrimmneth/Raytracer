@@ -1,5 +1,6 @@
 #include "renderer.hpp"
 
+#include "../../../devicePrograms/launch_params.cuh"
 #include "camera/camera.cuh"
 #include "scene/scene.cuh"
 
@@ -69,8 +70,9 @@ class Renderer::Impl
     float3 *d_convergenceBuffer = nullptr;
 
     WavefrontState *d_wavefrontStates = nullptr;
+    Ray *d_rays = nullptr;
 
-    HitRecord *d_hits = nullptr;
+    OptixHit *d_hits = nullptr;
     int *d_hitMask = nullptr;
 
     int *d_activeQueue = nullptr;
@@ -201,8 +203,8 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
 
     setSeed(43);
 
-    //impl->gpuScene = spheresScene(sunDir);
-    //impl->gpuScene = implicitSpheresScene(sunDir);
+    // impl->gpuScene = spheresScene(sunDir);
+    // impl->gpuScene = implicitSpheresScene(sunDir);
     impl->gpuScene = singleObject(sunDir);
     impl->hdrBufferSize = impl->width * impl->height * sizeof(float3);
 
@@ -225,7 +227,8 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
 
     size_t pixelCount = impl->width * impl->height;
     cudaMalloc(&impl->d_wavefrontStates, pixelCount * sizeof(WavefrontState));
-    cudaMalloc(&impl->d_hits, pixelCount * sizeof(HitRecord));
+    cudaMalloc(&impl->d_rays, pixelCount * sizeof(Ray));
+    cudaMalloc(&impl->d_hits, pixelCount * sizeof(OptixHit));
     cudaMalloc(&impl->d_hitMask, pixelCount * sizeof(int));
     cudaMalloc(&impl->d_activeQueue, pixelCount * sizeof(int));
     cudaMalloc(&impl->d_nextActiveQueue, pixelCount * sizeof(int));
@@ -347,7 +350,7 @@ void renderKernel(CudaScene gpuScene, float3 *d_accumBuffer, int width, int heig
 
 // WAVEFRONT INIT
 GLOBAL
-void generatePrimaryRaysKernel(WavefrontState *states, int *activeQueue, int *activeCount, int width, int height,
+void generatePrimaryRaysKernel(Ray *rays, WavefrontState *states, int *activeQueue, int *activeCount, int width, int height,
                                int sampleCount, float invWidth, float invHeight)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -367,10 +370,10 @@ void generatePrimaryRaysKernel(WavefrontState *states, int *activeQueue, int *ac
     float3 rayTarget = toFloat3(camera.topLeft + sx * camera.viewPortU - sy * camera.viewPortV);
 
     float3 direction = normalize(rayTarget - toFloat3(camera.cameraPos));
-
+    states[pixelIndex] = WavefrontState(rng, pixelIndex);
     Ray primaryRay(toFloat3(camera.cameraPos), direction);
 
-    states[pixelIndex] = WavefrontState(primaryRay, rng, pixelIndex);
+    rays[pixelIndex] = primaryRay;
 
     activeQueue[pixelIndex] = pixelIndex;
 
@@ -378,9 +381,10 @@ void generatePrimaryRaysKernel(WavefrontState *states, int *activeQueue, int *ac
         *activeCount = width * height;
 }
 
+/*
 // WAVEFRONT INTERSECTION
 GLOBAL
-void wavefrontIntersectKernel(CudaScene scene, WavefrontState *states, HitRecord *hits, int *hitMask,
+void wavefrontIntersectKernel(CudaScene scene, Ray *rays, OptixHit *hits, int *hitMask,
                               const int *activeQueue, int activeCount, float tMin, float tMax)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -390,14 +394,14 @@ void wavefrontIntersectKernel(CudaScene scene, WavefrontState *states, HitRecord
 
     int idx = activeQueue[qid];
 
-    HitRecord hit;
+    OptixHit hit;
     hitMask[idx] = 0;
-    if (scene.intersect(states[idx].ray, tMin, tMax, hit))
+    if (scene.intersect(rays[idx], tMin, tMax, hit))
     {
         hits[idx] = hit;
         hitMask[idx] = 1;
     }
-}
+}*/
 
 // WAVEFRONT ACCUMULATION
 GLOBAL
@@ -408,14 +412,13 @@ void accumulateWavefrontKernel(const WavefrontState *wavefrontStates, float3 *ac
 
     if (idx >= stateCount)
         return;
-    
+
     int pixelIndex = wavefrontStates[idx].pixelIndex;
 
     if (pixelIndex < 0 || pixelIndex >= width * height)
         return;
 
     accumBuffer[pixelIndex] += wavefrontStates[idx].radiance;
-
 }
 
 void Renderer::applyBloom()
@@ -532,7 +535,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
     cudaMemset(impl->d_activeCount, 0, sizeof(int));
     float invWidth = 1.f / (float)(impl->width - 1);
     float invHeight = 1.f / (float)(impl->height - 1);
-    generatePrimaryRaysKernel<<<grid2D, block2D>>>(impl->d_wavefrontStates, impl->d_activeQueue, impl->d_activeCount,
+    generatePrimaryRaysKernel<<<grid2D, block2D>>>(impl->d_rays, impl->d_wavefrontStates, impl->d_activeQueue, impl->d_activeCount,
                                                    impl->width, impl->height, impl->sampleCount, invWidth, invHeight);
 
     err = cudaGetLastError();
@@ -550,7 +553,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
 
     for (int bounce = 0; bounce < impl->maxBounces; bounce++)
     {
-        
+
         if (h_activeCount == 0)
             break;
 
@@ -559,8 +562,15 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         // ---------------------------------------------------------------------
         // 2.1 Intersection uniquement des rayons actifs
         // ---------------------------------------------------------------------
+        impl->gpuScene.optixData.launchParams.rays = impl->d_rays;
+        impl->gpuScene.optixData.launchParams.hits = impl->d_hits;
+        impl->gpuScene.optixData.launchParams.hitMask = impl->d_hitMask;
+        impl->gpuScene.optixData.launchParams.activeQueue = impl->d_activeQueue;
+        impl->gpuScene.optixData.launchParams.activeCount = h_activeCount;
+        cudaMemcpy(reinterpret_cast<void *>(impl->gpuScene.optixData.d_launchParams),
+                   &impl->gpuScene.optixData.launchParams, sizeof(LaunchParams), cudaMemcpyHostToDevice);
 
-        wavefrontIntersectKernel<<<gridForCount(h_activeCount), block1D>>>(
+        /*wavefrontIntersectKernel<<<gridForCount(h_activeCount), block1D>>>(
             impl->gpuScene, impl->d_wavefrontStates, impl->d_hits, impl->d_hitMask, impl->d_activeQueue, h_activeCount,
             0.001f, 1e20f);
 
@@ -569,14 +579,17 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         {
             std::cout << "wavefrontIntersectKernel error: " << cudaGetErrorString(err) << std::endl;
             return -1.f;
-        }
-
+        }*/
+        OPTIX_CHECK(optixLaunch(impl->gpuScene.optixData.pipeline,
+                                0, // stream
+                                impl->gpuScene.optixData.d_launchParams, sizeof(LaunchParams),
+                                &impl->gpuScene.optixData.sbt, h_activeCount, 1, 1));
         // ---------------------------------------------------------------------
         // 2.2 Shading + compaction nextActiveQueue
         // ---------------------------------------------------------------------
 
         shadeWavefrontKernel<<<gridForCount(h_activeCount), block1D>>>(
-            impl->gpuScene, impl->d_wavefrontStates, impl->d_hits, impl->d_hitMask, impl->d_activeQueue, h_activeCount,
+            impl->gpuScene, impl->d_rays, impl->d_wavefrontStates, impl->d_hits, impl->d_hitMask, impl->d_activeQueue, h_activeCount,
             impl->d_nextActiveQueue, impl->d_nextActiveCount, bounce == 0);
 
         err = cudaGetLastError();
@@ -606,8 +619,8 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
 
     accumulateWavefrontKernel<<<gridAllPixels, block1D>>>(impl->d_wavefrontStates, impl->d_accumBuffer, impl->width,
                                                           impl->height);
-    
-                                        cudaDeviceSynchronize(); // Assurer que tous les calculs sont terminés avant de vérifier les erreurs                      
+
+    cudaDeviceSynchronize(); // Assurer que tous les calculs sont terminés avant de vérifier les erreurs
     err = cudaGetLastError();
     if (err != cudaSuccess)
     {
@@ -627,7 +640,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
 
     normalizeKernel<<<impl->gridSize, impl->blockSize>>>(impl->d_accumBuffer, impl->d_normalizedBuffer,
                                                          impl->sampleCount, impl->width, impl->height);
-    
+
     err = cudaGetLastError();
     if (err != cudaSuccess)
     {
@@ -754,6 +767,7 @@ void Renderer::cleanUp()
     cudaFree(impl->d_convergenceBuffer);
 
     cudaFree(impl->d_wavefrontStates);
+    cudaFree(impl->d_rays);
     cudaFree(impl->d_hits);
     cudaFree(impl->d_hitMask);
     cudaFree(impl->d_activeQueue);

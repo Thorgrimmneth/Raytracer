@@ -1,81 +1,63 @@
 #include "optix_sbt_manager.h"
 
-#include "optix_sbt_manager.h"
+#include <cuda_runtime.h>
 
-void OptixSBTManager::create(OptixProgramGroup raygenPG, OptixProgramGroup missPG, OptixProgramGroup hitPG)
+#include "../utils/macro.cuh"
+
+void OptixSBTManager::create(OptixProgramGroup raygenPG, OptixProgramGroup missPG, OptixProgramGroup hitPG,
+                             float3 *vertices, float3 *normals, float2 *uvs, uint3 *triangles, int materialIndex)
 {
-    sbt = {};
+    RaygenRecord rg = {};
+    OPTIX_CHECK(optixSbtRecordPackHeader(raygenPG, &rg));
 
-    //
-    // Raygen
-    //
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_raygenRecord), sizeof(RaygenRecord)));
 
-    SbtRecord<RaygenData> raygenRecord = {};
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(d_raygenRecord), &rg, sizeof(RaygenRecord), cudaMemcpyHostToDevice));
 
-    OPTIX_CHECK(optixSbtRecordPackHeader(raygenPG, &raygenRecord));
+    MissRecord ms = {};
+    OPTIX_CHECK(optixSbtRecordPackHeader(missPG, &ms));
 
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_raygenRecord), sizeof(SbtRecord<RaygenData>)));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_missRecord), sizeof(MissRecord)));
 
-    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(d_raygenRecord), &raygenRecord, sizeof(SbtRecord<RaygenData>),
-                          cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(d_missRecord), &ms, sizeof(MissRecord), cudaMemcpyHostToDevice));
+
+    HitRecordSBT hg = {};
+
+    OPTIX_CHECK(optixSbtRecordPackHeader(hitPG, &hg));
+
+    hg.data.vertices = vertices;
+    hg.data.normals = normals;
+    hg.data.uvs = uvs;
+    hg.data.triangles = triangles;
+    hg.data.materialIndex = materialIndex;
+
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_hitRecord), sizeof(HitRecordSBT)));
+
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(d_hitRecord), &hg, sizeof(HitRecordSBT), cudaMemcpyHostToDevice));
 
     sbt.raygenRecord = d_raygenRecord;
 
-    //
-    // Miss
-    //
-
-    SbtRecord<MissData> missRecord = {};
-
-    OPTIX_CHECK(optixSbtRecordPackHeader(missPG, &missRecord));
-
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_missRecord), sizeof(SbtRecord<MissData>)));
-
-    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(d_missRecord), &missRecord, sizeof(SbtRecord<MissData>),
-                          cudaMemcpyHostToDevice));
-
     sbt.missRecordBase = d_missRecord;
-    sbt.missRecordStrideInBytes = sizeof(SbtRecord<MissData>);
+    sbt.missRecordStrideInBytes = sizeof(MissRecord);
     sbt.missRecordCount = 1;
 
-    //
-    // Hitgroup
-    //
-
-    SbtRecord<HitData> hitRecord = {};
-
-    OPTIX_CHECK(optixSbtRecordPackHeader(hitPG, &hitRecord));
-
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_hitRecord), sizeof(SbtRecord<HitData>)));
-
-    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(d_hitRecord), &hitRecord, sizeof(SbtRecord<HitData>),
-                          cudaMemcpyHostToDevice));
-
     sbt.hitgroupRecordBase = d_hitRecord;
-    sbt.hitgroupRecordStrideInBytes = sizeof(SbtRecord<HitData>);
+    sbt.hitgroupRecordStrideInBytes = sizeof(HitRecordSBT);
     sbt.hitgroupRecordCount = 1;
 }
 
 void OptixSBTManager::destroy()
 {
     if (d_raygenRecord)
-    {
-        CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_raygenRecord)));
-
-        d_raygenRecord = 0;
-    }
+        cudaFree(reinterpret_cast<void *>(d_raygenRecord));
 
     if (d_missRecord)
-    {
-        CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_missRecord)));
-
-        d_missRecord = 0;
-    }
+        cudaFree(reinterpret_cast<void *>(d_missRecord));
 
     if (d_hitRecord)
-    {
-        CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_hitRecord)));
+        cudaFree(reinterpret_cast<void *>(d_hitRecord));
 
-        d_hitRecord = 0;
-    }
+    d_raygenRecord = 0;
+    d_missRecord = 0;
+    d_hitRecord = 0;
 }

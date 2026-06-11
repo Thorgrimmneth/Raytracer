@@ -1,6 +1,7 @@
 #pragma once
 
-#include "../utils/objects.cuh"
+#include "../utils/objectType.h"
+#include "../../../devicePrograms/launch_params.cuh"
 
 struct ImplicitSphere
 {
@@ -57,7 +58,7 @@ struct ImplicitSphere
 
     D_FORCEINLINE 
     bool intersect(const Ray &p_ray, const float p_tMin, const float p_tMax,
-                                              HitRecord &p_hitRecord) const
+                                              OptixHit &p_hitRecord) const
     {
         float t = p_tMin;
         const float threshold = 1e-4f;

@@ -9,7 +9,6 @@
 #include "../objectsUtils/aabb.cuh"
 
 #include "../raytracingUtils/hitrecord.cuh"
-#include "../raytracingUtils/ray.cuh"
 
 
 enum WavefrontQueueType
@@ -26,8 +25,6 @@ enum WavefrontQueueType
 
 struct WavefrontState
 {
-    Ray ray;
-
     float3 throughput = make_float3(1.f);
     float3 radiance = make_float3(0.f);
 
@@ -40,8 +37,8 @@ struct WavefrontState
     bool lastBounceWasDelta = false;
     float lastBsdfPdf = 1.f;
 
-    HD WavefrontState(const Ray &r, const RNG &random, int pixel)
-        : ray(r), throughput(make_float3(1.f)), radiance(make_float3(0.f)), rng(random), pixelIndex(pixel), depth(0), isInside(false), lastBounceWasDelta(false), lastBsdfPdf(1.f)
+    HD WavefrontState(const RNG &random, int pixel)
+        : throughput(make_float3(1.f)), radiance(make_float3(0.f)), rng(random), pixelIndex(pixel), depth(0), isInside(false), lastBounceWasDelta(false), lastBsdfPdf(1.f)
     {
     }
 

@@ -16,7 +16,7 @@
 
 #include "../materials/material.cuh"
 
-#include "../raytracingUtils/hitrecord.cuh"
+#include "../../../devicePrograms/launch_params.cuh"
 
 struct Current
 {
@@ -77,7 +77,7 @@ struct BVHScene
     size_t getDeviceSize() const;
 
     D_FORCEINLINE 
-    bool intersect(const Ray &ray, const float tMin, const float tMaxInit, HitRecord &hit) const
+    bool intersect(const Ray &ray, const float tMin, const float tMaxInit, OptixHit &hit) const
     {
         constexpr int STACK_SIZE = 32;
 
@@ -121,7 +121,7 @@ struct BVHScene
 
                         if (d_spheres[objectIndex].intersect(ray, tMin, tMax, hit))
                         {
-                            tMax = hit.getDistance();
+                            tMax = hit.t;
                             hitSomething = true;
                             hit.objectType = HIT_SPHERE;
                             hit.objectIndex = objectIndex;
@@ -133,7 +133,7 @@ struct BVHScene
 
                         if (d_implicitSpheres[objectIndex].intersect(ray, tMin, tMax, hit))
                         {
-                            tMax = hit.getDistance();
+                            tMax = hit.t;
                             hitSomething = true;
                             hit.objectType = HIT_SPHERE_IMPLICIT;
                             hit.objectIndex = objectIndex;

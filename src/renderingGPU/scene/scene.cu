@@ -1,11 +1,4 @@
-
-#include "../../../devicePrograms/optix_launch_params_manager.h"
-#include "../optix/optix_context.h"
-#include "../optix/optix_gas.h"
-#include "../optix/optix_module_manager.h"
-#include "../optix/optix_pipeline_manager.h"
-#include "../optix/optix_program_group_manager.h"
-#include "../optix/optix_sbt_manager.h"
+#include "../camera/camera.cuh"
 #include "scene.cuh"
 #include "scene_helper.cuh"
 
@@ -574,12 +567,13 @@ CudaScene singleObject(float4 sunDir)
 {
     CudaScene gpuScene;
     CudaSceneHelper helper;
-
+    Material mirror = Material::makeMaterial(make_float3(1.f, 1.f, 1.f), MIRROR);
+    helper.materialsGPU.push_back(mirror);
     Material mat = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), LAMBERT, 1.0f);
     helper.materialsGPU.push_back(mat);
     Quaternion rotation = quaternionFromAxisAngle(make_float3(0.f, 1.f, 0.f), 0.f);
     MeshAndPrimitive meshAndPrim =
-        loadTriangleMesh("data/bunny/Bunny.obj", helper.materialsGPU.size() - 1, helper.triangleMeshesGPU.size(),
+        loadTriangleMesh("data/bunny/Bunny.obj", 0, helper.triangleMeshesGPU.size(),
                          make_float3(2.f, 2.f, 2.f), rotation, make_float3(0.f, 0.f, 0.f));
     helper.triangleMeshesGPU.push_back(meshAndPrim.mesh);
     helper.primitivesGPU.push_back(meshAndPrim.prim);
@@ -619,13 +613,38 @@ CudaScene singleObject(float4 sunDir)
     std::cout << "Pipeline = " << pipelineManager.pipeline << std::endl;
 
     OptixSBTManager sbtManager;
-    sbtManager.create(programGroupManager);
+    sbtManager.create(programGroupManager.raygenPG, programGroupManager.missPG, programGroupManager.hitPG,
+                      meshAndPrim.mesh.vertices, meshAndPrim.mesh.normals, meshAndPrim.mesh.uvs, meshAndPrim.mesh.triangles, meshAndPrim.mesh.materialIndex);
 
     std::cout << "raygenRecord = " << sbtManager.sbt.raygenRecord << "\nmissCount = " << sbtManager.sbt.missRecordCount
               << "\nhitCount = " << sbtManager.sbt.hitgroupRecordCount << std::endl;
 
+    float3 camPos = make_float3(8.f, 2.f, 3.f);
+    float3 camTarget = make_float3(0.f, 0.f, 0.f);
+    float3 camUp = make_float3(0.f, 1.f, 0.f);
+
+    float fov = 60.f;
+    float aspect = (float)1920 / (float)1080;
+    float focalDistance = 1.f;
+
+    // === Base vectors EXACTEMENT comme CPU ===
+    float3 w = normalize(camPos - camTarget);
+    float3 u = normalize(cross(camUp, w));
+    float3 v = normalize(cross(w, u));
+
+    // === Viewport ===
+    float theta = fov * 3.14159265f / 180.f;
+    float viewportHeight = 2.f * tanf(theta * 0.5f) * focalDistance;
+    float viewportWidth = viewportHeight * aspect;
+
+    float3 viewportU = u * viewportWidth;
+    float3 viewportV = v * viewportHeight;
+
+    float3 topLeft = camPos - w * focalDistance + viewportV * 0.5f - viewportU * 0.5f;
+    Camera camera = Camera{
+        fov, aspect, focalDistance, toFloat4(camPos), toFloat4(topLeft), toFloat4(viewportU), toFloat4(viewportV)};
     OptixLaunchParamsManager launchParamsManager;
-    launchParamsManager.create(1920, 1080);
+    launchParamsManager.create();
     std::cout << "d_params = " << launchParamsManager.d_params << std::endl;
 
     OPTIX_CHECK(optixPipelineSetStackSize(pipelineManager.pipeline,
@@ -645,13 +664,20 @@ CudaScene singleObject(float4 sunDir)
     launchParamsManager.params.traversable = gas.handle;
     CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManager.d_params), &launchParamsManager.params,
                           sizeof(LaunchParams), cudaMemcpyHostToDevice));
-
+    /*
     OPTIX_CHECK(optixLaunch(pipelineManager.pipeline,
                             0, // stream
                             launchParamsManager.d_params, sizeof(LaunchParams), &sbtManager.sbt,
                             launchParamsManager.params.width, launchParamsManager.params.height, 1));
     CUDA_CHECK(cudaDeviceSynchronize());
-    auto framebuffer = launchParamsManager.downloadFramebuffer();
+    auto framebuffer = launchParamsManager.downloadFramebuffer();*/
+    gpuScene.optixData = OptixSceneData{pipelineManager.pipeline,   sbtManager.sbt, launchParamsManager.d_params,
+                                        launchParamsManager.params, gas.handle,     gas.d_gasBuffer};
+    raygenModuleManager.destroy();
+    missModuleManager.destroy();
+    chitModuleManager.destroy();
+
+    programGroupManager.destroy();
 
     gpuScene.uploadObjects(helper);
     gpuScene.uploadLights(helper);

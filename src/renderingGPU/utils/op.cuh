@@ -6,7 +6,8 @@
 // ============================================================
 
 #include "macro.cuh"
-
+#include <cuda_runtime.h>
+#include <math.h>
 // ============================================================
 // Constructors / conversions
 // ============================================================
@@ -238,7 +239,7 @@ HD_FORCEINLINE float3 normalize(const float3& a)
 
     if (len2 > 0.0f)
     {
-        return a * rsqrtf(len2);
+        return a * (1.0f / sqrtf(len2));
     }
 
     return make_float3(0.0f);
@@ -351,27 +352,27 @@ HD_FORCEINLINE bool refract(const float3& a, const float3& b, const float c, flo
 H_INLINE float3 getMin(const float3& a, const float3& b)
 {
     return make_float3(
-        min(a.x, b.x),
-        min(a.y, b.y),
-        min(a.z, b.z)
+        std::min(a.x, b.x),
+        std::min(a.y, b.y),
+        std::min(a.z, b.z)
     );
 }
 
 H_INLINE float3 getMax(const float3& a, const float3& b)
 {
     return make_float3(
-        max(a.x, b.x),
-        max(a.y, b.y),
-        max(a.z, b.z)
+        std::max(a.x, b.x),
+        std::max(a.y, b.y),
+        std::max(a.z, b.z)
     );
 }
 
 H_INLINE float4 getMin(const float4& a, const float4& b)
 {
     return make_float4(
-        min(a.x, b.x),
-        min(a.y, b.y),
-        min(a.z, b.z),
+        std::min(a.x, b.x),
+        std::min(a.y, b.y),
+        std::min(a.z, b.z),
         0.f
     );
 }
@@ -379,9 +380,9 @@ H_INLINE float4 getMin(const float4& a, const float4& b)
 H_INLINE float4 getMax(const float4& a, const float4& b)
 {
     return make_float4(
-        max(a.x, b.x),
-        max(a.y, b.y),
-        max(a.z, b.z),
+        std::max(a.x, b.x),
+        std::max(a.y, b.y),
+        std::max(a.z, b.z),
         0.f
     );
 }

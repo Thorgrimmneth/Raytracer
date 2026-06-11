@@ -208,10 +208,10 @@ float Material::pdfGGX(
 DEVICE
 BSDFVal Material::getMetalBSDF(
     const Ray&       ray,
-    const HitRecord& hit,
+    const OptixHit& hit,
     RNG*             rngStates) const
 {
-    float3  normal = hit.getNormal();
+    float3  normal = hit.normal;
     float3  wo     = -ray.direction;
     BSDFVal bsdf;
 
@@ -236,10 +236,10 @@ BSDFVal Material::getMetalBSDF(
 DEVICE
 BSDFVal Material::getLambertBSDF(
     const Ray&       ray,
-    const HitRecord& hit,
+    const OptixHit& hit,
     RNG*             rngStates) const
 {
-    float3  normal = hit.getNormal();
+    float3  normal = hit.normal;
     BSDFVal bsdf;
 
     bsdf.direction = samplingLambert(normal, rngStates);
@@ -253,10 +253,10 @@ BSDFVal Material::getLambertBSDF(
 DEVICE
 BSDFVal Material::getPlasticBSDF(
     const Ray&       ray,
-    const HitRecord& hit,
+    const OptixHit& hit,
     RNG*             rngStates) const
 {
-    float3  normal = hit.getNormal();
+    float3  normal = hit.normal;
     float3  wo     = -ray.direction;
     BSDFVal bsdf;
 
@@ -293,9 +293,9 @@ BSDFVal Material::getPlasticBSDF(
 DEVICE
 BSDFVal Material::getMirrorBSDF(
     const Ray&       ray,
-    const HitRecord& hit) const
+    const OptixHit& hit) const
 {
-    float3  normal = hit.getNormal();
+    float3  normal = hit.normal;
     BSDFVal bsdf;
 
     bsdf.direction = reflect(ray.direction, normal);
@@ -309,11 +309,11 @@ BSDFVal Material::getMirrorBSDF(
 DEVICE
 BSDFVal Material::getTransparentBSDF(
     const Ray&       ray,
-    const HitRecord& hit,
+    const OptixHit& hit,
     RNG*             rngStates,
     bool&            isInside) const
 {
-    float3  normal = hit.getNormal();
+    float3  normal = hit.normal;
     float3  wo     = ray.direction;
     BSDFVal bsdf;
 
@@ -382,7 +382,7 @@ BSDFVal Material::getTransparentBSDF(
 DEVICE
 BSDFVal Material::getBSDF(
     const Ray&       ray,
-    const HitRecord& hit,
+    const OptixHit& hit,
     RNG*             rngStates,
     bool&            isInside) const
 {
@@ -429,10 +429,10 @@ float3 Material::evalLambertBSDF() const
 DEVICE
 float3 Material::evalMetalBSDF(
     const Ray&       ray,
-    const HitRecord& hit,
+    const OptixHit& hit,
     const float3&    wi) const
 {
-    float3 normal = hit.getNormal();
+    float3 normal = hit.normal;
     float3 wo     = -ray.direction;
 
     if (dot(normal, wi) <= 0.f)
@@ -446,10 +446,10 @@ float3 Material::evalMetalBSDF(
 DEVICE
 float3 Material::evalPlasticBSDF(
     const Ray&       ray,
-    const HitRecord& hit,
+    const OptixHit& hit,
     const float3&    wi) const
 {
-    float3 normal = hit.getNormal();
+    float3 normal = hit.normal;
     float3 wo     = -ray.direction;
 
     if (dot(normal, wi) <= 0.f)
@@ -472,7 +472,7 @@ float3 Material::evalPlasticBSDF(
 DEVICE
 float3 Material::evalBSDF(
     const Ray&       ray,
-    const HitRecord& hit,
+    const OptixHit& hit,
     const float3&    wi) const
 {
     switch (type())
@@ -502,10 +502,10 @@ float3 Material::evalBSDF(
 DEVICE
 float Material::lambertPDF(
     const Ray&       ray,
-    const HitRecord& hit,
+    const OptixHit& hit,
     const float3&    wi) const
 {
-    float3 normal = hit.getNormal();
+    float3 normal = hit.normal;
 
     return pdfLambert(normal, wi);
 }
@@ -513,10 +513,10 @@ float Material::lambertPDF(
 DEVICE
 float Material::metalPDF(
     const Ray&       ray,
-    const HitRecord& hit,
+    const OptixHit& hit,
     const float3&    wi) const
 {
-    float3 normal = hit.getNormal();
+    float3 normal = hit.normal;
     float3 wo     = -ray.direction;
 
     if (dot(normal, wi) <= 0.f)
@@ -528,10 +528,10 @@ float Material::metalPDF(
 DEVICE
 float Material::plasticPDF(
     const Ray&       ray,
-    const HitRecord& hit,
+    const OptixHit& hit,
     const float3&    wi) const
 {
-    float3 normal = hit.getNormal();
+    float3 normal = hit.normal;
     float3 wo     = -ray.direction;
 
     if (dot(normal, wi) <= 0.f)
@@ -553,7 +553,7 @@ float Material::plasticPDF(
 DEVICE
 float Material::pdf(
     const Ray&       ray,
-    const HitRecord& hit,
+    const OptixHit& hit,
     const float3&    wi) const
 {
     switch (type())

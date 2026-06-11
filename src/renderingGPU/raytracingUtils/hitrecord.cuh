@@ -2,14 +2,7 @@
 
 #include "../utils/macro.cuh"
 #include "../utils/op.cuh"
-
-enum HitObjectType
-{
-    HIT_SPHERE,
-    HIT_TRIANGLE_MESH,
-    HIT_PLANE,
-    HIT_SPHERE_IMPLICIT
-};
+#include "../utils/objectType.h"
 
 struct HitRecord
 {

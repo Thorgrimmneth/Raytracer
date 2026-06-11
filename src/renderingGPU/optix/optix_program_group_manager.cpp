@@ -12,7 +12,7 @@ void OptixProgramGroupManager::create(
     OptixProgramGroupDesc raygenPGDesc = {};
     raygenPGDesc.kind = OPTIX_PROGRAM_GROUP_KIND_RAYGEN;
     raygenPGDesc.raygen.module = raygenModule;
-    raygenPGDesc.raygen.entryFunctionName = "__raygen__render";
+    raygenPGDesc.raygen.entryFunctionName = "__raygen__intersect";
 
     OPTIX_CHECK(optixProgramGroupCreate(
         context,
@@ -50,4 +50,20 @@ void OptixProgramGroupManager::create(
         nullptr, nullptr,
         &hitPG
     ));
+}
+
+void OptixProgramGroupManager::destroy()
+{
+    if (raygenPG) {
+        OPTIX_CHECK(optixProgramGroupDestroy(raygenPG));
+        raygenPG = nullptr;
+    }
+    if (missPG) {
+        OPTIX_CHECK(optixProgramGroupDestroy(missPG));
+        missPG = nullptr;
+    }
+    if (hitPG) {
+        OPTIX_CHECK(optixProgramGroupDestroy(hitPG));
+        hitPG = nullptr;
+    }
 }

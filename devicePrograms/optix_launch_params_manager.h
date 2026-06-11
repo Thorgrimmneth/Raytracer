@@ -1,16 +1,13 @@
 #pragma once
 
+#include "../src/renderingGPU/raytracingUtils/ray.cuh"
 #include "launch_params.cuh"
 #include <vector>
 
 class OptixLaunchParamsManager
 {
-public:
-
-    void create(
-        uint32_t width,
-        uint32_t height
-    );
+  public:
+    void create();
 
     void destroy();
 
@@ -18,7 +15,7 @@ public:
 
     CUdeviceptr d_params = 0;
     std::vector<uchar4> downloadFramebuffer() const;
-private:
 
-    uchar4* framebuffer = nullptr;
+  private:
+    uchar4 *framebuffer = nullptr;
 };

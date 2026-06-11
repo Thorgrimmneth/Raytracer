@@ -14,7 +14,6 @@ class OptixGAS
     void destroy();
 
     OptixTraversableHandle handle = 0;
-
-  private:
-    CUdeviceptr d_gasBuffer = 0;
+      CUdeviceptr d_gasBuffer = 0;
+    
 };

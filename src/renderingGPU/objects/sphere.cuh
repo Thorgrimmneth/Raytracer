@@ -1,7 +1,6 @@
 #pragma once
 
-#include "../utils/objects.cuh"
-
+#include "../../../devicePrograms/launch_params.cuh"
 struct Sphere
 {
     float4 center1; // xyz = center, w = radius
@@ -31,7 +30,7 @@ struct Sphere
     }
 
     D_FORCEINLINE 
-    bool intersect(const Ray &ray, const float tMin, const float tMax, HitRecord &hit) const
+    bool intersect(const Ray &ray, const float tMin, const float tMax, OptixHit &hit) const
     {
         const float3 center = getCenter1() + ray.time * (getCenter2() - getCenter1());
 

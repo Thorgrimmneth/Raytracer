@@ -1,7 +1,5 @@
 #pragma once
 
-#include "../utils/objects.cuh"
-
 #include "../materials/material.cuh"
 
 #include "../objectsUtils/bvh.cuh"

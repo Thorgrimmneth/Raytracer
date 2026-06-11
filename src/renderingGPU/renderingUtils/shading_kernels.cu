@@ -1,7 +1,7 @@
 #include "shading_kernels.cuh"
 
 
-__global__ void shadeWavefrontKernel(CudaScene scene, WavefrontState *states, HitRecord *hits, int *hitMask,
+__global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, WavefrontState *states, OptixHit *hits, int *hitMask,
                                      const int *activeQueue, int activeCount, int *nextActiveQueue,
                                      int *nextActiveCount, bool safeSun)
 {
@@ -14,7 +14,7 @@ __global__ void shadeWavefrontKernel(CudaScene scene, WavefrontState *states, Hi
 
     WavefrontState &state = states[idx];
 
-    Ray ray = state.ray;
+    Ray &ray = rays[idx];
 
     // ------------------------------------------------------------
     // MISS / SKY
@@ -130,8 +130,8 @@ __global__ void shadeWavefrontKernel(CudaScene scene, WavefrontState *states, Hi
     // HIT
     // ------------------------------------------------------------
 
-    HitRecord hit = hits[idx];
-    Material mtl = scene.materials[hit.getMaterialIndex()];
+    OptixHit hit = hits[idx];
+    Material mtl = scene.materials[hit.materialIndex];
 
     // ------------------------------------------------------------
     // EMISSIVE
@@ -207,11 +207,11 @@ __global__ void shadeWavefrontKernel(CudaScene scene, WavefrontState *states, Hi
 
         const Light &light = scene.lights[lightIndex];
 
-        LightSample ls = light.sample(hit.getPoint(), rng, scene);
+        LightSample ls = light.sample(hit.position, rng, scene);
 
         if (ls.pdf > 0.f)
         {
-            float3 shadowOrigin = hit.getPoint() + hit.getNormal() * 1e-3f;
+            float3 shadowOrigin = hit.position + hit.normal * 1e-3f;
 
             Ray shadowRay(shadowOrigin, ls.direction, ray.time);
 
@@ -219,7 +219,7 @@ __global__ void shadeWavefrontKernel(CudaScene scene, WavefrontState *states, Hi
 
             if (length(shadowTint) > 1e-6f)
             {
-                float cosTheta = fmaxf(dot(hit.getNormal(), ls.direction), 0.0f);
+                float cosTheta = fmaxf(dot(hit.normal, ls.direction), 0.0f);
 
                 if (cosTheta > 0.f)
                 {
@@ -272,7 +272,7 @@ __global__ void shadeWavefrontKernel(CudaScene scene, WavefrontState *states, Hi
     }
     else
     {
-        float cosTheta = fmaxf(dot(hit.getNormal(), bsdf.direction), 0.0f);
+        float cosTheta = fmaxf(dot(hit.normal, bsdf.direction), 0.0f);
 
         state.throughput = state.throughput * bsdf.brdf * cosTheta / bsdf.pdf;
     }
@@ -281,7 +281,7 @@ __global__ void shadeWavefrontKernel(CudaScene scene, WavefrontState *states, Hi
     // NEXT RAY
     // ------------------------------------------------------------
 
-    state.ray = Ray(hit.getPoint() + bsdf.direction * 1e-3f, bsdf.direction, ray.time);
+    rays[idx] = Ray(hit.position + bsdf.direction * 1e-3f, bsdf.direction, ray.time);
 
     state.depth += 1;
 
@@ -416,7 +416,7 @@ void shadeMissKernel(WavefrontState* states, int* missQueue, int missCount)
 }
 
 __global__
-void shadeEmissiveKernel(CudaScene& gpuScene, WavefrontState* states, HitRecord* hits, int* emissiveQueue, int
+void shadeEmissiveKernel(CudaScene& gpuScene, WavefrontState* states, OptixHit* hits, int* emissiveQueue, int
 emissiveCount)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -456,7 +456,7 @@ __global__
 void shadeMetalKernel(
     CudaScene& gpuScene,
     WavefrontState* states,
-    HitRecord* hits,
+    OptixHit* hits,
     int* metalQueue,
     int metalCount,
     int* d_activeCount)
@@ -474,7 +474,7 @@ void shadeMetalKernel(
         return;
 
     Ray ray = state.ray;
-    HitRecord hit = hits[idx];
+    OptixHit hit = hits[idx];
     Material mtl = gpuScene.materials[hit.materialIndex];
 
     RNG* rng = &state.rng;
@@ -558,7 +558,7 @@ __global__
 void shadeLambertKernel(
     CudaScene& gpuScene,
     WavefrontState* states,
-    HitRecord* hits,
+    OptixHit* hits,
     int* lambertQueue,
     int lambertCount,
     int* d_activeCount)
@@ -576,7 +576,7 @@ void shadeLambertKernel(
         return;
 
     Ray ray = state.ray;
-    HitRecord hit = hits[idx];
+    OptixHit hit = hits[idx];
     Material mtl = gpuScene.materials[hit.materialIndex];
 
     RNG* rng = &state.rng;
@@ -660,7 +660,7 @@ __global__
 void shadePlasticKernel(
     CudaScene& gpuScene,
     WavefrontState* states,
-    HitRecord* hits,
+    OptixHit* hits,
     int* plasticQueue,
     int plasticCount,
     int* d_activeCount)
@@ -678,7 +678,7 @@ void shadePlasticKernel(
         return;
 
     Ray ray = state.ray;
-    HitRecord hit = hits[idx];
+    OptixHit hit = hits[idx];
     Material mtl = gpuScene.materials[hit.materialIndex];
 
     RNG* rng = &state.rng;
@@ -762,7 +762,7 @@ __global__
 void shadeMirrorKernel(
     CudaScene& gpuScene,
     WavefrontState* states,
-    HitRecord* hits,
+    OptixHit* hits,
     int* mirrorQueue,
     int mirrorCount,
     int* d_activeCount)
@@ -780,7 +780,7 @@ void shadeMirrorKernel(
         return;
 
     Ray ray = state.ray;
-    HitRecord hit = hits[idx];
+    OptixHit hit = hits[idx];
     Material mtl = gpuScene.materials[hit.materialIndex];
 
     BSDFVal bsdf = mtl.getMirrorBSDF(ray, hit);
@@ -812,7 +812,7 @@ __global__
 void shadeTransparentKernel(
     CudaScene& gpuScene,
     WavefrontState* states,
-    HitRecord* hits,
+    OptixHit* hits,
     int* transparentQueue,
     int transparentCount,
     int* d_activeCount)
@@ -830,7 +830,7 @@ void shadeTransparentKernel(
         return;
 
     Ray ray = state.ray;
-    HitRecord hit = hits[idx];
+    OptixHit hit = hits[idx];
     Material mtl = gpuScene.materials[hit.materialIndex];
 
     RNG* rng = &state.rng;

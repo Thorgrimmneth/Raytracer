@@ -9,6 +9,8 @@
 
 #include "../scene/scene.cuh"
 
-__global__ void shadeWavefrontKernel(CudaScene scene, WavefrontState *states, HitRecord *hits, int *hitMask,
+#include "../../../devicePrograms/launch_params.cuh"
+
+__global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, WavefrontState *states, OptixHit *hits, int *hitMask,
                                      const int *activeQueue, int activeCount, int *nextActiveQueue,
                                      int *nextActiveCount, bool safeSun);
