@@ -16,19 +16,13 @@ extern "C" __global__ void __closesthit__radiance()
 
     const uint3 tri = data->triangles[primID];
 
-    const float3 v0 = data->vertices[tri.x];
-
-    const float3 v1 = data->vertices[tri.y];
-
-    const float3 v2 = data->vertices[tri.z];
-
     const float2 bc = optixGetTriangleBarycentrics();
 
-    const float b1 = bc.x;
-    const float b2 = bc.y;
-    const float b0 = 1.f - b1 - b2;
-
-    const float3 N = normalize(cross(v1 - v0, v2 - v0));
+    const float3& n0 = data->normals[tri.x];
+    const float3& n1 = data->normals[tri.y];
+    const float3& n2 = data->normals[tri.z];
+    
+    const float3 N = (1 - bc.x - bc.y) * n0 + bc.x * n1 + bc.y * n2;
 
     payload->hit = 1;
 
