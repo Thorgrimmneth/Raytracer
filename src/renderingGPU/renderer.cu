@@ -686,9 +686,20 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
 
     applyBloom();
 
-    // print a value from the bloom buffer for debugging
+    if (convergence)
+    {
+        impl->value = 0.f;
+        cudaMemcpy(impl->d_value, &impl->value, sizeof(float), cudaMemcpyHostToDevice);
+
+        // copy image for convergence
+        compareBuffers<<<impl->gridSize, impl->blockSize>>>(impl->d_finalHDRBuffer, impl->d_convergenceBuffer,
+                                                            impl->width, impl->height, impl->d_value);
+        cudaMemcpy(&impl->value, impl->d_value, sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(impl->d_convergenceBuffer, impl->d_finalHDRBuffer, impl->hdrBufferSize, cudaMemcpyDeviceToDevice);
+    }
+
     if (!outputImage)
-        return -1.f;
+        return impl->value;
     // -------------------------------------------------------------------------
     // 7. Mapping OpenGL / CUDA
     // -------------------------------------------------------------------------
