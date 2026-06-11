@@ -2,8 +2,6 @@
 
 #include "../materials/material.cuh"
 
-#include "../objectsUtils/bvh.cuh"
-
 struct TriangleMesh
 {
     uint3 *triangles = nullptr;

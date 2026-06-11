@@ -104,7 +104,7 @@ struct Material
     // ==== LAMBERT ====
     DEVICE float3 evaluateLambert() const;
 
-    DEVICE float3 samplingLambert(const float3 normal, RNG *rngStates) const;
+    DEVICE float3 samplingLambert(const float3 normal, RNG&rngStates) const;
     DEVICE float pdfLambert(const float3 normal, const float3 direction) const;
 
     // ==== GGX ====
@@ -118,7 +118,7 @@ struct Material
 
     DEVICE float3 evaluateGGX(const float3 &wo, const float3 &normal, const float3 &wi, const float3 &F0) const;
 
-    DEVICE float3 samplingGGX(const float3 &wo, const float3 &normal, RNG *rngStates) const;
+    DEVICE float3 samplingGGX(const float3 &wo, const float3 &normal, RNG&rngStates) const;
 
     DEVICE float pdfGGX(const float3 n, const float3 direction, const float3 wo) const;
 
@@ -151,17 +151,17 @@ struct Material
         return color() * transmission;
     }
 
-    DEVICE BSDFVal getLambertBSDF(const Ray &ray, const OptixHit &hit, RNG *rngStates) const;
+    DEVICE BSDFVal getLambertBSDF(const Ray &ray, const OptixHit &hit, RNG &rngStates) const;
 
-    DEVICE BSDFVal getMetalBSDF(const Ray &ray, const OptixHit &hit, RNG *rngStates) const;
+    DEVICE BSDFVal getMetalBSDF(const Ray &ray, const OptixHit &hit, RNG &rngStates) const;
 
-    DEVICE BSDFVal getPlasticBSDF(const Ray &ray, const OptixHit &hit, RNG *rngStates) const;
+    DEVICE BSDFVal getPlasticBSDF(const Ray &ray, const OptixHit &hit, RNG &rngStates) const;
 
     DEVICE BSDFVal getMirrorBSDF(const Ray &ray, const OptixHit &hit) const;
 
-    DEVICE BSDFVal getTransparentBSDF(const Ray &ray, const OptixHit &hit, RNG *rngStates, bool &isInside) const;
+    DEVICE BSDFVal getTransparentBSDF(const Ray &ray, const OptixHit &hit, RNG &rngStates, bool &isInside) const;
 
-    DEVICE BSDFVal getBSDF(const Ray &ray, const OptixHit &hit, RNG *rngStates, bool &isInside) const;
+    DEVICE BSDFVal getBSDF(const Ray &ray, const OptixHit &hit, RNG &rngStates, bool &isInside) const;
 
     DEVICE float3 evalLambertBSDF() const;
 

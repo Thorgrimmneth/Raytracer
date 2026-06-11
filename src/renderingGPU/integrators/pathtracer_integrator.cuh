@@ -20,7 +20,7 @@ struct PathtracerIntegrator
         const Ray &primaryRay,
         const float tMin,
         const float tMax,
-        RNG *rng);
+        RNG &rng);
 
     DEVICE
     void intersect(const CudaScene &scene, const Ray &ray, const float tMin, const float tMax, HitRecord &hit);

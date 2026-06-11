@@ -7,7 +7,7 @@
 
 DEVICE 
 float3 PathtracerIntegrator::lighting(const CudaScene &scene, const Ray &primaryRay, const float tMin,
-                                             const float tMax, RNG *rng)
+                                             const float tMax, RNG &rng)
 {
     float3 finalColor = make_float3(0.f);
 
@@ -101,7 +101,7 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const Ray &primary
             float p = fmaxf(throughput.x, fmaxf(throughput.y, throughput.z));
             p = clamp(p, 0.1f, 1.f);
 
-            if (rng->nextFloat() > p)
+            if (rng.nextFloat() > p)
                 break;
 
             throughput /= p;

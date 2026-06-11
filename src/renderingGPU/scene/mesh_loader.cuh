@@ -10,10 +10,6 @@
 
 #include "../objects/base_object.cuh"
 #include "../objects/triangle_mesh.cuh"
-#include "../objects/triangle_mesh_geometry.cuh"
-
-#include "../objectsUtils/bvh.cuh"
-#include "../objectsUtils/sbvh.cuh"
 
 struct MeshAndPrimitive
 {

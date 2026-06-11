@@ -45,10 +45,10 @@ inline float3 Material::evaluateLambert() const
 }
 
 DEVICE
-float3 Material::samplingLambert(const float3 normal, RNG* rngStates) const
+float3 Material::samplingLambert(const float3 normal, RNG& rngStates) const
 {
-    float e1  = rngStates->nextFloat();
-    float e2  = rngStates->nextFloat();
+    float e1  = rngStates.nextFloat();
+    float e2  = rngStates.nextFloat();
     float r   = sqrtf(e1);
     float phi = 2.f * GPUPIf * e2;
     float x   = r * cosf(phi);
@@ -139,7 +139,7 @@ inline float3 Material::evaluateGGX(
 DEVICE
 float3 Material::samplingGGX(
     const float3& wo, const float3& normal,
-    RNG* rngStates) const
+    RNG& rngStates) const
 {   
     float roughness = this->roughness();
     float alpha = roughness * roughness;
@@ -157,8 +157,8 @@ float3 Material::samplingGGX(
         : make_float3(1.f, 0.f, 0.f);
     float3 T2 = cross(V, T1);
 
-    float e1  = rngStates->nextFloat();
-    float e2  = rngStates->nextFloat();
+    float e1  = rngStates.nextFloat();
+    float e2  = rngStates.nextFloat();
     float r   = sqrtf(e1);
     float phi = 2.f * GPUPIf * e2;
 
@@ -209,7 +209,7 @@ DEVICE
 BSDFVal Material::getMetalBSDF(
     const Ray&       ray,
     const OptixHit& hit,
-    RNG*             rngStates) const
+    RNG&             rngStates) const
 {
     float3  normal = hit.normal;
     float3  wo     = -ray.direction;
@@ -237,7 +237,7 @@ DEVICE
 BSDFVal Material::getLambertBSDF(
     const Ray&       ray,
     const OptixHit& hit,
-    RNG*             rngStates) const
+    RNG&             rngStates) const
 {
     float3  normal = hit.normal;
     BSDFVal bsdf;
@@ -254,7 +254,7 @@ DEVICE
 BSDFVal Material::getPlasticBSDF(
     const Ray&       ray,
     const OptixHit& hit,
-    RNG*             rngStates) const
+    RNG&             rngStates) const
 {
     float3  normal = hit.normal;
     float3  wo     = -ray.direction;
@@ -265,7 +265,7 @@ BSDFVal Material::getPlasticBSDF(
     float3 F        = fresnelSchlick(cosTheta, F0);
     float  specW    = (F.x + F.y + F.z) / 3.f;
 
-    if (rngStates->nextFloat() < specW) {
+    if (rngStates.nextFloat() < specW) {
         bsdf.direction = samplingGGX(wo, normal, rngStates);
 
         if (dot(normal, bsdf.direction) <= 0.f) {
@@ -310,7 +310,7 @@ DEVICE
 BSDFVal Material::getTransparentBSDF(
     const Ray&       ray,
     const OptixHit& hit,
-    RNG*             rngStates,
+    RNG&             rngStates,
     bool&            isInside) const
 {
     float3  normal = hit.normal;
@@ -353,7 +353,7 @@ BSDFVal Material::getTransparentBSDF(
     rp *= rp;
 
     float reff = 0.5f * (rs + rp);
-    float xi   = rngStates->nextFloat();
+    float xi   = rngStates.nextFloat();
 
     if (xi < reff) {
         bsdf.direction = reflect(wo, n);
@@ -383,7 +383,7 @@ DEVICE
 BSDFVal Material::getBSDF(
     const Ray&       ray,
     const OptixHit& hit,
-    RNG*             rngStates,
+    RNG&             rngStates,
     bool&            isInside) const
 {
     switch (type())

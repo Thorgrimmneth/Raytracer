@@ -641,8 +641,7 @@ CudaScene singleObject(float4 sunDir)
     float3 viewportV = v * viewportHeight;
 
     float3 topLeft = camPos - w * focalDistance + viewportV * 0.5f - viewportU * 0.5f;
-    Camera camera = Camera{
-        fov, aspect, focalDistance, toFloat4(camPos), toFloat4(topLeft), toFloat4(viewportU), toFloat4(viewportV)};
+    Camera camera = Camera{make_float4(camPos, 1.f), make_float4(topLeft, 1.f), make_float4(viewportU, 1.f), make_float4(viewportV, 1.f)};
     OptixLaunchParamsManager launchParamsManager;
     launchParamsManager.create();
     std::cout << "d_params = " << launchParamsManager.d_params << std::endl;

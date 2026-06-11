@@ -2,10 +2,10 @@
 #include "light.cuh"
 
 DEVICE 
-LightSample Light::sampleCylinder(const float3 &p_point, RNG *rng) const
+LightSample Light::sampleCylinder(const float3 &p_point, RNG&rng) const
 {
-    float u = rng->nextFloat();
-    float v = rng->nextFloat();
+    float u = rng.nextFloat();
+    float v = rng.nextFloat();
 
     float3 dir = normalize(getDirection());
 
@@ -90,9 +90,9 @@ LightSample Light::samplePoint(const float3 &p_point) const
 }
 
 DEVICE 
-LightSample Light::sampleQuad(const float3 &p_point, RNG *rng) const
+LightSample Light::sampleQuad(const float3 &p_point, RNG&rng) const
 {
-    float3 randomPos = getPosition() + rng->nextFloat() * getDirection() + rng->nextFloat() * getV();
+    float3 randomPos = getPosition() + rng.nextFloat() * getDirection() + rng.nextFloat() * getV();
 
     float3 lightDir = normalize(randomPos - p_point);
 
@@ -122,12 +122,12 @@ LightSample Light::sampleQuad(const float3 &p_point, RNG *rng) const
 }
 
 DEVICE 
-LightSample Light::sampleCone(const float3 &p_point, RNG *rng) const
+LightSample Light::sampleCone(const float3 &p_point, RNG&rng) const
 {
     float sunAngularRadius = 3.f * GPUPIf / 180.f;
 
-    float u1 = rng->nextFloat();
-    float u2 = rng->nextFloat();
+    float u1 = rng.nextFloat();
+    float u2 = rng.nextFloat();
 
     float cosTheta = 1.0f - u1 * (1.0f - cosf(sunAngularRadius));
 
@@ -161,17 +161,17 @@ LightSample Light::sampleCone(const float3 &p_point, RNG *rng) const
 }
 
 DEVICE 
-LightSample Light::sampleSphereGeom(const float3 &p_point, RNG *rng, const CudaScene &scene) const
+LightSample Light::sampleSphereGeom(const float3 &p_point, RNG&rng, const CudaScene &scene) const
 {
     const Sphere &s = scene.spheres[getGeomIndex()];
 
     const Material &m = scene.materials[s.getMaterialIndex()];
 
-    float z = 1.f - 2.f * rng->nextFloat();
+    float z = 1.f - 2.f * rng.nextFloat();
 
     float r = sqrtf(max(0.f, 1.f - z * z));
 
-    float phi = 2.f * GPUPIf * rng->nextFloat();
+    float phi = 2.f * GPUPIf * rng.nextFloat();
 
     float3 n = make_float3(r * cosf(phi), r * sinf(phi), z);
 
@@ -205,17 +205,17 @@ LightSample Light::sampleSphereGeom(const float3 &p_point, RNG *rng, const CudaS
 }
 
 DEVICE 
-LightSample Light::sampleImplicitSphereGeom(const float3 &p_point, RNG *rng, const CudaScene &scene) const
+LightSample Light::sampleImplicitSphereGeom(const float3 &p_point, RNG&rng, const CudaScene &scene) const
 {
     const ImplicitSphere &s = scene.implicitSpheres[getGeomIndex()];
 
     const Material &m = scene.materials[s.getMaterialIndex()];
 
-    float z = 1.f - 2.f * rng->nextFloat();
+    float z = 1.f - 2.f * rng.nextFloat();
 
     float r = sqrtf(max(0.f, 1.f - z * z));
 
-    float phi = 2.f * GPUPIf * rng->nextFloat();
+    float phi = 2.f * GPUPIf * rng.nextFloat();
 
     float3 n = make_float3(r * cosf(phi), r * sinf(phi), z);
 
@@ -249,7 +249,7 @@ LightSample Light::sampleImplicitSphereGeom(const float3 &p_point, RNG *rng, con
 }
 
 DEVICE 
-LightSample Light::sampleMeshGeom(const float3 &p_point, RNG *rng, const CudaScene &scene) const
+LightSample Light::sampleMeshGeom(const float3 &p_point, RNG&rng, const CudaScene &scene) const
 {
     const TriangleMesh &mesh = scene.triangleMeshes[getGeomIndex()];
 
@@ -262,7 +262,7 @@ LightSample Light::sampleMeshGeom(const float3 &p_point, RNG *rng, const CudaSce
         return ls;
     }
 
-    float sampleArea = rng->nextFloat() * mesh.meshArea;
+    float sampleArea = rng.nextFloat() * mesh.meshArea;
 
     int triIndex = 0;
 
@@ -279,8 +279,8 @@ LightSample Light::sampleMeshGeom(const float3 &p_point, RNG *rng, const CudaSce
     float3 v1 = vertices[tri.y];
     float3 v2 = vertices[tri.z];
 
-    float u = rng->nextFloat();
-    float v = rng->nextFloat();
+    float u = rng.nextFloat();
+    float v = rng.nextFloat();
 
     if (u + v > 1.f)
     {
@@ -317,7 +317,7 @@ LightSample Light::sampleMeshGeom(const float3 &p_point, RNG *rng, const CudaSce
 }
 
 DEVICE 
-LightSample Light::sample(const float3 &p_point, RNG *rng, const CudaScene &scene) const
+LightSample Light::sample(const float3 &p_point, RNG&rng, const CudaScene &scene) const
 {
     switch (getType())
     {
@@ -336,7 +336,7 @@ LightSample Light::sample(const float3 &p_point, RNG *rng, const CudaScene &scen
 }
 
 DEVICE 
-LightSample Light::sample(const float3 &p_point, RNG *rng) const
+LightSample Light::sample(const float3 &p_point, RNG&rng) const
 {
     switch (getType())
     {
