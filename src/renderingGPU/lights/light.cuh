@@ -125,75 +125,75 @@ struct alignas(16) Light
 
     DEVICE
     LightSample sampleSphereGeom(
-        const float3& p_point,
+        const float4& p_point,
         RNG& rng,
         const CudaScene& scene
     ) const;
 
     DEVICE
     LightSample sampleImplicitSphereGeom(
-        const float3& p_point,
+        const float4& p_point,
         RNG& rng,
         const CudaScene& scene
     ) const;
 
     DEVICE
     LightSample samplePlaneGeom(
-        const float3& p_point,
+        const float4& p_point,
         RNG& rng,
         const CudaScene& scene
     ) const;
 
     DEVICE
     LightSample sampleMeshGeom(
-        const float3& p_point,
+        const float4& p_point,
         RNG& rng,
         const CudaScene& scene
     ) const;
 
     DEVICE
     LightSample sampleCylinder(
-        const float3& p_point,
+        const float4& p_point,
         RNG& rng
     ) const;
 
     DEVICE
     LightSample sampleDirectionnal(
-        const float3& p_point
+        const float4& p_point
     ) const;
 
     DEVICE
     LightSample samplePoint(
-        const float3& p_point
+        const float4& p_point
     ) const;
 
     DEVICE
     LightSample sampleCone(
-        const float3& p_point,
+        const float4& p_point,
         RNG& rng
     ) const;
 
     DEVICE
     LightSample sampleQuad(
-        const float3& p_point,
+        const float4& p_point,
         RNG& rng
     ) const;
 
     DEVICE
     LightSample sample(
-        const float3& p_point,
+        const float4& p_point,
         RNG& rng,
         const CudaScene& scene
     ) const;
 
     DEVICE
     LightSample sample(
-        const float3& p_point,
+        const float4& p_point,
         RNG& rng
     ) const;
 
     DEVICE
     LightSample sample(
-        const float3& p_point
+        const float4& p_point
     ) const;
 };

@@ -23,8 +23,6 @@ extern "C" __global__ void __raygen__intersect()
 
     int idx = params.activeQueue[qid];
 
-    Ray ray = params.rays[idx];
-
     Payload payload;
 
     payload.hit = 0;
@@ -34,7 +32,7 @@ extern "C" __global__ void __raygen__intersect()
 
     packPointer(&payload, p0, p1);
 
-    optixTrace(params.traversable, ray.origin, ray.direction, 0.001f, 1e20f, 0.0f, OptixVisibilityMask(255),
+    optixTrace(params.traversable, make_float3(params.origins[idx]), make_float3(params.directions[idx]), 0.001f, 1e20f, 0.0f, OptixVisibilityMask(255),
                OPTIX_RAY_FLAG_NONE, 0, 1, 0, p0, p1);
 
     params.hitMask[idx] = payload.hit;

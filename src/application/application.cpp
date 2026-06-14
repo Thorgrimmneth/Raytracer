@@ -90,6 +90,7 @@ int Application::launchApp(int argc, char **argv)
         for (int i = 0; i < nbRPP && value > threshold; i++)
         {
             value = renderer.render(false, convergence);
+            value = 0.f;
         }
     }
     // cumulative mode. GUI, fps count. Allows to switch between megakernel and wavefront

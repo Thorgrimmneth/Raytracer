@@ -6,12 +6,11 @@
 
 
 DEVICE 
-float3 PathtracerIntegrator::lighting(const CudaScene &scene, const Ray &primaryRay, const float tMin,
+float3 PathtracerIntegrator::lighting(const CudaScene &scene, float4 &origin, float4 &direction, const float tMin,
                                              const float tMax, RNG &rng)
 {
     float3 finalColor = make_float3(0.f);
 
-    Ray ray = primaryRay;
     float3 throughput = make_float3(1.f);
     bool isInside = false;
     bool lastBounceWasDelta = true;
@@ -21,9 +20,9 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const Ray &primary
     {
         OptixHit hit;
 
-        if (!scene.intersect(ray, tMin, tMax, hit))
+        if (!scene.intersect(origin, direction, tMin, tMax, hit))
         {
-            finalColor += throughput * getSkyColor(ray, depth == 0);
+            finalColor += throughput * getSkyColor(origin, direction, depth == 0);
             break;
         }
         // return finalColor;
@@ -38,7 +37,7 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const Ray &primary
             }
             else
             {
-                float lightPdf = scene.lightPdf(ray.origin, ray.direction);
+                float lightPdf = scene.lightPdf(origin, direction);
 
                 float w = powerHeuristic(lastBsdfPdf, lightPdf);
 
@@ -48,7 +47,7 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const Ray &primary
             break;
         }
 
-        BSDFVal bsdf = mtl.getBSDF(ray, hit, rng, isInside);
+        BSDFVal bsdf = mtl.getBSDF(origin, direction, hit, rng, isInside);
         if (bsdf.pdf <= 1e-4f)
             break;
         if (bsdf.isDelta)
@@ -66,10 +65,8 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const Ray &primary
 
             if (ls.pdf > 0.f)
             {
-                float3 shadowOrigin = hit.position + hit.normal * 1e-3f;
-                Ray shadowRay(shadowOrigin, ls.direction, ray.time);
 
-                float3 shadowTint = scene.traceShadowRay(shadowRay, 1e-3f, ls.distance - 1e-3f);
+                float3 shadowTint = scene.traceShadowRay(hit.position + make_float4(hit.normal * 1e-3f, 0.f), make_float4(ls.direction, 0.f), 1e-3f, ls.distance - 1e-3f);
                 
                 // If shadow ray wasn't completely blocked
                 if (length(shadowTint) > 1e-6f)
@@ -78,11 +75,11 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const Ray &primary
 
                     if (cosTheta > 0.f)
                     {
-                        float3 f = mtl.evalBSDF(ray, hit, ls.direction);
+                        float3 f = mtl.evalBSDF(origin, direction, hit, ls.direction);
 
                         float pdf_light = ls.pdf * lightSelectionProb;
 
-                        float pdf_bsdf = mtl.pdf(ray, hit, ls.direction);
+                        float pdf_bsdf = mtl.pdf(origin, direction, hit, ls.direction);
 
                         float w = powerHeuristic(pdf_light, pdf_bsdf);
 
@@ -106,22 +103,22 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const Ray &primary
 
             throughput /= p;
         }
-        ray = Ray(hit.position + bsdf.direction * 1e-3f, bsdf.direction);
+        origin = hit.position + bsdf.direction * 1e-3f;
+        direction = bsdf.direction;
     }
 
     return finalColor;
 }
 
 DEVICE 
-float3 PathtracerIntegrator::getSkyColor(const Ray &ray, bool safeSun)
+float3 PathtracerIntegrator::getSkyColor(const float4 &origin, const float4 &direction, bool safeSun)
 {
-    float3 rayDir = ray.direction;
     // float mult = lerp(1.f, 20.f, (max(-0.4f,sunDir.y) + 0.4)/1.4f);
     float t = clamp((sunDirection.y + 0.4f) / 1.4f, 0.0f, 1.0f);
 
     float mult = 1.0f + 19.0f * t * t * t;
 
-    const float horizonFade = smoothstep(-0.05f, 0.02f, rayDir.y);
+    const float horizonFade = smoothstep(-0.05f, 0.02f, direction.y);
 
     if (horizonFade <= 0.0f)
     {
@@ -137,7 +134,7 @@ float3 PathtracerIntegrator::getSkyColor(const Ray &ray, bool safeSun)
     float opticalDepthR = 0.0f;
     float opticalDepthM = 0.0f;
 
-    float mu = dot(rayDir, sunDirection);
+    float mu = dot(direction, sunDirection);
 
     //float g = 0.76f;
 
@@ -157,7 +154,7 @@ float3 PathtracerIntegrator::getSkyColor(const Ray &ray, bool safeSun)
 
     for (int i = 0; i < skyColorSamples; ++i)
     {
-        float3 samplePosition = ray.origin + rayDir * (tCurrent + segmentLength * 0.5f);
+        float3 samplePosition = make_float3(origin + direction * (tCurrent + segmentLength * 0.5f));
 
         float height = fmaxf(samplePosition.y, 0.0f);
 
@@ -195,7 +192,7 @@ float3 PathtracerIntegrator::getSkyColor(const Ray &ray, bool safeSun)
     float3 sky = sumR * betaR * phaseR + sumM * betaM * phaseM * 0.3f;
 
     float sunAngularRadius = 2.1f * GPUPIf / 180.f;
-    float cosTheta = dot(rayDir, sunDirection);
+    float cosTheta = dot(direction, sunDirection);
 
     float sunDisk =
         smoothstep(cos(sunAngularRadius),

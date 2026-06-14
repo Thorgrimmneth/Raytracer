@@ -28,7 +28,7 @@ extern "C" __global__ void __closesthit__radiance()
 
     payload->t = optixGetRayTmax();
 
-    payload->position = optixGetWorldRayOrigin() + payload->t * optixGetWorldRayDirection();
+    payload->position = make_float4(optixGetWorldRayOrigin() + payload->t * optixGetWorldRayDirection(), 0.f);
 
     payload->normal = N;
 

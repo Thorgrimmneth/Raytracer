@@ -8,7 +8,7 @@ struct Payload
 
     float t;
 
-    float3 position;
+    float4 position;
     float3 normal;
 
     int objectIndex;

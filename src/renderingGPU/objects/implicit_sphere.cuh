@@ -32,9 +32,9 @@ struct ImplicitSphere
     }
 
     D_FORCEINLINE 
-    float sdf(const float3 &point, const double time = 0) const
+    float sdf(const float4 &point, const double time = 0) const
     {
-        float3 center = getCenter1() + (getCenter2() - getCenter1()) * time;
+        float4 center = center1 + (center2 - center1) * time;
         return length(point - center) - getRadius();
     }
 
@@ -50,14 +50,14 @@ struct ImplicitSphere
     }*/
 
     D_FORCEINLINE 
-    float3 computeNormal(const float3 &point, const double time) const
+    float3 computeNormal(const float4 &point, const double time = 0) const
     {
         float3 center = getCenter1() + (getCenter2() - getCenter1()) * time;
-        return normalize(point - center);
+        return normalize(make_float3(point) - center);
     }
 
     D_FORCEINLINE 
-    bool intersect(const Ray &p_ray, const float p_tMin, const float p_tMax,
+    bool intersect(const float4 &origin, const float4 &direction, const float p_tMin, const float p_tMax,
                                               OptixHit &p_hitRecord) const
     {
         float t = p_tMin;
@@ -69,14 +69,14 @@ struct ImplicitSphere
             if (t >= p_tMax)
                 return false;
 
-            float3 point = p_ray.pointAtT(t);
-            float dist = sdf(point, p_ray.time);
+            float4 point = origin + direction * t;
+            float dist = sdf(point);
 
             if (fabs(dist) < threshold)
             {
                 // Intersection found, fill p_hitRecord.
-                p_hitRecord.setHitInfo(point, computeNormal(point, p_ray.time), t, getMaterialIndex(), 0, HIT_SPHERE_IMPLICIT);
-                p_hitRecord.faceNormal(p_ray.direction);
+                p_hitRecord.setHitInfo(point, computeNormal(point), t, getMaterialIndex(), 0, HIT_SPHERE_IMPLICIT);
+                p_hitRecord.faceNormal(direction);
                 return true;
             }
             t += max(fabs(dist), minStep);
@@ -85,7 +85,7 @@ struct ImplicitSphere
     }
 
     D_FORCEINLINE 
-    bool intersectAny(const Ray &p_ray, const float p_tMin, const float p_tMax) const
+    bool intersectAny(const float4 &origin, const float4 &direction, const float p_tMin, const float p_tMax) const
     {
         float t = p_tMin + 1e-3f;
         const float threshold = 1e-4f;
@@ -96,9 +96,9 @@ struct ImplicitSphere
             if (t >= p_tMax)
                 return false;
 
-            float3 p = p_ray.origin + p_ray.direction * t;
+            float4 p = origin + direction * t;
 
-            float dist = sdf(p, p_ray.time);
+            float dist = sdf(p);
 
             if (fabs(dist) < threshold)
                 return true;

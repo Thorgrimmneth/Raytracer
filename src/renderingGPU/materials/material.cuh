@@ -23,9 +23,9 @@ enum MaterialType
 struct BSDFVal
 {
     float3 brdf = make_float3(0.f);
-    float3 direction = make_float3(0.f);
     float pdf = -1.f;
-
+    float4 direction = make_float4(0.f);
+    
     bool isDelta;
 };
 
@@ -151,31 +151,31 @@ struct Material
         return color() * transmission;
     }
 
-    DEVICE BSDFVal getLambertBSDF(const Ray &ray, const OptixHit &hit, RNG &rngStates) const;
+    DEVICE BSDFVal getLambertBSDF(const float4 &origin, const float4 &direction, const OptixHit &hit, RNG &rngStates) const;
 
-    DEVICE BSDFVal getMetalBSDF(const Ray &ray, const OptixHit &hit, RNG &rngStates) const;
+    DEVICE BSDFVal getMetalBSDF(const float4 &origin, const float4 &direction, const OptixHit &hit, RNG &rngStates) const;
 
-    DEVICE BSDFVal getPlasticBSDF(const Ray &ray, const OptixHit &hit, RNG &rngStates) const;
+    DEVICE BSDFVal getPlasticBSDF(const float4 &origin, const float4 &direction, const OptixHit &hit, RNG &rngStates) const;
 
-    DEVICE BSDFVal getMirrorBSDF(const Ray &ray, const OptixHit &hit) const;
+    DEVICE BSDFVal getMirrorBSDF(const float4 &origin, const float4 &direction, const OptixHit &hit) const;
 
-    DEVICE BSDFVal getTransparentBSDF(const Ray &ray, const OptixHit &hit, RNG &rngStates, bool &isInside) const;
+    DEVICE BSDFVal getTransparentBSDF(const float4 &origin, const float4 &direction, const OptixHit &hit, RNG &rngStates, bool &isInside) const;
 
-    DEVICE BSDFVal getBSDF(const Ray &ray, const OptixHit &hit, RNG &rngStates, bool &isInside) const;
+    DEVICE BSDFVal getBSDF(const float4 &origin, const float4 &direction, const OptixHit &hit, RNG &rngStates, bool &isInside) const;
 
     DEVICE float3 evalLambertBSDF() const;
 
-    DEVICE float3 evalMetalBSDF(const Ray &ray, const OptixHit &hit, const float3 &wi) const;
+    DEVICE float3 evalMetalBSDF(const float4 &origin, const float4 &direction, const OptixHit &hit, const float3 &wi) const;
 
-    DEVICE float3 evalPlasticBSDF(const Ray &ray, const OptixHit &hit, const float3 &wi) const;
+    DEVICE float3 evalPlasticBSDF(const float4 &origin, const float4 &direction, const OptixHit &hit, const float3 &wi) const;
 
-    DEVICE float3 evalBSDF(const Ray &ray, const OptixHit &hit, const float3 &wi) const;
+    DEVICE float3 evalBSDF(const float4 &origin, const float4 &direction, const OptixHit &hit, const float3 &wi) const;
 
-    DEVICE float lambertPDF(const Ray &ray, const OptixHit &hit, const float3 &wi) const;
+    DEVICE float lambertPDF(const float4 &origin, const float4 &direction, const OptixHit &hit, const float3 &wi) const;
 
-    DEVICE float metalPDF(const Ray &ray, const OptixHit &hit, const float3 &wi) const;
+    DEVICE float metalPDF(const float4 &origin, const float4 &direction, const OptixHit &hit, const float3 &wi) const;
 
-    DEVICE float plasticPDF(const Ray &ray, const OptixHit &hit, const float3 &wi) const;
+    DEVICE float plasticPDF(const float4 &origin, const float4 &direction, const OptixHit &hit, const float3 &wi) const;
 
-    DEVICE float pdf(const Ray &ray, const OptixHit &hit, const float3 &wi) const;
+    DEVICE float pdf(const float4 &origin, const float4 &direction, const OptixHit &hit, const float3 &wi) const;
 };

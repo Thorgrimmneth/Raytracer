@@ -4,7 +4,7 @@
 #include <fstream>
 
 GLOBAL
-void extractBright(float3 *hdr, float3 *bright, int width, int height, float threshold)
+void extractBright(float4 *hdr, float4 *bright, int width, int height, float threshold)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -14,13 +14,13 @@ void extractBright(float3 *hdr, float3 *bright, int width, int height, float thr
 
     int idx = y * width + x;
 
-    float3 c = hdr[idx];
+    float4 c = hdr[idx];
     float maxChannel = fmaxf(c.x, fmaxf(c.y, c.z));
-    bright[idx] = (maxChannel > threshold) ? c : make_float3(0.f);
+    bright[idx] = (maxChannel > threshold) ? c : make_float4(0.f);
 }
 
 GLOBAL
-void downsample(float3 *input, float3 *output, int width, int height)
+void downsample(float4 *input, float4 *output, int width, int height)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -45,15 +45,15 @@ void downsample(float3 *input, float3 *output, int width, int height)
 template<int RADIUS>
 GLOBAL
 void blurHorizontal(
-    const float3* __restrict__ input,
-    float3* __restrict__ output,
+    const float4* __restrict__ input,
+    float4* __restrict__ output,
     int width,
     int height)
 {
     constexpr int BLOCK_X = 16;
     constexpr int BLOCK_Y = 16;
 
-    __shared__ float3 tile[BLOCK_Y][BLOCK_X + 2 * RADIUS];
+    __shared__ float4 tile[BLOCK_Y][BLOCK_X + 2 * RADIUS];
 
     const int tx = threadIdx.x;
     const int ty = threadIdx.y;
@@ -86,7 +86,7 @@ void blurHorizontal(
         0.016216f
     };
 
-    float3 result =
+    float4 result =
         tile[ty][tx + RADIUS] * weights[0];
 
     #pragma unroll
@@ -102,15 +102,15 @@ void blurHorizontal(
 template<int RADIUS>
 GLOBAL
 void blurVertical(
-    const float3* __restrict__ input,
-    float3* __restrict__ output,
+    const float4* __restrict__ input,
+    float4* __restrict__ output,
     int width,
     int height)
 {
     constexpr int BLOCK_X = 16;
     constexpr int BLOCK_Y = 16;
 
-    __shared__ float3 tile[BLOCK_Y + 2 * RADIUS][BLOCK_X];
+    __shared__ float4 tile[BLOCK_Y + 2 * RADIUS][BLOCK_X];
 
     const int tx = threadIdx.x;
     const int ty = threadIdx.y;
@@ -143,7 +143,7 @@ void blurVertical(
         0.016216f
     };
 
-    float3 result =
+    float4 result =
         tile[ty + RADIUS][tx] * weights[0];
 
     #pragma unroll
@@ -157,7 +157,7 @@ void blurVertical(
 }
 
 GLOBAL
-void upsampleAdd(float3 *lowRes, float3 *highRes, int lowWidth, int lowHeight, int highWidth, float strength)
+void upsampleAdd(float4 *lowRes, float4 *highRes, int lowWidth, int lowHeight, int highWidth, float strength)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -179,17 +179,17 @@ void upsampleAdd(float3 *lowRes, float3 *highRes, int lowWidth, int lowHeight, i
     x0 = max(x0, 0);
     y0 = max(y0, 0);
 
-    float3 c00 = lowRes[y0 * lowWidth + x0];
-    float3 c10 = lowRes[y0 * lowWidth + x1];
-    float3 c01 = lowRes[y1 * lowWidth + x0];
-    float3 c11 = lowRes[y1 * lowWidth + x1];
+    float4 c00 = lowRes[y0 * lowWidth + x0];
+    float4 c10 = lowRes[y0 * lowWidth + x1];
+    float4 c01 = lowRes[y1 * lowWidth + x0];
+    float4 c11 = lowRes[y1 * lowWidth + x1];
 
-    float3 c = lerp(lerp(c00, c10, tx), lerp(c01, c11, tx), ty);
+    float4 c = lerp(lerp(c00, c10, tx), lerp(c01, c11, tx), ty);
 
     highRes[y * highWidth + x] += c * strength;
 }
 
-void applyMultiScaleBloom(float3 *d_bright, float3 *d_temp, float3 *d_lvl1, float3 *d_lvl2, int w1, int h1, int w2,
+void applyMultiScaleBloom(float4 *d_bright, float4 *d_temp, float4 *d_lvl1, float4 *d_lvl2, int w1, int h1, int w2,
                           int h2, int width, int height)
 {
     dim3 block(16, 16);
@@ -214,7 +214,7 @@ void applyMultiScaleBloom(float3 *d_bright, float3 *d_temp, float3 *d_lvl1, floa
 }
 
 GLOBAL
-void addBloom(float3 *hdr, float3 *bloom, float3 *out, int width, int height, float strength)
+void addBloom(float4 *hdr, float4 *bloom, float4 *out, int width, int height, float strength)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -228,7 +228,7 @@ void addBloom(float3 *hdr, float3 *bloom, float3 *out, int width, int height, fl
 }
 
 GLOBAL
-void normalizeKernel(float3 *accum, float3 *normalized, int sampleCount, int width, int height)
+void normalizeKernel(float4 *accum, float4 *normalized, int sampleCount, int width, int height)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -242,7 +242,7 @@ void normalizeKernel(float3 *accum, float3 *normalized, int sampleCount, int wid
 }
 
 GLOBAL
-void finalizeImage(float3 *hdr, cudaSurfaceObject_t surface, int width, int height, float exposure)
+void finalizeImage(float4 *hdr, cudaSurfaceObject_t surface, int width, int height, float exposure)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -252,13 +252,13 @@ void finalizeImage(float3 *hdr, cudaSurfaceObject_t surface, int width, int heig
 
     int idx = y * width + x;
 
-    float3 c = hdr[idx];
+    float4 c = hdr[idx];
 
     // Reinhard tonemap
-    c = (c * exposure) / (make_float3(1.f) + c * exposure);
+    c = (c * exposure) / (make_float4(1.f) + c * exposure);
 
     // Gamma correction
-    c = make_float3(sqrtf(fmaxf(c.x, 0.f)), sqrtf(fmaxf(c.y, 0.f)), sqrtf(fmaxf(c.z, 0.f)));
+    c = make_float4(sqrtf(fmaxf(c.x, 0.f)), sqrtf(fmaxf(c.y, 0.f)), sqrtf(fmaxf(c.z, 0.f)), 0.f);
 
     uchar4 pixel = make_uchar4((unsigned char)(255.f * fminf(c.x, 1.f)), (unsigned char)(255.f * fminf(c.y, 1.f)),
                                (unsigned char)(255.f * fminf(c.z, 1.f)), 255);

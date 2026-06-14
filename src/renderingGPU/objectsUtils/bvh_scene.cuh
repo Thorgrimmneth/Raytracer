@@ -77,7 +77,7 @@ struct BVHScene
     size_t getDeviceSize() const;
 
     D_FORCEINLINE 
-    bool intersect(const Ray &ray, const float tMin, const float tMaxInit, OptixHit &hit) const
+    bool intersect(const float4& origin, const float4 &direction, const float tMin, const float tMaxInit, OptixHit &hit) const
     {
         constexpr int STACK_SIZE = 32;
 
@@ -89,7 +89,7 @@ struct BVHScene
 
         float rootTNear;
 
-        if (!d_nodes[0].bbox.intersectCheck(ray, tMin, tMax, rootTNear))
+        if (!d_nodes[0].bbox.intersectCheck(origin, direction, tMin, tMax, rootTNear))
             return false;
 
         stack[stackPtr++] = {0, rootTNear};
@@ -119,7 +119,7 @@ struct BVHScene
                     {
                     case ObjectType::SPHERE: {
 
-                        if (d_spheres[objectIndex].intersect(ray, tMin, tMax, hit))
+                        if (d_spheres[objectIndex].intersect(origin, direction, tMin, tMax, hit))
                         {
                             tMax = hit.t;
                             hitSomething = true;
@@ -131,7 +131,7 @@ struct BVHScene
 
                     case ObjectType::IMPLICIT_SPHERE: {
 
-                        if (d_implicitSpheres[objectIndex].intersect(ray, tMin, tMax, hit))
+                        if (d_implicitSpheres[objectIndex].intersect(origin, direction, tMin, tMax, hit))
                         {
                             tMax = hit.t;
                             hitSomething = true;
@@ -154,9 +154,9 @@ struct BVHScene
                 float leftTNear;
                 float rightTNear;
 
-                const bool hitLeft = d_nodes[leftIdx].bbox.intersectCheck(ray, tMin, tMax, leftTNear);
+                const bool hitLeft = d_nodes[leftIdx].bbox.intersectCheck(origin, direction, tMin, tMax, leftTNear);
 
-                const bool hitRight = d_nodes[rightIdx].bbox.intersectCheck(ray, tMin, tMax, rightTNear);
+                const bool hitRight = d_nodes[rightIdx].bbox.intersectCheck(origin, direction, tMin, tMax, rightTNear);
 
                 if (hitLeft && hitRight)
                 {
@@ -196,7 +196,7 @@ struct BVHScene
     }
 
     D_FORCEINLINE 
-    bool intersectAny(const Ray &ray, float tMin, float tMax, const Material *materials) const
+    bool intersectAny(const float4 &origin, const float4 &direction, float tMin, float tMax, const Material *materials) const
     {
         constexpr int STACK_SIZE = 32;
 
@@ -205,7 +205,7 @@ struct BVHScene
 
         float rootTNear;
 
-        if (!d_nodes[0].bbox.intersectCheck(ray, tMin, tMax, rootTNear))
+        if (!d_nodes[0].bbox.intersectCheck(origin, direction, tMin, tMax, rootTNear))
             return false;
 
         stack[stackPtr++] = {0, rootTNear};
@@ -242,7 +242,7 @@ struct BVHScene
                             break;
                         }
 
-                        if (d_spheres[objectIndex].intersectAny(ray, tMin, tMax))
+                        if (d_spheres[objectIndex].intersectAny(origin, direction, tMin, tMax))
                             return true;
 
                         break;
@@ -257,7 +257,7 @@ struct BVHScene
                             break;
                         }
 
-                        if (d_implicitSpheres[objectIndex].intersectAny(ray, tMin, tMax))
+                        if (d_implicitSpheres[objectIndex].intersectAny(origin, direction, tMin, tMax))
                             return true;
 
                         break;
@@ -276,9 +276,9 @@ struct BVHScene
                 float leftTNear;
                 float rightTNear;
 
-                const bool hitLeft = d_nodes[leftIdx].bbox.intersectCheck(ray, tMin, tMax, leftTNear);
+                const bool hitLeft = d_nodes[leftIdx].bbox.intersectCheck(origin, direction, tMin, tMax, leftTNear);
 
-                const bool hitRight = d_nodes[rightIdx].bbox.intersectCheck(ray, tMin, tMax, rightTNear);
+                const bool hitRight = d_nodes[rightIdx].bbox.intersectCheck(origin, direction, tMin, tMax, rightTNear);
 
                 if (hitLeft && hitRight)
                 {
