@@ -37,10 +37,10 @@ struct OptixHit
 struct LaunchParams
 {
     float3* origins = nullptr;
-    float3* directions = nullptr;
+    float4* directions = nullptr;
 
     OptixHit* hits = nullptr;
-
+    
     int* hitMask = nullptr;
 
     int* activeQueue = nullptr;

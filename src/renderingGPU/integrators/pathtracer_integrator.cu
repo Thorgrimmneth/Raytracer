@@ -48,7 +48,7 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const float3 &orig
             break;
         }
 
-        BSDFVal bsdf = mtl.getBSDF(primOrigin, primDirection, hit.normal, rng, isInside);
+        BSDFVal bsdf = mtl.getBSDF(primDirection, hit.normal, rng, isInside);
         if (bsdf.pdf <= 1e-4f)
             break;
         if (bsdf.isDelta)
@@ -76,11 +76,11 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const float3 &orig
 
                     if (cosTheta > 0.f)
                     {
-                        float3 f = mtl.evalBSDF(primOrigin, primDirection, hit.normal, ls.direction);
+                        float3 f = mtl.evalBSDF(primDirection, hit.normal, ls.direction);
 
                         float pdf_light = ls.pdf * lightSelectionProb;
 
-                        float pdf_bsdf = mtl.pdf(primOrigin, primDirection, hit.normal, ls.direction);
+                        float pdf_bsdf = mtl.pdf(primDirection, hit.normal, ls.direction);
 
                         float w = powerHeuristic(pdf_light, pdf_bsdf);
 
