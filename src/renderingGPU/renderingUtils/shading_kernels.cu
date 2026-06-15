@@ -420,7 +420,7 @@ __global__ void shadeMissKernel(float3 *origins, float4 *directions, float3 *thr
 }
 
 __global__ void shadeLambertKernel(CudaScene scene, float3 *origins, float4 *directions, float3 *p_throughput,
-                                   float3 *p_radiance, RNG *p_rng, OptixHit *p_hits, const int *hitQueue, int hitCount,
+                                   float3 *p_radiance, RNG *p_rng, OptixHit *p_hits, bool *lastBounceWasDelta, const int *hitQueue, int hitCount,
                                    int *nextActiveQueue, int *nextActiveCount, uint depth)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -524,7 +524,7 @@ __global__ void shadeLambertKernel(CudaScene scene, float3 *origins, float4 *dir
     float3 dir = bsdf.direction;
     origin = hit.position + dir * 1e-3f;
     directions[idx] = make_float4(dir, 0.f);
-
+    lastBounceWasDelta[idx] = false;
     // ------------------------------------------------------------
     // COMPACT NEXT ACTIVE QUEUE
     // ------------------------------------------------------------
@@ -534,7 +534,7 @@ __global__ void shadeLambertKernel(CudaScene scene, float3 *origins, float4 *dir
 }
 
 __global__ void shadeMetalKernel(CudaScene scene, float3 *origins, float4 *directions, float3 *p_throughput,
-                                 float3 *p_radiance, RNG *p_rng, OptixHit *p_hits, const int *hitQueue, int hitCount,
+                                 float3 *p_radiance, RNG *p_rng, OptixHit *p_hits, bool *lastBounceWasDelta, const int *hitQueue, int hitCount,
                                  int *nextActiveQueue, int *nextActiveCount, uint depth)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -639,7 +639,7 @@ __global__ void shadeMetalKernel(CudaScene scene, float3 *origins, float4 *direc
     float3 dir = bsdf.direction;
     origin = hit.position + dir * 1e-3f;
     directions[idx] = make_float4(dir, 0.f);
-
+lastBounceWasDelta[idx] = false;
     // ------------------------------------------------------------
     // COMPACT NEXT ACTIVE QUEUE
     // ------------------------------------------------------------
@@ -704,7 +704,7 @@ __global__ void shadePlasticNEEKernel(CudaScene &scene, float4 *directions, floa
 
 }
 __global__ void shadePlasticKernel(CudaScene &scene, float3 *origins, float4 *directions, float3 *p_throughput,
-                                    RNG *p_rng, OptixHit *p_hits, const int *hitQueue, int hitCount,
+                                    RNG *p_rng, OptixHit *p_hits, bool *p_lastBounceWasDelta, const int *hitQueue, int hitCount,
                                    int *nextActiveQueue, int *nextActiveCount, uint depth)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -762,7 +762,7 @@ __global__ void shadePlasticKernel(CudaScene &scene, float3 *origins, float4 *di
     float3 dir = bsdf.direction;
     origins[idx] = hit.position + dir * 1e-3f;
     directions[idx] = make_float4(dir, 0.f);
-
+    p_lastBounceWasDelta[idx] = false;
     // ------------------------------------------------------------
     // COMPACT NEXT ACTIVE QUEUE
     // ------------------------------------------------------------
@@ -902,7 +902,7 @@ __global__ void shadeTransparentKernel(CudaScene scene, float3 *origins, float4 
     origins[idx] = hit.position + dir * 1e-3f;
     directions[idx] = make_float4(dir, 0.f);
 
-    p_lastBounceWasDelta[idx] = bsdf.isDelta;
+    p_lastBounceWasDelta[idx] = true;
     p_lastBsdfPdf[idx] = bsdf.pdf;
 
     // ------------------------------------------------------------

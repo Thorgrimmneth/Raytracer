@@ -25,8 +25,6 @@ struct BSDFVal
     float3 brdf = make_float3(0.f);
     float3 direction = make_float3(0.f);
     float pdf = -1.f;
-
-    bool isDelta;
 };
 
 struct Material

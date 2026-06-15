@@ -781,14 +781,14 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         {
             shadeLambertKernel<<<gridForCount(h_lambertCount), block1D>>>(
                 impl->gpuScene, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_radiance, impl->d_rng,
-                impl->d_hits, impl->d_lambertQueue, h_lambertCount, impl->d_nextActiveQueue, impl->d_nextActiveCount,
+                impl->d_hits, impl->d_lastBounceWasDelta, impl->d_lambertQueue, h_lambertCount, impl->d_nextActiveQueue, impl->d_nextActiveCount,
                 bounce);
         }
         if (h_metalCount > 0)
         {
             shadeMetalKernel<<<gridForCount(h_metalCount), block1D>>>(
                 impl->gpuScene, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_radiance, impl->d_rng,
-                impl->d_hits, impl->d_metalQueue, h_metalCount, impl->d_nextActiveQueue, impl->d_nextActiveCount,
+                impl->d_hits, impl->d_lastBounceWasDelta, impl->d_metalQueue, h_metalCount, impl->d_nextActiveQueue, impl->d_nextActiveCount,
                 bounce);
         }
         if (h_plasticCount > 0)
@@ -799,7 +799,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
 
             shadePlasticKernel<<<gridForCount(h_plasticCount), block1D>>>(
                 impl->gpuScene, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_rng,
-                impl->d_hits, impl->d_plasticQueue, h_plasticCount, impl->d_nextActiveQueue, impl->d_nextActiveCount,
+                impl->d_hits, impl->d_lastBounceWasDelta, impl->d_plasticQueue, h_plasticCount, impl->d_nextActiveQueue, impl->d_nextActiveCount,
                 bounce);
         }
         if (h_mirrorCount > 0)

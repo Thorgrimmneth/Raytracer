@@ -182,13 +182,11 @@ DEVICE BSDFVal Material::getMetalBSDF(const float3 &direction, const float3 &nor
     {
         bsdf.pdf = 0.f;
         bsdf.brdf = make_float3(0.f);
-        bsdf.isDelta = false;
         return bsdf;
     }
 
     bsdf.pdf = pdfGGX(normal, bsdf.direction, wo);
     bsdf.brdf = evaluateGGX(wo, normal, bsdf.direction, F0);
-    bsdf.isDelta = false;
 
     return bsdf;
 }
@@ -201,7 +199,6 @@ DEVICE BSDFVal Material::getLambertBSDF(const float3 &direction, const float3 &n
     bsdf.direction = samplingLambert(normal, rngStates);
     bsdf.pdf = pdfLambert(normal, bsdf.direction);
     bsdf.brdf = evaluateLambert();
-    bsdf.isDelta = false;
 
     return bsdf;
 }
@@ -224,7 +221,6 @@ DEVICE BSDFVal Material::getPlasticBSDF(const float3 &direction, const float3 &n
         {
             bsdf.pdf = 0.f;
             bsdf.brdf = make_float3(0.f);
-            bsdf.isDelta = false;
             return bsdf;
         }
 
@@ -238,8 +234,6 @@ DEVICE BSDFVal Material::getPlasticBSDF(const float3 &direction, const float3 &n
 
     bsdf.pdf = specW * pdfGGX(normal, bsdf.direction, wo) + (1.f - specW) * pdfLambert(normal, bsdf.direction);
 
-    bsdf.isDelta = false;
-
     return bsdf;
 }
 
@@ -250,7 +244,6 @@ DEVICE BSDFVal Material::getMirrorBSDF(const float3 &direction, const float3 &no
     bsdf.direction = reflect(direction, normal);
     bsdf.pdf = 1.f;
     bsdf.brdf = color();
-    bsdf.isDelta = true;
 
     return bsdf;
 }
@@ -284,7 +277,6 @@ DEVICE BSDFVal Material::getTransparentBSDF(const float3 &direction, const float
         bsdf.direction = reflect(wo, n);
         bsdf.pdf = 1.f;
         bsdf.brdf = make_float3(1.f);
-        bsdf.isDelta = true;
         return bsdf;
     }
 
@@ -316,7 +308,6 @@ DEVICE BSDFVal Material::getTransparentBSDF(const float3 &direction, const float
         isInside = !isInside;
     }
 
-    bsdf.isDelta = true;
 
     return bsdf;
 }
@@ -350,7 +341,6 @@ DEVICE BSDFVal Material::getBSDF(const float3 &direction, const float3 &normal, 
         bsdf.direction = make_float3(0.f);
         bsdf.pdf = 0.f;
         bsdf.brdf = make_float3(0.f);
-        bsdf.isDelta = false;
         return bsdf;
     }
     }

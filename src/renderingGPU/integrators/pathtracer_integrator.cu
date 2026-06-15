@@ -51,7 +51,7 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const float3 &orig
         BSDFVal bsdf = mtl.getBSDF(primDirection, hit.normal, rng, isInside);
         if (bsdf.pdf <= 1e-4f)
             break;
-        if (bsdf.isDelta)
+        if (mtl.type() == MaterialType::MIRROR)
         {
             throughput *= bsdf.brdf;
         }
@@ -92,7 +92,7 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const float3 &orig
 
             throughput = throughput * bsdf.brdf * cosTheta / bsdf.pdf;
         }
-        lastBounceWasDelta = bsdf.isDelta;
+        lastBounceWasDelta = mtl.type() == MaterialType::MIRROR;
         lastBsdfPdf = bsdf.pdf;
         if (depth > 2)
         {
