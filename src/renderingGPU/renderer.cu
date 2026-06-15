@@ -44,7 +44,7 @@ class Renderer::Impl
     RenderMode renderMode = RenderMode::Wavefront;
     int width = 1920;
     int height = 1080;
-
+    Camera h_camera;
     float threshold = 1.0f;
     float bloomStrength = 0.25f;
     float exposure = 1.0f;
@@ -84,15 +84,7 @@ class Renderer::Impl
     float3 *d_origins = nullptr;
     float3 *d_directions = nullptr;
 
-    float3* d_positions = nullptr;
-    float3* d_normals = nullptr;
-
-    float* d_ts = nullptr;
-
-    int* d_materialIndices = nullptr;
-    int* d_objectIndices = nullptr;
-    HitObjectType* d_objectTypes = nullptr;
-
+    OptixHit *d_hits = nullptr;
     int *d_hitMask = nullptr;
 
     int *d_activeQueue = nullptr;
@@ -187,7 +179,7 @@ HOST Camera initCamera(int width, int height)
     return camera;
 }
 
-HOST void initConstant(int width, int height, float4 sunDir)
+HOST void initConstant(int width, int height, Camera c_camera, float4 sunDir)
 {
     int c_nbBounces = 8;
     float c_earthRadius = 6360e3f;
@@ -198,7 +190,6 @@ HOST void initConstant(int width, int height, float4 sunDir)
     float3 c_betaR = make_float3(3.8e-6f, 13.5e-6f, 33.1e-6f);
     float3 c_betaM = make_float3(21e-6f);
     float c_exposure = 1.f;
-    Camera c_camera = initCamera(width, height);
     float c_sizeAtmosphere = 60000.f;
     cudaMemcpyToSymbol(nbBounces, &c_nbBounces, sizeof(int));
     cudaMemcpyToSymbol(earthRadius, &c_earthRadius, sizeof(float));
@@ -215,7 +206,8 @@ HOST void initConstant(int width, int height, float4 sunDir)
 
 void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, float sunDirz)
 {
-    initConstant(p_width, p_height, make_float4(sunDirx, sunDiry, sunDirz, 0.f));
+    impl->h_camera = initCamera(p_width, p_height);
+    initConstant(p_width, p_height, impl->h_camera, make_float4(sunDirx, sunDiry, sunDirz, 0.f));
     impl->width = p_width;
     impl->height = p_height;
 
@@ -232,8 +224,8 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     // GPU buffers
     // =========================
 
-    cudaMalloc(&impl->d_throughput, impl->hdrBufferSize);
-    cudaMalloc(&impl->d_radiance, impl->hdrBufferSize);
+    cudaMalloc(&impl->d_throughput, impl->width * impl->height * sizeof(float3));
+    cudaMalloc(&impl->d_radiance, impl->width * impl->height * sizeof(float3));
     cudaMalloc(&impl->d_pixelIndices, impl->width * impl->height * sizeof(int));
     cudaMalloc(&impl->d_rng, impl->width * impl->height * sizeof(RNG));
     cudaMalloc(&impl->d_isInside, impl->width * impl->height * sizeof(bool));
@@ -256,14 +248,7 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     size_t pixelCount = impl->width * impl->height;
     cudaMalloc(&impl->d_origins, impl->hdrBufferSize);
     cudaMalloc(&impl->d_directions, impl->hdrBufferSize);
-
-    cudaMalloc(&impl->d_positions, impl->hdrBufferSize);
-    cudaMalloc(&impl->d_normals, impl->hdrBufferSize);
-    cudaMalloc(&impl->d_ts, pixelCount * sizeof(float));
-    cudaMalloc(&impl->d_materialIndices, pixelCount * sizeof(int));
-    cudaMalloc(&impl->d_objectIndices, pixelCount * sizeof(int));
-    cudaMalloc(&impl->d_objectTypes, pixelCount * sizeof(HitObjectType));
-
+    cudaMalloc(&impl->d_hits, pixelCount * sizeof(OptixHit));
     cudaMalloc(&impl->d_hitMask, pixelCount * sizeof(int));
     cudaMalloc(&impl->d_activeQueue, pixelCount * sizeof(int));
     cudaMalloc(&impl->d_nextActiveQueue, pixelCount * sizeof(int));
@@ -384,7 +369,7 @@ void renderKernel(CudaScene gpuScene, float3 *d_accumBuffer, int width, int heig
 
 // WAVEFRONT INIT
 GLOBAL
-void generatePrimaryRaysKernel(float3 *origins, float3 *directions, RNG *p_rng, int *p_pixelIndices, int *activeQueue, int *activeCount, int width, int height,
+void generatePrimaryRaysKernel(float3 *directions, RNG *p_rng, int *p_pixelIndices, int *activeQueue, int *activeCount, int width, int height,
                                int sampleCount, float invWidth, float invHeight)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -403,11 +388,9 @@ void generatePrimaryRaysKernel(float3 *origins, float3 *directions, RNG *p_rng, 
 
     float3 rayTarget = camera.topLeft + sx * camera.viewPortU - sy * camera.viewPortV;
 
-    float3 direction = normalize(rayTarget - camera.cameraPos);
     p_rng[pixelIndex] = rng;
-
-    origins[pixelIndex] = camera.cameraPos;
-    directions[pixelIndex] = direction;
+    
+    directions[pixelIndex] = normalize(rayTarget - camera.cameraPos);
     p_pixelIndices[pixelIndex] = pixelIndex;
     activeQueue[pixelIndex] = pixelIndex;
     if (pixelIndex == 0)
@@ -568,7 +551,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
     cudaMemset(impl->d_activeCount, 0, sizeof(int));
     float invWidth = 1.f / (float)(impl->width - 1);
     float invHeight = 1.f / (float)(impl->height - 1);
-    generatePrimaryRaysKernel<<<grid2D, block2D>>>(impl->d_origins, impl->d_directions, impl->d_rng, impl->d_pixelIndices, impl->d_activeQueue, impl->d_activeCount,
+    generatePrimaryRaysKernel<<<grid2D, block2D>>>(impl->d_directions, impl->d_rng, impl->d_pixelIndices, impl->d_activeQueue, impl->d_activeCount,
                                                    impl->width, impl->height, impl->sampleCount, invWidth, invHeight);
 
     err = cudaGetLastError();
@@ -580,6 +563,8 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
 
     int threads = 256;
     int blocks = (pixelCount + threads - 1) / threads;
+
+    initFloat3Buffer<<<blocks, threads>>>(impl->d_origins, pixelCount, impl->h_camera.cameraPos);
 
     initFloat3Buffer<<<blocks, threads>>>(impl->d_throughput, pixelCount, make_float3(1.f));
 
@@ -608,18 +593,9 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         // ---------------------------------------------------------------------
         // 2.1 Intersection uniquement des rayons actifs
         // ---------------------------------------------------------------------
-
-
         impl->gpuScene.optixData.launchParams.origins = impl->d_origins;
         impl->gpuScene.optixData.launchParams.directions = impl->d_directions;
-
-        impl->gpuScene.optixData.launchParams.positions = impl->d_positions;
-        impl->gpuScene.optixData.launchParams.normals = impl->d_normals;
-        impl->gpuScene.optixData.launchParams.t = impl->d_ts;
-        impl->gpuScene.optixData.launchParams.materialIndices = impl->d_materialIndices;
-        impl->gpuScene.optixData.launchParams.objectIndices = impl->d_objectIndices;
-        impl->gpuScene.optixData.launchParams.objectTypes = impl->d_objectTypes;
-        
+        impl->gpuScene.optixData.launchParams.hits = impl->d_hits;
         impl->gpuScene.optixData.launchParams.hitMask = impl->d_hitMask;
         impl->gpuScene.optixData.launchParams.activeQueue = impl->d_activeQueue;
         impl->gpuScene.optixData.launchParams.activeCount = h_activeCount;
@@ -646,7 +622,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
             
         shadeWavefrontKernel<<<gridForCount(h_activeCount), block1D>>>(
             impl->gpuScene, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_radiance, impl->d_pixelIndices, impl->d_rng, impl->d_isInside,
-            impl->d_lastBounceWasDelta, impl->d_lastBsdfPdf, impl->d_positions, impl->d_normals, impl->d_materialIndices, impl->d_hitMask, impl->d_activeQueue,
+            impl->d_lastBounceWasDelta, impl->d_lastBsdfPdf, impl->d_hits, impl->d_hitMask, impl->d_activeQueue,
             h_activeCount, impl->d_nextActiveQueue, impl->d_nextActiveCount, bounce == 0, bounce);
 
         err = cudaGetLastError();
@@ -843,13 +819,7 @@ void Renderer::cleanUp()
 
     cudaFree(impl->d_origins);
     cudaFree(impl->d_directions);
-
-    cudaFree(impl->d_positions);
-    cudaFree(impl->d_normals);
-    cudaFree(impl->d_ts);
-    cudaFree(impl->d_materialIndices);
-    cudaFree(impl->d_objectIndices);
-    cudaFree(impl->d_objectTypes);
+    cudaFree(impl->d_hits);
     cudaFree(impl->d_hitMask);
     cudaFree(impl->d_activeQueue);
     cudaFree(impl->d_activeCount);

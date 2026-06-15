@@ -1,7 +1,7 @@
 #include "shading_kernels.cuh"
 
 __global__ void shadeWavefrontKernel(CudaScene scene, float3 *origins, float3 *directions, float3 *p_throughput, float3 *p_radiance, int *pixelIndices, RNG *p_rng,
-                                     bool *p_isInside, bool *p_lastBounceWasDelta, float *p_lastBsdfPdf, float3 *positions, float3 *normals, int *materialIndices,
+                                     bool *p_isInside, bool *p_lastBounceWasDelta, float *p_lastBsdfPdf, OptixHit *p_hits,
                                      int *hitMask, const int *activeQueue, int activeCount, int *nextActiveQueue,
                                      int *nextActiveCount, bool safeSun, uint depth)
 {
@@ -132,7 +132,8 @@ __global__ void shadeWavefrontKernel(CudaScene scene, float3 *origins, float3 *d
     // HIT
     // ------------------------------------------------------------
 
-    Material &mtl = scene.materials[materialIndices[idx]];
+    OptixHit &hit = p_hits[idx];
+    Material &mtl = scene.materials[hit.materialIndex];
 
     // ------------------------------------------------------------
     // EMISSIVE
@@ -158,7 +159,7 @@ __global__ void shadeWavefrontKernel(CudaScene scene, float3 *origins, float3 *d
     }
 
     BSDFVal bsdf;
-    float3 normal = normals[idx];
+    float3 &normal = hit.normal;
     switch (mtl.type())
     {
     case LAMBERT:
@@ -194,7 +195,7 @@ __global__ void shadeWavefrontKernel(CudaScene scene, float3 *origins, float3 *d
     // DIRECT LIGHTING / NEE
     // Seulement pour les matériaux non-delta.
     // ------------------------------------------------------------
-    float3 position = positions[idx];
+
     if (!bsdf.isDelta && scene.nbLights > 0)
     {
         int lightIndex = selectLightByImportance(scene, rng);
@@ -203,17 +204,17 @@ __global__ void shadeWavefrontKernel(CudaScene scene, float3 *origins, float3 *d
 
         const Light &light = scene.lights[lightIndex];
 
-        LightSample ls = light.sample(position, rng, scene);
+        LightSample ls = light.sample(hit.position, rng, scene);
 
         if (ls.pdf > 0.f)
         {
 
-            float3 shadowTint = scene.traceShadowRay(position + normal * 1e-3f,
+            float3 shadowTint = scene.traceShadowRay(hit.position + hit.normal* 1e-3f,
                                                      ls.direction, 1e-3f, ls.distance - 1e-3f);
 
             if (length(shadowTint) > 1e-6f)
             {
-                float cosTheta = fmaxf(dot(normal, ls.direction), 0.0f);
+                float cosTheta = fmaxf(dot(hit.normal, ls.direction), 0.0f);
 
                 if (cosTheta > 0.f)
                 {
@@ -266,7 +267,7 @@ __global__ void shadeWavefrontKernel(CudaScene scene, float3 *origins, float3 *d
     }
     else
     {
-        float cosTheta = fmaxf(dot(normal, bsdf.direction), 0.0f);
+        float cosTheta = fmaxf(dot(hit.normal, bsdf.direction), 0.0f);
 
         throughput *= bsdf.brdf * cosTheta / bsdf.pdf;
     }
@@ -275,7 +276,7 @@ __global__ void shadeWavefrontKernel(CudaScene scene, float3 *origins, float3 *d
     // NEXT origin, direction
     // ------------------------------------------------------------
     float3 dir = bsdf.direction;
-    origin = position + dir * 1e-3f;
+    origin = hit.position + dir * 1e-3f;
     direction = dir;
 
     lastBounceWasDelta = bsdf.isDelta;

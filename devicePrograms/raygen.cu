@@ -39,18 +39,20 @@ extern "C" __global__ void __raygen__intersect()
 
     if (payload.hit)
     {
+        OptixHit hit;
 
-        params.positions[idx] = payload.position;
+        hit.position = payload.position;
 
-        params.normals[idx] = payload.normal;
+        hit.normal = payload.normal;
 
-        params.t[idx] = payload.t;
+        hit.t = payload.t;
 
-        params.materialIndices[idx] = payload.materialIndex;
+        hit.materialIndex = payload.materialIndex;
 
-        params.objectIndices[idx] = payload.objectIndex;
+        hit.objectIndex = payload.objectIndex;
 
-        params.objectTypes[idx] = payload.objectType;
+        hit.objectType = payload.objectType;
 
+        params.hits[idx] = hit;
     }
 }
