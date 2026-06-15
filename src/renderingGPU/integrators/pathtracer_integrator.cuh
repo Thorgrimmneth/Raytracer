@@ -2,13 +2,12 @@
 
 #include "../scene/scene.cuh"
 
-#include "../utils/cuda_defines.cuh"
-#include "../utils/rng.cuh"
 #include "../utils/constant.cuh"
+#include "../utils/cuda_defines.cuh"
 #include "../utils/macro.cuh"
+#include "../utils/rng.cuh"
 
 #include "../raytracingUtils/ray.cuh"
-#include "../raytracingUtils/hitrecord.cuh"
 
 #include "../lights/light_selection_utils.cuh"
 

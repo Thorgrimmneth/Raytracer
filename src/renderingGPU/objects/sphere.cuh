@@ -30,12 +30,12 @@ struct Sphere
     }
 
     D_FORCEINLINE 
-    bool intersect(const Ray &ray, const float tMin, const float tMax, OptixHit &hit) const
+    bool intersect(const float4 &origin, const float4 &direction, const float tMin, const float tMax, OptixHit &hit) const
     {
-        const float3 center = getCenter1() + ray.time * (getCenter2() - getCenter1());
+        const float3 center = getCenter1() + 0.f * (getCenter2() - getCenter1()); // 0.f = time
 
-        const float3 oc = ray.origin - center;
-        const float half_b = dot(ray.direction, oc);
+        const float3 oc = origin - center;
+        const float half_b = dot(direction, oc);
         const float c = dot(oc, oc) - getRadius() * getRadius();
 
         const float delta = half_b * half_b - c;
@@ -52,20 +52,20 @@ struct Sphere
                 return false;
         }
 
-        const float3 p = ray.origin + t * ray.direction;
+        const float4 p = origin + t * direction;
         const float3 n = normalize(p - center);
         hit.setHitInfo(p, n, t, getMaterialIndex(), 0, HIT_SPHERE);
-        hit.faceNormal(ray.direction);
+        hit.faceNormal(direction);
         return true;
     }
     
     D_FORCEINLINE 
-    bool intersectAny(const Ray &ray, const float tMin, const float tMax) const
+    bool intersectAny(const float4 &origin, const float4 &direction, const float tMin, const float tMax) const
     {
-        const float3 center = getCenter1() + ray.time * (getCenter2() - getCenter1());
+        const float3 center = getCenter1() + 0.f * (getCenter2() - getCenter1()); // 0.f = time
 
-        const float3 oc = ray.origin - center;
-        const float half_b = dot(ray.direction, oc);
+        const float3 oc = origin - center;
+        const float half_b = dot(direction, oc);
         const float c = dot(oc, oc) - getRadius() * getRadius();
 
         const float delta = half_b * half_b - c;

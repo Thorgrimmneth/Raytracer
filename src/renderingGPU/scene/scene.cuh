@@ -89,7 +89,7 @@ struct CudaScene
 
     HOST void uploadMaterials(CudaSceneHelper &helper);
 
-    D_FORCEINLINE bool intersect(const Ray &p_ray, const float p_tMin, const float p_tMax, OptixHit &p_hitRecord) const
+    D_FORCEINLINE bool intersect(const float4 &origin, const float4 &direction, const float p_tMin, const float p_tMax, OptixHit &p_hitRecord) const
     {
         float tMax = p_tMax;
         bool hit = false;
@@ -97,7 +97,7 @@ struct CudaScene
         {
             OptixHit planeHit;
 
-            if (planes[i].intersect(p_ray, p_tMin, tMax, planeHit))
+            if (planes[i].intersect(origin, direction, p_tMin, tMax, planeHit))
             {
                 tMax = planeHit.t;
                 p_hitRecord = planeHit;
@@ -108,7 +108,7 @@ struct CudaScene
                 hit = true;
             }
         }
-        if (bvhScene.intersect(p_ray, p_tMin, tMax, p_hitRecord))
+        if (bvhScene.intersect(origin, direction, p_tMin, tMax, p_hitRecord))
         {
             tMax = p_hitRecord.t; // update tMax to conserve the nearest hit
             hit = true;
@@ -117,34 +117,34 @@ struct CudaScene
         return hit;
     }
 
-    D_FORCEINLINE bool intersectAny(const Ray &p_ray, const float p_tMin, const float p_tMax) const
+    D_FORCEINLINE bool intersectAny(const float4 &origin, const float4 &direction, const float p_tMin, const float p_tMax) const
     {
         for (int i = 0; i < nbPlanes; ++i)
         {
-            if (planes[i].intersectAny(p_ray, p_tMin, p_tMax, materials))
+            if (planes[i].intersectAny(origin, direction, p_tMin, p_tMax, materials))
             {
                 return true;
             }
         }
-        if (bvhScene.intersectAny(p_ray, p_tMin, p_tMax, materials))
+        if (bvhScene.intersectAny(origin, direction, p_tMin, p_tMax, materials))
         {
             return true;
         }
         return false;
     }
 
-    D_FORCEINLINE float3 traceShadowRay(const Ray &p_ray, const float p_tMin, const float p_tMax) const
+    D_FORCEINLINE float3 traceShadowRay(const float4 &origin, const float4 &direction, const float p_tMin, const float p_tMax) const
     {
         float3 shadowColor = make_float3(1.f);
-        Ray currentRay = p_ray;
         float remainingDistance = p_tMax;
-
+        float4 originT = origin;
+        float4 directionT = direction;
         // Trace through up to 2 transparent surfaces
         for (int bounce = 0; bounce < 2; ++bounce)
         {
             OptixHit hit;
 
-            if (!intersect(currentRay, p_tMin + 1e-4f, remainingDistance - 1e-4f, hit))
+            if (!intersect(originT, directionT, p_tMin + 1e-4f, remainingDistance - 1e-4f, hit))
             {
                 // No hit = ray reached the light
                 return shadowColor;
@@ -168,7 +168,7 @@ struct CudaScene
                 }
 
                 // Continue ray from hit point toward light
-                currentRay = Ray(hit.position + currentRay.direction * 1e-4f, currentRay.direction, currentRay.time);
+                originT = hit.position + directionT * 1e-4f;
                 remainingDistance -= hit.t;
             }
             else if (matType == EMISSIVE)
@@ -186,13 +186,11 @@ struct CudaScene
         return shadowColor;
     }
 
-    D_FORCEINLINE float lightPdf(const float3 &origin, const float3 &dir) const
+    D_FORCEINLINE float lightPdf(const float4 &origin, const float4 &dir) const
     {
-        Ray ray(origin, dir);
-
         OptixHit hit;
 
-        if (!intersect(ray, 1e-4f, 1e30f, hit))
+        if (!intersect(origin, dir, 1e-4f, 1e30f, hit))
             return 0.0f;
 
         const MaterialType matType = materials[hit.materialIndex].type();

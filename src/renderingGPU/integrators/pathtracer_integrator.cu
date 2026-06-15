@@ -67,10 +67,8 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const float3 &orig
 
             if (ls.pdf > 0.f)
             {
-                float3 shadowOrigin = hit.position + hit.normal * 1e-3f;
-                Ray shadowRay(shadowOrigin, ls.direction, ray.time);
 
-                float3 shadowTint = scene.traceShadowRay(shadowRay, 1e-3f, ls.distance - 1e-3f);
+                float3 shadowTint = scene.traceShadowRay(hit.position + make_float4(hit.normal * 1e-3f, 0.f), make_float4(ls.direction, 0.f), 1e-3f, ls.distance - 1e-3f);
                 
                 // If shadow ray wasn't completely blocked
                 if (length(shadowTint) > 1e-6f)
@@ -123,7 +121,7 @@ float3 PathtracerIntegrator::getSkyColor(const float3 &origin, const float3 &dir
 
     float mult = 1.0f + 19.0f * t * t * t;
 
-    const float horizonFade = smoothstep(-0.05f, 0.02f, rayDir.y);
+    const float horizonFade = smoothstep(-0.05f, 0.02f, direction.y);
 
     if (horizonFade <= 0.0f)
     {
@@ -139,7 +137,7 @@ float3 PathtracerIntegrator::getSkyColor(const float3 &origin, const float3 &dir
     float opticalDepthR = 0.0f;
     float opticalDepthM = 0.0f;
 
-    float mu = dot(rayDir, sunDirection);
+    float mu = dot(direction, sunDirection);
 
     //float g = 0.76f;
 
@@ -197,7 +195,7 @@ float3 PathtracerIntegrator::getSkyColor(const float3 &origin, const float3 &dir
     float3 sky = sumR * betaR * phaseR + sumM * betaM * phaseM * 0.3f;
 
     float sunAngularRadius = 2.1f * GPUPIf / 180.f;
-    float cosTheta = dot(rayDir, sunDirection);
+    float cosTheta = dot(direction, sunDirection);
 
     float sunDisk =
         smoothstep(cos(sunAngularRadius),

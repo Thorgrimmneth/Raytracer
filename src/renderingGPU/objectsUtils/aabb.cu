@@ -9,8 +9,8 @@ float4 AABB::centroid() const
 HOST
 float AABB::area() const
 {
-	float3 minT = toFloat3(min);
-	float3 maxT = toFloat3(max);
+	float3 minT = make_float3(min);
+	float3 maxT = make_float3(max);
 	float3 size = maxT - minT;
 	return 2.0f * (size.x * size.y + size.x * size.z + size.y * size.z);
 }
@@ -23,8 +23,8 @@ void AABB::extend(const AABB& a){
 
 HOST
 void AABB::extend(const float3& a){
-    min = getMin(min, toFloat4(a));
-    max = getMax(max, toFloat4(a));
+    min = getMin(min, make_float4(a, 0.f));
+    max = getMax(max, make_float4(a, 0.f));
 }
 
 HOST

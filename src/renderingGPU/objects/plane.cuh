@@ -17,43 +17,43 @@ struct Plane
     float getDelta() const { return normal.w; }
 
     D_FORCEINLINE 
-    bool intersect(const Ray &ray, const float tMin, const float tMax, OptixHit &hitRecord) const
+    bool intersect(const float4 &origin, const float4 &direction, const float tMin, const float tMax, OptixHit &hitRecord) const
     {
         float t;
 
         // Fast path pour le sol horizontal y = 0
         if (normal.x == 0.0f && normal.y == 1.0f && normal.z == 0.0f && getDelta() == 0.0f)
         {
-            const float dy = ray.direction.y;
+            const float dy = direction.y;
 
             if (fabsf(dy) < 1e-6f)
                 return false;
 
-            t = -ray.origin.y / dy;
+            t = -origin.y / dy;
         }
         else
         {
-            const float nd = dot(getNormal(), ray.direction);
+            const float nd = dot(getNormal(), direction);
 
             if (fabsf(nd) < 1e-6f)
                 return false;
 
-            t = -(dot(getNormal(), ray.origin) + getDelta()) / nd;
+            t = -(dot(getNormal(), origin) + getDelta()) / nd;
         }
 
         if (t <= tMin || t >= tMax)
             return false;
 
-        const float3 p = ray.origin + t * ray.direction;
+        const float4 p = origin + t * direction;
         float3 n = getNormal();
 
         hitRecord.setHitInfo(p, n, t, materialIndex, 0, HIT_PLANE);
-        hitRecord.faceNormal(ray.direction);
+        hitRecord.faceNormal(direction);
         return true;
     }
 
     D_FORCEINLINE
-    bool intersectAny(const Ray &ray, const float tMin, const float tMax,
+    bool intersectAny(const float4 &origin, const float4 &direction, const float tMin, const float tMax,
                                                  const Material *materials) const
     {
         if (materials[materialIndex].type() == MaterialType::TRANSPARENT)
@@ -63,8 +63,8 @@ struct Plane
         float3 n = getNormal();
         if (n.x == 0.0f && n.y == 1.0f && n.z == 0.0f && getDelta() == 0.0f)
         {
-            const float oy = ray.origin.y;
-            const float dy = ray.direction.y;
+            const float oy = origin.y;
+            const float dy = direction.y;
 
             // Rayon parallèle au sol
             if (fabsf(dy) < 1e-6f)
@@ -80,12 +80,12 @@ struct Plane
             return t > tMin && t < tMax;
         }
 
-        const float ND = dot(getNormal(), ray.direction);
+        const float ND = dot(getNormal(), direction);
 
         if (fabsf(ND) < 1e-6f)
             return false;
 
-        const float t = -(dot(getNormal(), ray.origin) + getDelta()) / ND;
+        const float t = -(dot(getNormal(), origin) + getDelta()) / ND;
 
         return t > tMin && t < tMax;
     }
