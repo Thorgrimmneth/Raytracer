@@ -1,7 +1,7 @@
 #include "aabb.cuh"
 
 HOST
-float4 AABB::centroid() const
+float3 AABB::centroid() const
 {
 	return (min + max) * 0.5f;
 }
@@ -9,9 +9,7 @@ float4 AABB::centroid() const
 HOST
 float AABB::area() const
 {
-	float3 minT = make_float3(min);
-	float3 maxT = make_float3(max);
-	float3 size = maxT - minT;
+	float3 size = max - min;
 	return 2.0f * (size.x * size.y + size.x * size.z + size.y * size.z);
 }
 
@@ -23,14 +21,13 @@ void AABB::extend(const AABB& a){
 
 HOST
 void AABB::extend(const float3& a){
-    min = getMin(min, make_float4(a, 0.f));
-    max = getMax(max, make_float4(a, 0.f));
+    min = getMin(min, a);
+    max = getMax(max, a);
 }
 
 HOST
 void AABB::extend(const float4& a){
-    min = getMin(min, a);
-    max = getMax(max, a);
+    extend(make_float3(a));
 }
 
 HOST

@@ -1,7 +1,7 @@
 #include "shading_kernels.cuh"
 
 __global__ void shadeWavefrontKernel(CudaScene scene, float3 *origins, float3 *directions, float3 *p_throughput, float3 *p_radiance, int *pixelIndices, RNG *p_rng,
-                                     bool *p_isInside, bool *p_lastBounceWasDelta, float *p_lastBsdfPdf, OptixHit *p_hits,
+                                     bool *p_isInside, bool *p_lastBounceWasDelta, float *p_lastBsdfPdf, float3 *positions, float3 *normals, int *materialIndices,
                                      int *hitMask, const int *activeQueue, int activeCount, int *nextActiveQueue,
                                      int *nextActiveCount, bool safeSun, uint depth)
 {
@@ -12,8 +12,8 @@ __global__ void shadeWavefrontKernel(CudaScene scene, float3 *origins, float3 *d
 
     int idx = activeQueue[qid];
 
-    float4 &throughput = p_throughput[idx];
-    float4 &radiance = p_radiance[idx];
+    float3 &throughput = p_throughput[idx];
+    float3 &radiance = p_radiance[idx];
     RNG &rng = p_rng[idx];
     bool &isInside = p_isInside[idx];
     bool &lastBounceWasDelta = p_lastBounceWasDelta[idx];
@@ -36,7 +36,6 @@ __global__ void shadeWavefrontKernel(CudaScene scene, float3 *origins, float3 *d
 
         if (horizonFade <= 0.0f)
         {
-            radiance += make_float4(0.0f);
             return;
         }
 
@@ -124,7 +123,7 @@ __global__ void shadeWavefrontKernel(CudaScene scene, float3 *origins, float3 *d
         float mult = 1.0f + 19.0f * t * t * t;
         sky = sky * mult * horizonFade;
 
-        radiance += throughput * make_float4(sky, 0.f);
+        radiance += throughput * sky;
 
         return;
     }
@@ -133,8 +132,7 @@ __global__ void shadeWavefrontKernel(CudaScene scene, float3 *origins, float3 *d
     // HIT
     // ------------------------------------------------------------
 
-    OptixHit hit = p_hits[idx];
-    Material mtl = scene.materials[hit.materialIndex];
+    Material &mtl = scene.materials[materialIndices[idx]];
 
     // ------------------------------------------------------------
     // EMISSIVE
@@ -145,7 +143,7 @@ __global__ void shadeWavefrontKernel(CudaScene scene, float3 *origins, float3 *d
 
         if (lastBounceWasDelta)
         {
-            radiance += throughput * make_float4(emission, 0.f);
+            radiance += throughput * emission;
         }
         else
         {
@@ -153,34 +151,34 @@ __global__ void shadeWavefrontKernel(CudaScene scene, float3 *origins, float3 *d
 
             float w = powerHeuristic(lastBsdfPdf, lightPdf);
 
-            radiance += throughput * make_float4(emission * w, 0.f);
+            radiance += throughput * emission * w;
         }
 
         return;
     }
 
     BSDFVal bsdf;
-
+    float3 normal = normals[idx];
     switch (mtl.type())
     {
     case LAMBERT:
-        bsdf = mtl.getLambertBSDF(origin, direction, hit, rng);
+        bsdf = mtl.getLambertBSDF(origin, direction, normal, rng);
         break;
 
     case METAL:
-        bsdf = mtl.getMetalBSDF(origin, direction, hit, rng);
+        bsdf = mtl.getMetalBSDF(origin, direction, normal, rng);
         break;
 
     case PLASTIC:
-        bsdf = mtl.getPlasticBSDF(origin, direction, hit, rng);
+        bsdf = mtl.getPlasticBSDF(origin, direction, normal, rng);
         break;
 
     case MIRROR:
-        bsdf = mtl.getMirrorBSDF(origin, direction, hit);
+        bsdf = mtl.getMirrorBSDF(origin, direction, normal);
         break;
 
     case TRANSPARENT:
-        bsdf = mtl.getTransparentBSDF(origin, direction, hit, rng, isInside);
+        bsdf = mtl.getTransparentBSDF(origin, direction, normal, rng, isInside);
         break;
 
     default:
@@ -196,7 +194,7 @@ __global__ void shadeWavefrontKernel(CudaScene scene, float3 *origins, float3 *d
     // DIRECT LIGHTING / NEE
     // Seulement pour les matériaux non-delta.
     // ------------------------------------------------------------
-
+    float3 position = positions[idx];
     if (!bsdf.isDelta && scene.nbLights > 0)
     {
         int lightIndex = selectLightByImportance(scene, rng);
@@ -205,17 +203,17 @@ __global__ void shadeWavefrontKernel(CudaScene scene, float3 *origins, float3 *d
 
         const Light &light = scene.lights[lightIndex];
 
-        LightSample ls = light.sample(hit.position, rng, scene);
+        LightSample ls = light.sample(position, rng, scene);
 
         if (ls.pdf > 0.f)
         {
 
-            float3 shadowTint = scene.traceShadowRay(hit.position + make_float4(hit.normal, 0.f) * 1e-3f,
-                                                     make_float4(ls.direction, 0.f), 1e-3f, ls.distance - 1e-3f);
+            float3 shadowTint = scene.traceShadowRay(position + normal * 1e-3f,
+                                                     ls.direction, 1e-3f, ls.distance - 1e-3f);
 
             if (length(shadowTint) > 1e-6f)
             {
-                float cosTheta = fmaxf(dot(hit.normal, ls.direction), 0.0f);
+                float cosTheta = fmaxf(dot(normal, ls.direction), 0.0f);
 
                 if (cosTheta > 0.f)
                 {
@@ -226,17 +224,17 @@ __global__ void shadeWavefrontKernel(CudaScene scene, float3 *origins, float3 *d
                     {
                     case LAMBERT:
                         f = mtl.evalLambertBSDF();
-                        pdf_bsdf = mtl.lambertPDF(origin, direction, hit, ls.direction);
+                        pdf_bsdf = mtl.lambertPDF(origin, direction, normal, ls.direction);
                         break;
 
                     case METAL:
-                        f = mtl.evalMetalBSDF(origin, direction, hit, ls.direction);
-                        pdf_bsdf = mtl.metalPDF(origin, direction, hit, ls.direction);
+                        f = mtl.evalMetalBSDF(origin, direction, normal, ls.direction);
+                        pdf_bsdf = mtl.metalPDF(origin, direction, normal, ls.direction);
                         break;
 
                     case PLASTIC:
-                        f = mtl.evalPlasticBSDF(origin, direction, hit, ls.direction);
-                        pdf_bsdf = mtl.plasticPDF(origin, direction, hit, ls.direction);
+                        f = mtl.evalPlasticBSDF(origin, direction, normal, ls.direction);
+                        pdf_bsdf = mtl.plasticPDF(origin, direction, normal, ls.direction);
                         break;
 
                     default:
@@ -251,7 +249,7 @@ __global__ void shadeWavefrontKernel(CudaScene scene, float3 *origins, float3 *d
                     {
                         float w = powerHeuristic(pdf_light, pdf_bsdf);
 
-                        radiance += throughput * make_float4(f * ls.radiance * shadowTint * cosTheta * w / pdf_light, 0.f);
+                        radiance += throughput * f * ls.radiance * shadowTint * cosTheta * w / pdf_light;
                     }
                 }
             }
@@ -264,20 +262,20 @@ __global__ void shadeWavefrontKernel(CudaScene scene, float3 *origins, float3 *d
 
     if (bsdf.isDelta)
     {
-        throughput *= make_float4(bsdf.brdf, 0.f);
+        throughput *= bsdf.brdf;
     }
     else
     {
-        float cosTheta = fmaxf(dot(hit.normal, bsdf.direction), 0.0f);
+        float cosTheta = fmaxf(dot(normal, bsdf.direction), 0.0f);
 
-        throughput *= make_float4(bsdf.brdf * cosTheta / bsdf.pdf,0.f);
+        throughput *= bsdf.brdf * cosTheta / bsdf.pdf;
     }
 
     // ------------------------------------------------------------
     // NEXT origin, direction
     // ------------------------------------------------------------
     float3 dir = bsdf.direction;
-    origin = hit.position + dir * 1e-3f;
+    origin = position + dir * 1e-3f;
     direction = dir;
 
     lastBounceWasDelta = bsdf.isDelta;

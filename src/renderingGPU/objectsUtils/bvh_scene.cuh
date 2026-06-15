@@ -77,7 +77,7 @@ struct BVHScene
     size_t getDeviceSize() const;
 
     D_FORCEINLINE 
-    bool intersect(const float4& origin, const float4 &direction, const float tMin, const float tMaxInit, OptixHit &hit) const
+    bool intersect(const float3& origin, const float3 &direction, const float tMin, const float tMaxInit, OptixHit &hit) const
     {
         constexpr int STACK_SIZE = 32;
 
@@ -196,7 +196,7 @@ struct BVHScene
     }
 
     D_FORCEINLINE 
-    bool intersectAny(const float4 &origin, const float4 &direction, float tMin, float tMax, const Material *materials) const
+    bool intersectAny(const float3 &origin, const float3 &direction, float tMin, float tMax, const Material *materials) const
     {
         constexpr int STACK_SIZE = 32;
 

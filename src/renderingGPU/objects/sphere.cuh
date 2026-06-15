@@ -30,7 +30,7 @@ struct Sphere
     }
 
     D_FORCEINLINE 
-    bool intersect(const float4 &origin, const float4 &direction, const float tMin, const float tMax, OptixHit &hit) const
+    bool intersect(const float3 &origin, const float3 &direction, const float tMin, const float tMax, OptixHit &hit) const
     {
         const float3 center = getCenter1() + 0.f * (getCenter2() - getCenter1()); // 0.f = time
 
@@ -52,7 +52,7 @@ struct Sphere
                 return false;
         }
 
-        const float4 p = origin + t * direction;
+        const float3 p = origin + t * direction;
         const float3 n = normalize(p - center);
         hit.setHitInfo(p, n, t, getMaterialIndex(), 0, HIT_SPHERE);
         hit.faceNormal(direction);
@@ -60,7 +60,7 @@ struct Sphere
     }
     
     D_FORCEINLINE 
-    bool intersectAny(const float4 &origin, const float4 &direction, const float tMin, const float tMax) const
+    bool intersectAny(const float3 &origin, const float3 &direction, const float tMin, const float tMax) const
     {
         const float3 center = getCenter1() + 0.f * (getCenter2() - getCenter1()); // 0.f = time
 

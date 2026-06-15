@@ -574,9 +574,8 @@ CudaScene singleObject(float4 sunDir)
     Material mat = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), LAMBERT, 1.0f);
     helper.materialsGPU.push_back(mat);
     Quaternion rotation = quaternionFromAxisAngle(make_float3(0.f, 1.f, 0.f), 0.f);
-    MeshAndPrimitive meshAndPrim =
-        loadTriangleMesh("data/bunny/Bunny.obj", 2, helper.triangleMeshesGPU.size(),
-                         make_float3(2.f, 2.f, 2.f), rotation, make_float3(0.f, 0.f, 0.f));
+    MeshAndPrimitive meshAndPrim = loadTriangleMesh("data/bunny/Bunny.obj", 2, helper.triangleMeshesGPU.size(),
+                                                    make_float3(2.f, 2.f, 2.f), rotation, make_float3(0.f, 0.f, 0.f));
     helper.triangleMeshesGPU.push_back(meshAndPrim.mesh);
     helper.primitivesGPU.push_back(meshAndPrim.prim);
     Light l;
@@ -616,7 +615,8 @@ CudaScene singleObject(float4 sunDir)
 
     OptixSBTManager sbtManager;
     sbtManager.create(programGroupManager.raygenPG, programGroupManager.missPG, programGroupManager.hitPG,
-                      meshAndPrim.mesh.vertices, meshAndPrim.mesh.normals, meshAndPrim.mesh.uvs, meshAndPrim.mesh.triangles, meshAndPrim.mesh.materialIndex);
+                      meshAndPrim.mesh.vertices, meshAndPrim.mesh.normals, meshAndPrim.mesh.uvs,
+                      meshAndPrim.mesh.triangles, meshAndPrim.mesh.materialIndex);
 
     std::cout << "raygenRecord = " << sbtManager.sbt.raygenRecord << "\nmissCount = " << sbtManager.sbt.missRecordCount
               << "\nhitCount = " << sbtManager.sbt.hitgroupRecordCount << std::endl;

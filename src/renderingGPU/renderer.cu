@@ -84,7 +84,15 @@ class Renderer::Impl
     float3 *d_origins = nullptr;
     float3 *d_directions = nullptr;
 
-    OptixHit *d_hits = nullptr;
+    float3* d_positions = nullptr;
+    float3* d_normals = nullptr;
+
+    float* d_ts = nullptr;
+
+    int* d_materialIndices = nullptr;
+    int* d_objectIndices = nullptr;
+    HitObjectType* d_objectTypes = nullptr;
+
     int *d_hitMask = nullptr;
 
     int *d_activeQueue = nullptr;
@@ -224,8 +232,8 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     // GPU buffers
     // =========================
 
-    cudaMalloc(&impl->d_throughput, impl->width * impl->height * sizeof(float3));
-    cudaMalloc(&impl->d_radiance, impl->width * impl->height * sizeof(float3));
+    cudaMalloc(&impl->d_throughput, impl->hdrBufferSize);
+    cudaMalloc(&impl->d_radiance, impl->hdrBufferSize);
     cudaMalloc(&impl->d_pixelIndices, impl->width * impl->height * sizeof(int));
     cudaMalloc(&impl->d_rng, impl->width * impl->height * sizeof(RNG));
     cudaMalloc(&impl->d_isInside, impl->width * impl->height * sizeof(bool));
@@ -248,7 +256,14 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     size_t pixelCount = impl->width * impl->height;
     cudaMalloc(&impl->d_origins, impl->hdrBufferSize);
     cudaMalloc(&impl->d_directions, impl->hdrBufferSize);
-    cudaMalloc(&impl->d_hits, pixelCount * sizeof(OptixHit));
+
+    cudaMalloc(&impl->d_positions, impl->hdrBufferSize);
+    cudaMalloc(&impl->d_normals, impl->hdrBufferSize);
+    cudaMalloc(&impl->d_ts, pixelCount * sizeof(float));
+    cudaMalloc(&impl->d_materialIndices, pixelCount * sizeof(int));
+    cudaMalloc(&impl->d_objectIndices, pixelCount * sizeof(int));
+    cudaMalloc(&impl->d_objectTypes, pixelCount * sizeof(HitObjectType));
+
     cudaMalloc(&impl->d_hitMask, pixelCount * sizeof(int));
     cudaMalloc(&impl->d_activeQueue, pixelCount * sizeof(int));
     cudaMalloc(&impl->d_nextActiveQueue, pixelCount * sizeof(int));
@@ -593,9 +608,18 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         // ---------------------------------------------------------------------
         // 2.1 Intersection uniquement des rayons actifs
         // ---------------------------------------------------------------------
+
+
         impl->gpuScene.optixData.launchParams.origins = impl->d_origins;
         impl->gpuScene.optixData.launchParams.directions = impl->d_directions;
-        impl->gpuScene.optixData.launchParams.hits = impl->d_hits;
+
+        impl->gpuScene.optixData.launchParams.positions = impl->d_positions;
+        impl->gpuScene.optixData.launchParams.normals = impl->d_normals;
+        impl->gpuScene.optixData.launchParams.t = impl->d_ts;
+        impl->gpuScene.optixData.launchParams.materialIndices = impl->d_materialIndices;
+        impl->gpuScene.optixData.launchParams.objectIndices = impl->d_objectIndices;
+        impl->gpuScene.optixData.launchParams.objectTypes = impl->d_objectTypes;
+        
         impl->gpuScene.optixData.launchParams.hitMask = impl->d_hitMask;
         impl->gpuScene.optixData.launchParams.activeQueue = impl->d_activeQueue;
         impl->gpuScene.optixData.launchParams.activeCount = h_activeCount;
@@ -622,7 +646,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
             
         shadeWavefrontKernel<<<gridForCount(h_activeCount), block1D>>>(
             impl->gpuScene, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_radiance, impl->d_pixelIndices, impl->d_rng, impl->d_isInside,
-            impl->d_lastBounceWasDelta, impl->d_lastBsdfPdf, impl->d_hits, impl->d_hitMask, impl->d_activeQueue,
+            impl->d_lastBounceWasDelta, impl->d_lastBsdfPdf, impl->d_positions, impl->d_normals, impl->d_materialIndices, impl->d_hitMask, impl->d_activeQueue,
             h_activeCount, impl->d_nextActiveQueue, impl->d_nextActiveCount, bounce == 0, bounce);
 
         err = cudaGetLastError();
@@ -819,7 +843,13 @@ void Renderer::cleanUp()
 
     cudaFree(impl->d_origins);
     cudaFree(impl->d_directions);
-    cudaFree(impl->d_hits);
+
+    cudaFree(impl->d_positions);
+    cudaFree(impl->d_normals);
+    cudaFree(impl->d_ts);
+    cudaFree(impl->d_materialIndices);
+    cudaFree(impl->d_objectIndices);
+    cudaFree(impl->d_objectTypes);
     cudaFree(impl->d_hitMask);
     cudaFree(impl->d_activeQueue);
     cudaFree(impl->d_activeCount);

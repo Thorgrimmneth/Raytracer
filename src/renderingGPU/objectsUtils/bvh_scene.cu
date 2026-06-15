@@ -65,8 +65,8 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject> *primitives, std::vecto
         for (int i = task.first; i < task.last; ++i)
         {
             AABB tempBox{};
-            tempBox.min = make_float4((*primitives)[indices[i]].getMin(), 0.0f);
-            tempBox.max = make_float4((*primitives)[indices[i]].getMax(), 0.0f);
+            tempBox.min = (*primitives)[indices[i]].getMin();
+            tempBox.max = (*primitives)[indices[i]].getMax();
             centroidBBox.extend(tempBox.centroid());
         }
 
@@ -95,8 +95,8 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject> *primitives, std::vecto
             for (int i = task.first; i < task.last; i++)
             {
                 AABB tempBox{};
-                tempBox.min = make_float4((*primitives)[indices[i]].getMin(), 0.0f);
-                tempBox.max = make_float4((*primitives)[indices[i]].getMax(), 0.0f);
+                tempBox.min = (*primitives)[indices[i]].getMin();
+                tempBox.max = (*primitives)[indices[i]].getMax();
                 float centroid = getAxis(tempBox.centroid(), axis);
 
                 int binId = int(BIN_COUNT * (centroid - cmin) / extent);
@@ -180,8 +180,8 @@ BVHScene BVHScene::buildBVHScene(std::vector<BaseObject> *primitives, std::vecto
 
         auto midIter = std::partition(indices.begin() + task.first, indices.begin() + task.last, [&](int idx) {
             AABB tempBox{};
-            tempBox.min = make_float4((*primitives)[idx].getMin(), 0.0f);
-            tempBox.max = make_float4((*primitives)[idx].getMax(), 0.0f);
+            tempBox.min = (*primitives)[idx].getMin();
+            tempBox.max = (*primitives)[idx].getMax();
             return getAxis(tempBox.centroid(), bestAxis) < splitPos;
         });
 

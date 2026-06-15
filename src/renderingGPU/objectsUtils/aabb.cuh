@@ -6,11 +6,11 @@
 
 struct AABB
 {
-    float4 min = make_float4(+INFINITY);
-    float4 max = make_float4(-INFINITY);
+    float3 min = make_float3(+INFINITY);
+    float3 max = make_float3(-INFINITY);
 
     HOST 
-    float4 centroid() const;
+    float3 centroid() const;
 
     HOST 
     float area() const;
@@ -18,13 +18,13 @@ struct AABB
     HOST 
     bool intersect(const Ray &ray, float tMin, float tMax, float &outTNear) const;
 
-    D_FORCEINLINE bool intersectCheck(const float4 &origin, const float4 &direction, float tMin, float tMax, float &outTMin) const
+    D_FORCEINLINE bool intersectCheck(const float3 &origin, const float3 &direction, float tMin, float tMax, float &outTMin) const
     {
         float nearT = tMin;
         float farT = tMax;
 
-        float4 t1 = (min - origin) / direction;
-        float4 t2 = (max - origin) / direction;
+        float3 t1 = (min - origin) / direction;
+        float3 t2 = (max - origin) / direction;
 
         nearT = fmaxf(nearT, fmaxf(fminf(t1.x, t2.x), fmaxf(fminf(t1.y, t2.y), fminf(t1.z, t2.z))));
         farT = fminf(farT, fminf(fmaxf(t1.x, t2.x), fminf(fmaxf(t1.y, t2.y), fmaxf(t1.z, t2.z))));

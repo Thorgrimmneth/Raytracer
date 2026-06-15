@@ -39,8 +39,17 @@ struct LaunchParams
     float3* origins = nullptr;
     float3* directions = nullptr;
 
-    OptixHit* hits = nullptr;
+    // optixHit soa
+    float3* positions = nullptr;
+    float3* normals = nullptr;
 
+    float* t = nullptr;
+
+    int* materialIndices = nullptr;
+    int* objectIndices = nullptr;
+    HitObjectType* objectTypes = nullptr;
+    //
+    
     int* hitMask = nullptr;
 
     int* activeQueue = nullptr;

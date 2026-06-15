@@ -302,7 +302,7 @@ HD_INLINE float lerp(const float a, const float b, const float c)
     return a * (1.f - c) + b * c;
 }
 
-HD_INLINE float getAxis(const float4& v, int axis)
+HD_INLINE float getAxis(const float3& v, int axis)
 {
     return axis == 0 ? v.x :
            axis == 1 ? v.y :

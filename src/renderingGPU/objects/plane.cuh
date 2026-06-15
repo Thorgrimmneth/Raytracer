@@ -17,7 +17,7 @@ struct Plane
     float getDelta() const { return normal.w; }
 
     D_FORCEINLINE 
-    bool intersect(const float4 &origin, const float4 &direction, const float tMin, const float tMax, OptixHit &hitRecord) const
+    bool intersect(const float3 &origin, const float3 &direction, const float tMin, const float tMax, OptixHit &hitRecord) const
     {
         float t;
 
@@ -44,7 +44,7 @@ struct Plane
         if (t <= tMin || t >= tMax)
             return false;
 
-        const float4 p = origin + t * direction;
+        const float3 p = origin + t * direction;
         float3 n = getNormal();
 
         hitRecord.setHitInfo(p, n, t, materialIndex, 0, HIT_PLANE);
@@ -53,7 +53,7 @@ struct Plane
     }
 
     D_FORCEINLINE
-    bool intersectAny(const float4 &origin, const float4 &direction, const float tMin, const float tMax,
+    bool intersectAny(const float3 &origin, const float3 &direction, const float tMin, const float tMax,
                                                  const Material *materials) const
     {
         if (materials[materialIndex].type() == MaterialType::TRANSPARENT)

@@ -173,10 +173,9 @@ DEVICE float Material::pdfGGX(const float3 n, const float3 wi, const float3 wo) 
 //  getBSDF helpers
 // ============================================================
 
-DEVICE BSDFVal Material::getMetalBSDF(const float3 &origin, const float3 &direction, const OptixHit &hit,
+DEVICE BSDFVal Material::getMetalBSDF(const float3 &origin, const float3 &direction, const float3 &normal,
                                       RNG &rngStates) const
 {
-    float3 normal = hit.normal;
     float3 wo = -direction;
     BSDFVal bsdf;
 
@@ -199,10 +198,9 @@ DEVICE BSDFVal Material::getMetalBSDF(const float3 &origin, const float3 &direct
     return bsdf;
 }
 
-DEVICE BSDFVal Material::getLambertBSDF(const float3 &origin, const float3 &direction, const OptixHit &hit,
+DEVICE BSDFVal Material::getLambertBSDF(const float3 &origin, const float3 &direction, const float3 &normal,
                                         RNG &rngStates) const
 {
-    float3 normal = hit.normal;
     BSDFVal bsdf;
 
     bsdf.direction = samplingLambert(normal, rngStates);
@@ -213,10 +211,9 @@ DEVICE BSDFVal Material::getLambertBSDF(const float3 &origin, const float3 &dire
     return bsdf;
 }
 
-DEVICE BSDFVal Material::getPlasticBSDF(const float3 &origin, const float3 &direction, const OptixHit &hit,
+DEVICE BSDFVal Material::getPlasticBSDF(const float3 &origin, const float3 &direction, const float3 &normal,
                                         RNG &rngStates) const
 {
-    float3 normal = hit.normal;
     float3 wo = -direction;
     BSDFVal bsdf;
 
@@ -252,9 +249,8 @@ DEVICE BSDFVal Material::getPlasticBSDF(const float3 &origin, const float3 &dire
     return bsdf;
 }
 
-DEVICE BSDFVal Material::getMirrorBSDF(const float3 &origin, const float3 &direction, const OptixHit &hit) const
+DEVICE BSDFVal Material::getMirrorBSDF(const float3 &origin, const float3 &direction, const float3 &normal) const
 {
-    float3 normal = hit.normal;
     BSDFVal bsdf;
 
     bsdf.direction = reflect(direction, normal);
@@ -265,10 +261,9 @@ DEVICE BSDFVal Material::getMirrorBSDF(const float3 &origin, const float3 &direc
     return bsdf;
 }
 
-DEVICE BSDFVal Material::getTransparentBSDF(const float3 &origin, const float3 &direction, const OptixHit &hit,
+DEVICE BSDFVal Material::getTransparentBSDF(const float3 &origin, const float3 &direction, const float3 &normal,
                                             RNG &rngStates, bool &isInside) const
 {
-    float3 normal = hit.normal;
     float3 wo = direction;
     BSDFVal bsdf;
 
@@ -336,25 +331,25 @@ DEVICE BSDFVal Material::getTransparentBSDF(const float3 &origin, const float3 &
 //  getBSDF dispatcher
 // ============================================================
 
-DEVICE BSDFVal Material::getBSDF(const float3 &origin, const float3 &direction, const OptixHit &hit, RNG &rngStates,
+DEVICE BSDFVal Material::getBSDF(const float3 &origin, const float3 &direction, const float3 &normal, RNG &rngStates,
                                  bool &isInside) const
 {
     switch (type())
     {
     case LAMBERT:
-        return getLambertBSDF(origin, direction, hit, rngStates);
+        return getLambertBSDF(origin, direction, normal, rngStates);
 
     case METAL:
-        return getMetalBSDF(origin, direction, hit, rngStates);
+        return getMetalBSDF(origin, direction, normal, rngStates);
 
     case PLASTIC:
-        return getPlasticBSDF(origin, direction, hit, rngStates);
+        return getPlasticBSDF(origin, direction, normal, rngStates);
 
     case MIRROR:
-        return getMirrorBSDF(origin, direction, hit);
+        return getMirrorBSDF(origin, direction, normal);
 
     case TRANSPARENT:
-        return getTransparentBSDF(origin, direction, hit, rngStates, isInside);
+        return getTransparentBSDF(origin, direction, normal, rngStates, isInside);
 
     default: {
         BSDFVal bsdf;
@@ -374,10 +369,9 @@ DEVICE BSDFVal Material::getBSDF(const float3 &origin, const float3 &direction, 
 
 DEVICE float3 Material::evalLambertBSDF() const { return evaluateLambert(); }
 
-DEVICE float3 Material::evalMetalBSDF(const float3 &origin, const float3 &direction, const OptixHit &hit,
+DEVICE float3 Material::evalMetalBSDF(const float3 &origin, const float3 &direction, const float3 &normal,
                                       const float3 &wi) const
 {
-    float3 normal = hit.normal;
     float3 wo = -direction;
 
     if (dot(normal, wi) <= 0.f)
@@ -388,10 +382,9 @@ DEVICE float3 Material::evalMetalBSDF(const float3 &origin, const float3 &direct
     return evaluateGGX(wo, normal, wi, F0);
 }
 
-DEVICE float3 Material::evalPlasticBSDF(const float3 &origin, const float3 &direction, const OptixHit &hit,
+DEVICE float3 Material::evalPlasticBSDF(const float3 &origin, const float3 &direction, const float3 &normal,
                                         const float3 &wi) const
 {
-    float3 normal = hit.normal;
     float3 wo = -direction;
 
     if (dot(normal, wi) <= 0.f)
@@ -411,7 +404,7 @@ DEVICE float3 Material::evalPlasticBSDF(const float3 &origin, const float3 &dire
 //  evalBSDF dispatcher
 // ============================================================
 
-DEVICE float3 Material::evalBSDF(const float3 &origin, const float3 &direction, const OptixHit &hit,
+DEVICE float3 Material::evalBSDF(const float3 &origin, const float3 &direction, const float3 &normal,
                                  const float3 &wi) const
 {
     switch (type())
@@ -420,10 +413,10 @@ DEVICE float3 Material::evalBSDF(const float3 &origin, const float3 &direction, 
         return evalLambertBSDF();
 
     case METAL:
-        return evalMetalBSDF(origin, direction, hit, wi);
+        return evalMetalBSDF(origin, direction, normal, wi);
 
     case PLASTIC:
-        return evalPlasticBSDF(origin, direction, hit, wi);
+        return evalPlasticBSDF(origin, direction, normal, wi);
 
     // Delta materials have no continuous BSDF for NEE / MIS
     case MIRROR:
@@ -438,18 +431,16 @@ DEVICE float3 Material::evalBSDF(const float3 &origin, const float3 &direction, 
 //  Used by MIS — delta materials return 0
 // ============================================================
 
-DEVICE float Material::lambertPDF(const float3 &origin, const float3 &direction, const OptixHit &hit,
+DEVICE float Material::lambertPDF(const float3 &origin, const float3 &direction, const float3 &normal,
                                   const float3 &wi) const
 {
-    float3 normal = hit.normal;
 
     return pdfLambert(normal, wi);
 }
 
-DEVICE float Material::metalPDF(const float3 &origin, const float3 &direction, const OptixHit &hit,
+DEVICE float Material::metalPDF(const float3 &origin, const float3 &direction, const float3 &normal,
                                 const float3 &wi) const
 {
-    float3 normal = hit.normal;
     float3 wo = -direction;
 
     if (dot(normal, wi) <= 0.f)
@@ -458,10 +449,9 @@ DEVICE float Material::metalPDF(const float3 &origin, const float3 &direction, c
     return pdfGGX(normal, wi, wo);
 }
 
-DEVICE float Material::plasticPDF(const float3 &origin, const float3 &direction, const OptixHit &hit,
+DEVICE float Material::plasticPDF(const float3 &origin, const float3 &direction, const float3 &normal,
                                   const float3 &wi) const
 {
-    float3 normal = hit.normal;
     float3 wo = -direction;
 
     if (dot(normal, wi) <= 0.f)
@@ -479,18 +469,18 @@ DEVICE float Material::plasticPDF(const float3 &origin, const float3 &direction,
 //  pdf dispatcher
 // ============================================================
 
-DEVICE float Material::pdf(const float3 &origin, const float3 &direction, const OptixHit &hit, const float3 &wi) const
+DEVICE float Material::pdf(const float3 &origin, const float3 &direction, const float3 &normal, const float3 &wi) const
 {
     switch (type())
     {
     case LAMBERT:
-        return lambertPDF(origin, direction, hit, wi);
+        return lambertPDF(origin, direction, normal, wi);
 
     case METAL:
-        return metalPDF(origin, direction, hit, wi);
+        return metalPDF(origin, direction, normal, wi);
 
     case PLASTIC:
-        return plasticPDF(origin, direction, hit, wi);
+        return plasticPDF(origin, direction, normal, wi);
 
     // Delta materials are sampled discretely, so no continuous PDF here
     case MIRROR:

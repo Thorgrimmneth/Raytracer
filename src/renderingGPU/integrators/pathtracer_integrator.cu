@@ -21,8 +21,7 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const float3 &orig
     for (int depth = 0; depth < nbBounces; depth++)
     {
         OptixHit hit;
-        Ray ray(primOrigin, primDirection);
-        if (!scene.intersect(ray, tMin, tMax, hit))
+        if (!scene.intersect(primOrigin, primDirection, tMin, tMax, hit))
         {
             finalColor += throughput * getSkyColor(primOrigin, primDirection, depth == 0);
             break;
@@ -49,7 +48,7 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const float3 &orig
             break;
         }
 
-        BSDFVal bsdf = mtl.getBSDF(primOrigin, primDirection, hit, rng, isInside);
+        BSDFVal bsdf = mtl.getBSDF(primOrigin, primDirection, hit.normal, rng, isInside);
         if (bsdf.pdf <= 1e-4f)
             break;
         if (bsdf.isDelta)
@@ -68,7 +67,7 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const float3 &orig
             if (ls.pdf > 0.f)
             {
 
-                float3 shadowTint = scene.traceShadowRay(hit.position + make_float4(hit.normal * 1e-3f, 0.f), make_float4(ls.direction, 0.f), 1e-3f, ls.distance - 1e-3f);
+                float3 shadowTint = scene.traceShadowRay(hit.position + hit.normal * 1e-3f, ls.direction, 1e-3f, ls.distance - 1e-3f);
                 
                 // If shadow ray wasn't completely blocked
                 if (length(shadowTint) > 1e-6f)
@@ -77,11 +76,11 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const float3 &orig
 
                     if (cosTheta > 0.f)
                     {
-                        float3 f = mtl.evalBSDF(primOrigin, primDirection, hit, ls.direction);
+                        float3 f = mtl.evalBSDF(primOrigin, primDirection, hit.normal, ls.direction);
 
                         float pdf_light = ls.pdf * lightSelectionProb;
 
-                        float pdf_bsdf = mtl.pdf(primOrigin, primDirection, hit, ls.direction);
+                        float pdf_bsdf = mtl.pdf(primOrigin, primDirection, hit.normal, ls.direction);
 
                         float w = powerHeuristic(pdf_light, pdf_bsdf);
 

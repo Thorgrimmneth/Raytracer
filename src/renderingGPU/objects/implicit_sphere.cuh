@@ -32,10 +32,10 @@ struct ImplicitSphere
     }
 
     D_FORCEINLINE 
-    float sdf(const float4 &point, const double time = 0) const
+    float sdf(const float3 &point, const double time = 0) const
     {
         float4 center = center1 + (center2 - center1) * time;
-        return length(point - center) - getRadius();
+        return length(point - make_float3(center)) - getRadius();
     }
 
     /*
@@ -50,14 +50,14 @@ struct ImplicitSphere
     }*/
 
     D_FORCEINLINE 
-    float3 computeNormal(const float4 &point, const double time = 0) const
+    float3 computeNormal(const float3 &point, const double time = 0) const
     {
         float3 center = getCenter1() + (getCenter2() - getCenter1()) * time;
-        return normalize(make_float3(point) - center);
+        return normalize(point - center);
     }
 
     D_FORCEINLINE 
-    bool intersect(const float4 &origin, const float4 &direction, const float p_tMin, const float p_tMax,
+    bool intersect(const float3 &origin, const float3 &direction, const float p_tMin, const float p_tMax,
                                               OptixHit &p_hitRecord) const
     {
         float t = p_tMin;
@@ -69,7 +69,7 @@ struct ImplicitSphere
             if (t >= p_tMax)
                 return false;
 
-            float4 point = origin + direction * t;
+            float3 point = origin + direction * t;
             float dist = sdf(point);
 
             if (fabs(dist) < threshold)
@@ -85,7 +85,7 @@ struct ImplicitSphere
     }
 
     D_FORCEINLINE 
-    bool intersectAny(const float4 &origin, const float4 &direction, const float p_tMin, const float p_tMax) const
+    bool intersectAny(const float3 &origin, const float3 &direction, const float p_tMin, const float p_tMax) const
     {
         float t = p_tMin + 1e-3f;
         const float threshold = 1e-4f;
@@ -96,7 +96,7 @@ struct ImplicitSphere
             if (t >= p_tMax)
                 return false;
 
-            float4 p = origin + direction * t;
+            float3 p = origin + direction * t;
 
             float dist = sdf(p);
 

@@ -89,7 +89,7 @@ struct CudaScene
 
     HOST void uploadMaterials(CudaSceneHelper &helper);
 
-    D_FORCEINLINE bool intersect(const float4 &origin, const float4 &direction, const float p_tMin, const float p_tMax, OptixHit &p_hitRecord) const
+    D_FORCEINLINE bool intersect(const float3 &origin, const float3 &direction, const float p_tMin, const float p_tMax, OptixHit &p_hitRecord) const
     {
         float tMax = p_tMax;
         bool hit = false;
@@ -117,7 +117,7 @@ struct CudaScene
         return hit;
     }
 
-    D_FORCEINLINE bool intersectAny(const float4 &origin, const float4 &direction, const float p_tMin, const float p_tMax) const
+    D_FORCEINLINE bool intersectAny(const float3 &origin, const float3 &direction, const float p_tMin, const float p_tMax) const
     {
         for (int i = 0; i < nbPlanes; ++i)
         {
@@ -133,12 +133,12 @@ struct CudaScene
         return false;
     }
 
-    D_FORCEINLINE float3 traceShadowRay(const float4 &origin, const float4 &direction, const float p_tMin, const float p_tMax) const
+    D_FORCEINLINE float3 traceShadowRay(const float3 &origin, const float3 &direction, const float p_tMin, const float p_tMax) const
     {
         float3 shadowColor = make_float3(1.f);
         float remainingDistance = p_tMax;
-        float4 originT = origin;
-        float4 directionT = direction;
+        float3 originT = origin;
+        float3 directionT = direction;
         // Trace through up to 2 transparent surfaces
         for (int bounce = 0; bounce < 2; ++bounce)
         {
@@ -186,7 +186,7 @@ struct CudaScene
         return shadowColor;
     }
 
-    D_FORCEINLINE float lightPdf(const float4 &origin, const float4 &dir) const
+    D_FORCEINLINE float lightPdf(const float3 &origin, const float3 &dir) const
     {
         OptixHit hit;
 
