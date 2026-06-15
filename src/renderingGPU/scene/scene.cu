@@ -621,29 +621,6 @@ CudaScene singleObject(float4 sunDir)
     std::cout << "raygenRecord = " << sbtManager.sbt.raygenRecord << "\nmissCount = " << sbtManager.sbt.missRecordCount
               << "\nhitCount = " << sbtManager.sbt.hitgroupRecordCount << std::endl;
 
-    float3 camPos = make_float3(8.f, 2.f, 3.f);
-    float3 camTarget = make_float3(0.f, 0.f, 0.f);
-    float3 camUp = make_float3(0.f, 1.f, 0.f);
-
-    float fov = 60.f;
-    float aspect = (float)1920 / (float)1080;
-    float focalDistance = 1.f;
-
-    // === Base vectors EXACTEMENT comme CPU ===
-    float3 w = normalize(camPos - camTarget);
-    float3 u = normalize(cross(camUp, w));
-    float3 v = normalize(cross(w, u));
-
-    // === Viewport ===
-    float theta = fov * 3.14159265f / 180.f;
-    float viewportHeight = 2.f * tanf(theta * 0.5f) * focalDistance;
-    float viewportWidth = viewportHeight * aspect;
-
-    float3 viewportU = u * viewportWidth;
-    float3 viewportV = v * viewportHeight;
-
-    float3 topLeft = camPos - w * focalDistance + viewportV * 0.5f - viewportU * 0.5f;
-    Camera camera = Camera{make_float4(camPos, 1.f), make_float4(topLeft, 1.f), make_float4(viewportU, 1.f), make_float4(viewportV, 1.f)};
     OptixLaunchParamsManager launchParamsManager;
     launchParamsManager.create();
     std::cout << "d_params = " << launchParamsManager.d_params << std::endl;

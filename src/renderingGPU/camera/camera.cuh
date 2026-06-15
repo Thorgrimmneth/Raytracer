@@ -1,8 +1,8 @@
 #pragma once
 
 struct Camera{
-    float4 cameraPos;
-    float4 topLeft;
-    float4 viewPortU;
-    float4 viewPortV;
+    float3 cameraPos;
+    float3 topLeft;
+    float3 viewPortU;
+    float3 viewPortV;
 };

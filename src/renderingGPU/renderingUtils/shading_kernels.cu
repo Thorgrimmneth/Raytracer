@@ -1,6 +1,6 @@
 #include "shading_kernels.cuh"
 
-__global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, float3 *p_throughput, float3 *p_radiance, int *pixelIndices, RNG *p_rng,
+__global__ void shadeWavefrontKernel(CudaScene scene, float3 *origins, float3 *directions, float3 *p_throughput, float3 *p_radiance, int *pixelIndices, RNG *p_rng,
                                      bool *p_isInside, bool *p_lastBounceWasDelta, float *p_lastBsdfPdf, OptixHit *p_hits,
                                      int *hitMask, const int *activeQueue, int activeCount, int *nextActiveQueue,
                                      int *nextActiveCount, bool safeSun, uint depth)
@@ -19,14 +19,15 @@ __global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, float3 *p_throu
     bool &lastBounceWasDelta = p_lastBounceWasDelta[idx];
     float &lastBsdfPdf = p_lastBsdfPdf[idx];
 
-    Ray &ray = rays[idx];
+    float3 &origin = origins[idx];
+    float3 &direction = directions[idx];
 
     // ------------------------------------------------------------
     // MISS / SKY
     // ------------------------------------------------------------
     if (!hitMask[idx])
     {
-        float3 rayDir = ray.direction;
+        float3 rayDir = direction;
 
         // float mult = lerp(1.f, 20.f, (max(-0.4f,sunDir.y) + 0.4)/1.4f);
         float t = clamp((sunDirection.y + 0.4f) / 1.4f, 0.0f, 1.0f);
@@ -69,7 +70,7 @@ __global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, float3 *p_throu
 
         for (int i = 0; i < skyColorSamples; ++i)
         {
-            float3 samplePosition = ray.origin + rayDir * (tCurrent + segmentLength * 0.5f);
+            float3 samplePosition = origin + rayDir * (tCurrent + segmentLength * 0.5f);
 
             float height = fmaxf(samplePosition.y, 0.0f);
 
@@ -148,7 +149,7 @@ __global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, float3 *p_throu
         }
         else
         {
-            float lightPdf = scene.lightPdf(ray.origin, ray.direction);
+            float lightPdf = scene.lightPdf(origin, direction);
 
             float w = powerHeuristic(lastBsdfPdf, lightPdf);
 
@@ -163,23 +164,23 @@ __global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, float3 *p_throu
     switch (mtl.type())
     {
     case LAMBERT:
-        bsdf = mtl.getLambertBSDF(ray, hit, rng);
+        bsdf = mtl.getLambertBSDF(origin, direction, hit, rng);
         break;
 
     case METAL:
-        bsdf = mtl.getMetalBSDF(ray, hit, rng);
+        bsdf = mtl.getMetalBSDF(origin, direction, hit, rng);
         break;
 
     case PLASTIC:
-        bsdf = mtl.getPlasticBSDF(ray, hit, rng);
+        bsdf = mtl.getPlasticBSDF(origin, direction, hit, rng);
         break;
 
     case MIRROR:
-        bsdf = mtl.getMirrorBSDF(ray, hit);
+        bsdf = mtl.getMirrorBSDF(origin, direction, hit);
         break;
 
     case TRANSPARENT:
-        bsdf = mtl.getTransparentBSDF(ray, hit, rng, isInside);
+        bsdf = mtl.getTransparentBSDF(origin, direction, hit, rng, isInside);
         break;
 
     default:
@@ -210,7 +211,7 @@ __global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, float3 *p_throu
         {
             float3 shadowOrigin = hit.position + hit.normal * 1e-3f;
 
-            Ray shadowRay(shadowOrigin, ls.direction, ray.time);
+            Ray shadowRay(shadowOrigin, ls.direction);
 
             float3 shadowTint = scene.traceShadowRay(shadowRay, 1e-3f, ls.distance - 1e-3f);
 
@@ -227,17 +228,17 @@ __global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, float3 *p_throu
                     {
                     case LAMBERT:
                         f = mtl.evalLambertBSDF();
-                        pdf_bsdf = mtl.lambertPDF(ray, hit, ls.direction);
+                        pdf_bsdf = mtl.lambertPDF(origin, direction, hit, ls.direction);
                         break;
 
                     case METAL:
-                        f = mtl.evalMetalBSDF(ray, hit, ls.direction);
-                        pdf_bsdf = mtl.metalPDF(ray, hit, ls.direction);
+                        f = mtl.evalMetalBSDF(origin, direction, hit, ls.direction);
+                        pdf_bsdf = mtl.metalPDF(origin, direction, hit, ls.direction);
                         break;
 
                     case PLASTIC:
-                        f = mtl.evalPlasticBSDF(ray, hit, ls.direction);
-                        pdf_bsdf = mtl.plasticPDF(ray, hit, ls.direction);
+                        f = mtl.evalPlasticBSDF(origin, direction, hit, ls.direction);
+                        pdf_bsdf = mtl.plasticPDF(origin, direction, hit, ls.direction);
                         break;
 
                     default:
@@ -275,10 +276,11 @@ __global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, float3 *p_throu
     }
 
     // ------------------------------------------------------------
-    // NEXT RAY
+    // NEXT origin, direction
     // ------------------------------------------------------------
-
-    rays[idx] = Ray(hit.position + bsdf.direction * 1e-3f, bsdf.direction, ray.time);
+    float3 dir = bsdf.direction;
+    origin = hit.position + dir * 1e-3f;
+    direction = dir;
 
     lastBounceWasDelta = bsdf.isDelta;
     lastBsdfPdf = bsdf.pdf;
@@ -323,8 +325,8 @@ void shadeMissKernel(WavefrontState* states, int* missQueue, int missCount)
 
     if (!state.active)
         return;
-    Ray ray = state.ray;
-    float3 rayDir = ray.direction;
+    origin, direction origin, direction = state.origin, direction;
+    float3 rayDir = direction;
     //float mult = lerp(1.f, 20.f, (max(-0.4f,sunDir.y) + 0.4)/1.4f);
     float t = clamp((sunDirection.y + 0.4f) / 1.4f, 0.0f, 1.0f);
     float tM = 1 - t;
@@ -357,7 +359,7 @@ void shadeMissKernel(WavefrontState* states, int* missQueue, int missCount)
 
     for (int i = 0; i < skyColorSamples; ++i)
     {
-        float3 samplePosition = ray.origin + rayDir * (tCurrent + segmentLength * 0.5f);
+        float3 samplePosition = origin + rayDir * (tCurrent + segmentLength * 0.5f);
 
         float height = max(samplePosition.y, 0.0f);
 
@@ -423,7 +425,7 @@ emissiveCount)
     if (!state.active)
         return;
 
-    Ray ray = state.ray;
+    origin, direction origin, direction = state.origin, direction;
     Material mtl = gpuScene.materials[hits[idx].materialIndex];
     float3 emission = mtl.color() * mtl.intensity();
 
@@ -433,7 +435,7 @@ emissiveCount)
     }
     else
     {
-        float lightPdf = gpuScene.lightPdf(ray.origin, ray.direction);
+        float lightPdf = gpuScene.lightPdf(origin, direction);
 
         float w = powerHeuristic(lastBsdfPdf, lightPdf);
 
@@ -465,13 +467,13 @@ void shadeMetalKernel(
     if (!state.active)
         return;
 
-    Ray ray = state.ray;
+    origin, direction origin, direction = state.origin, direction;
     OptixHit hit = hits[idx];
     Material mtl = gpuScene.materials[hit.materialIndex];
 
     RNG* rng = &rng;
 
-    BSDFVal bsdf = mtl.getMetalBSDF(ray, hit, rng);
+    BSDFVal bsdf = mtl.getMetalBSDF(origin, direction, hit, rng);
 
     if (bsdf.pdf <= 1e-4f)
     {
@@ -494,7 +496,7 @@ void shadeMetalKernel(
         if (ls.pdf > 0.f)
         {
             float3 shadowOrigin = hit.point + hit.normal * 1e-3f;
-            Ray shadowRay(shadowOrigin, ls.direction, ray.time);
+            origin, direction shadowRay(shadowOrigin, ls.direction, origin, direction.time);
 
             if (!gpuScene.intersectAny(shadowRay, 1e-3f, ls.distance - 1e-3f))
             {
@@ -502,10 +504,10 @@ void shadeMetalKernel(
 
                 if (cosTheta > 0.f)
                 {
-                    float3 f = mtl.evalMetalBSDF(ray, hit, ls.direction);
+                    float3 f = mtl.evalMetalBSDF(origin, direction, hit, ls.direction);
 
                     float pdf_light = ls.pdf * (1.f / gpuScene.nbLights);
-                    float pdf_bsdf  = mtl.metalPDF(ray, hit, ls.direction);
+                    float pdf_bsdf  = mtl.metalPDF(origin, direction, hit, ls.direction);
 
                     float w = powerHeuristic(pdf_light, pdf_bsdf);
 
@@ -532,10 +534,10 @@ void shadeMetalKernel(
         cosTheta /
         bsdf.pdf;
 
-    state.ray = Ray(
+    state.origin, direction = origin, direction(
         hit.point + bsdf.direction * 1e-3f,
         bsdf.direction,
-        ray.time
+        origin, direction.time
     );
 
     lastBounceWasDelta = false;
@@ -567,13 +569,13 @@ void shadeLambertKernel(
     if (!state.active)
         return;
 
-    Ray ray = state.ray;
+    origin, direction origin, direction = state.origin, direction;
     OptixHit hit = hits[idx];
     Material mtl = gpuScene.materials[hit.materialIndex];
 
     RNG* rng = &rng;
 
-    BSDFVal bsdf = mtl.getLambertBSDF(ray, hit, rng);
+    BSDFVal bsdf = mtl.getLambertBSDF(origin, direction, hit, rng);
 
     if (bsdf.pdf <= 1e-4f)
     {
@@ -596,7 +598,7 @@ void shadeLambertKernel(
         if (ls.pdf > 0.f)
         {
             float3 shadowOrigin = hit.point + hit.normal * 1e-3f;
-            Ray shadowRay(shadowOrigin, ls.direction, ray.time);
+            origin, direction shadowRay(shadowOrigin, ls.direction, origin, direction.time);
 
             if (!gpuScene.intersectAny(shadowRay, 1e-3f, ls.distance - 1e-3f))
             {
@@ -607,7 +609,7 @@ void shadeLambertKernel(
                     float3 f = mtl.evalLambertBSDF();
 
                     float pdf_light = ls.pdf * (1.f / gpuScene.nbLights);
-                    float pdf_bsdf  = mtl.lambertPDF(ray, hit, ls.direction);
+                    float pdf_bsdf  = mtl.lambertPDF(origin, direction, hit, ls.direction);
 
                     float w = powerHeuristic(pdf_light, pdf_bsdf);
 
@@ -634,10 +636,10 @@ void shadeLambertKernel(
         cosTheta /
         bsdf.pdf;
 
-    state.ray = Ray(
+    state.origin, direction = origin, direction(
         hit.point + bsdf.direction * 1e-3f,
         bsdf.direction,
-        ray.time
+        origin, direction.time
     );
 
     lastBounceWasDelta = false;
@@ -669,13 +671,13 @@ void shadePlasticKernel(
     if (!state.active)
         return;
 
-    Ray ray = state.ray;
+    origin, direction origin, direction = state.origin, direction;
     OptixHit hit = hits[idx];
     Material mtl = gpuScene.materials[hit.materialIndex];
 
     RNG* rng = &rng;
 
-    BSDFVal bsdf = mtl.getPlasticBSDF(ray, hit, rng);
+    BSDFVal bsdf = mtl.getPlasticBSDF(origin, direction, hit, rng);
 
     if (bsdf.pdf <= 1e-4f)
     {
@@ -698,7 +700,7 @@ void shadePlasticKernel(
         if (ls.pdf > 0.f)
         {
             float3 shadowOrigin = hit.point + hit.normal * 1e-3f;
-            Ray shadowRay(shadowOrigin, ls.direction, ray.time);
+            origin, direction shadowRay(shadowOrigin, ls.direction, origin, direction.time);
 
             if (!gpuScene.intersectAny(shadowRay, 1e-3f, ls.distance - 1e-3f))
             {
@@ -706,10 +708,10 @@ void shadePlasticKernel(
 
                 if (cosTheta > 0.f)
                 {
-                    float3 f = mtl.evalPlasticBSDF(ray, hit, ls.direction);
+                    float3 f = mtl.evalPlasticBSDF(origin, direction, hit, ls.direction);
 
                     float pdf_light = ls.pdf * (1.f / gpuScene.nbLights);
-                    float pdf_bsdf  = mtl.plasticPDF(ray, hit, ls.direction);
+                    float pdf_bsdf  = mtl.plasticPDF(origin, direction, hit, ls.direction);
 
                     float w = powerHeuristic(pdf_light, pdf_bsdf);
 
@@ -736,10 +738,10 @@ void shadePlasticKernel(
         cosTheta /
         bsdf.pdf;
 
-    state.ray = Ray(
+    state.origin, direction = origin, direction(
         hit.point + bsdf.direction * 1e-3f,
         bsdf.direction,
-        ray.time
+        origin, direction.time
     );
 
     lastBounceWasDelta = false;
@@ -771,11 +773,11 @@ void shadeMirrorKernel(
     if (!state.active)
         return;
 
-    Ray ray = state.ray;
+    origin, direction origin, direction = state.origin, direction;
     OptixHit hit = hits[idx];
     Material mtl = gpuScene.materials[hit.materialIndex];
 
-    BSDFVal bsdf = mtl.getMirrorBSDF(ray, hit);
+    BSDFVal bsdf = mtl.getMirrorBSDF(origin, direction, hit);
 
     if (bsdf.pdf <= 1e-4f)
     {
@@ -786,10 +788,10 @@ void shadeMirrorKernel(
 
     throughput *= bsdf.brdf;
 
-    state.ray = Ray(
+    state.origin, direction = origin, direction(
         hit.point + bsdf.direction * 1e-3f,
         bsdf.direction,
-        ray.time
+        origin, direction.time
     );
 
     lastBounceWasDelta = true;
@@ -821,14 +823,14 @@ void shadeTransparentKernel(
     if (!state.active)
         return;
 
-    Ray ray = state.ray;
+    origin, direction origin, direction = state.origin, direction;
     OptixHit hit = hits[idx];
     Material mtl = gpuScene.materials[hit.materialIndex];
 
     RNG* rng = &rng;
 
     BSDFVal bsdf = mtl.getTransparentBSDF(
-        ray,
+        origin, direction,
         hit,
         rng,
         isInside
@@ -843,10 +845,10 @@ void shadeTransparentKernel(
 
     throughput *= bsdf.brdf;
 
-    state.ray = Ray(
+    state.origin, direction = origin, direction(
         hit.point + bsdf.direction * 1e-3f,
         bsdf.direction,
-        ray.time
+        origin, direction.time
     );
 
     lastBounceWasDelta = true;

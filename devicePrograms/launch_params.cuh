@@ -36,7 +36,8 @@ struct OptixHit
 
 struct LaunchParams
 {
-    Ray* rays = nullptr;
+    float3* origins = nullptr;
+    float3* directions = nullptr;
 
     OptixHit* hits = nullptr;
 

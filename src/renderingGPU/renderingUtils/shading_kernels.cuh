@@ -9,7 +9,7 @@
 
 #include "../../../devicePrograms/launch_params.cuh"
 
-__global__ void shadeWavefrontKernel(CudaScene scene, Ray *rays, float3 *throughput, float3 *radiance, int *pixelIndices, RNG *rng,
+__global__ void shadeWavefrontKernel(CudaScene scene, float3 *origins, float3 *directions, float3 *throughput, float3 *radiance, int *pixelIndices, RNG *rng,
                                      bool *isInside, bool *lastBounceWasDelta, float *lastBsdfPdf, OptixHit *hits,
                                      int *hitMask, const int *activeQueue, int activeCount, int *nextActiveQueue,
                                      int *nextActiveCount, bool safeSun, uint depth);
