@@ -14,6 +14,8 @@
 #include "renderingUtils/post_treatment.cuh"
 #include "renderingUtils/shading_kernels.cuh"
 
+#include <nvtx3/nvToolsExt.h>
+
 #include <cstdio>
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
@@ -93,6 +95,7 @@ class Renderer::Impl
     int *d_plasticQueue = nullptr;
     int *d_mirrorQueue = nullptr;
     int *d_transparentQueue = nullptr;
+    int *d_emissiveQueue = nullptr;
 
     int *d_missCount = nullptr;
     int *d_lambertCount = nullptr;
@@ -100,6 +103,7 @@ class Renderer::Impl
     int *d_plasticCount = nullptr;
     int *d_mirrorCount = nullptr;
     int *d_transparentCount = nullptr;
+    int *d_emissiveCount = nullptr;
 
     int *d_activeQueue = nullptr;
     int *d_nextActiveQueue = nullptr;
@@ -266,6 +270,7 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     cudaMalloc(&impl->d_plasticQueue, pixelCount * sizeof(int));
     cudaMalloc(&impl->d_mirrorQueue, pixelCount * sizeof(int));
     cudaMalloc(&impl->d_transparentQueue, pixelCount * sizeof(int));
+    cudaMalloc(&impl->d_emissiveQueue, pixelCount * sizeof(int));
 
     cudaMalloc(&impl->d_missCount, sizeof(int));
     cudaMalloc(&impl->d_lambertCount, sizeof(int));
@@ -273,6 +278,7 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     cudaMalloc(&impl->d_plasticCount, sizeof(int));
     cudaMalloc(&impl->d_mirrorCount, sizeof(int));
     cudaMalloc(&impl->d_transparentCount, sizeof(int));
+    cudaMalloc(&impl->d_emissiveCount, sizeof(int));
 
     cudaMalloc(&impl->d_origins, impl->hdrBufferSize);
     cudaMalloc(&impl->d_directions, pixelCount * sizeof(float4));
@@ -559,12 +565,12 @@ float Renderer::renderFrame(bool outputImage, bool convergence)
     return impl->value;
 }
 
-/*
 GLOBAL
 void classifyMaterialKernel(CudaScene scene, const int *activeQueue, int activeCount, const int *hitMask,
                             const OptixHit *hits, int *missQueue, int *missCount, int *lambertQueue, int *lambertCount,
                             int *metalQueue, int *metalCount, int *plasticQueue, int *plasticCount, int *mirrorQueue,
-                            int *mirrorCount, int *transparentQueue, int *transparentCount)
+                            int *mirrorCount, int *transparentQueue, int *transparentCount, int *emissiveQueue,
+                            int *emissiveCount)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -614,9 +620,15 @@ void classifyMaterialKernel(CudaScene scene, const int *activeQueue, int activeC
         transparentQueue[dst] = idx;
         break;
     }
-    }
-}*/
 
+    case EMISSIVE: {
+        int dst = atomicAdd(emissiveCount, 1);
+        emissiveQueue[dst] = idx;
+        break;
+    }
+    }
+}
+/*
 GLOBAL
 void classifyRaysKernel(const int *activeQueue, const int *hitMask, int activeCount, int *missQueue, int *missCount,
                         int *hitQueue, int *hitCount)
@@ -638,7 +650,7 @@ void classifyRaysKernel(const int *activeQueue, const int *hitMask, int activeCo
         int dst = atomicAdd(missCount, 1);
         missQueue[dst] = idx;
     }
-}
+}*/
 
 float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
 {
@@ -656,7 +668,6 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
     // -------------------------------------------------------------------------
     // 1. Génération des rayons primaires + activeQueue
     // -------------------------------------------------------------------------
-
     cudaMemset(impl->d_activeCount, 0, sizeof(int));
     float invWidth = 1.f / (float)(impl->width - 1);
     float invHeight = 1.f / (float)(impl->height - 1);
@@ -703,10 +714,10 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         cudaMemset(impl->d_missCount, 0, sizeof(int));
 
         cudaMemset(impl->d_lambertCount, 0, sizeof(int));
-        /*cudaMemset(impl->d_metalCount, 0, sizeof(int));
+        cudaMemset(impl->d_metalCount, 0, sizeof(int));
         cudaMemset(impl->d_plasticCount, 0, sizeof(int));
         cudaMemset(impl->d_mirrorCount, 0, sizeof(int));
-        cudaMemset(impl->d_transparentCount, 0, sizeof(int));*/
+        cudaMemset(impl->d_transparentCount, 0, sizeof(int));
         // ---------------------------------------------------------------------
         // 2.1 Intersection uniquement des rayons actifs
         // ---------------------------------------------------------------------
@@ -719,16 +730,6 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         cudaMemcpy(reinterpret_cast<void *>(impl->gpuScene.optixData.d_launchParams),
                    &impl->gpuScene.optixData.launchParams, sizeof(LaunchParams), cudaMemcpyHostToDevice);
 
-        /*wavefrontIntersectKernel<<<gridForCount(h_activeCount), block1D>>>(
-            impl->gpuScene, impl->d_wavefrontStates, impl->d_hits, impl->d_hitMask, impl->d_activeQueue, h_activeCount,
-            0.001f, 1e20f);
-
-        err = cudaGetLastError();
-        if (err != cudaSuccess)
-        {
-            std::cout << "wavefrontIntersectKernel error: " << cudaGetErrorString(err) << std::endl;
-            return -1.f;
-        }*/
         OPTIX_CHECK(optixLaunch(impl->gpuScene.optixData.pipeline,
                                 0, // stream
                                 impl->gpuScene.optixData.d_launchParams, sizeof(LaunchParams),
@@ -736,15 +737,15 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         // ---------------------------------------------------------------------
         // 2.2 Shading + compaction nextActiveQueue
         // ---------------------------------------------------------------------
-        /*classifyMaterialKernel<<<gridForCount(h_activeCount), block1D>>>(
+        classifyMaterialKernel<<<gridForCount(h_activeCount), block1D>>>(
             impl->gpuScene, impl->d_activeQueue, h_activeCount, impl->d_hitMask, impl->d_hits, impl->d_missQueue,
             impl->d_missCount, impl->d_lambertQueue, impl->d_lambertCount, impl->d_metalQueue, impl->d_metalCount,
             impl->d_plasticQueue, impl->d_plasticCount, impl->d_mirrorQueue, impl->d_mirrorCount,
-            impl->d_transparentQueue, impl->d_transparentCount);*/
+            impl->d_transparentQueue, impl->d_transparentCount, impl->d_emissiveQueue, impl->d_emissiveCount);
 
-        classifyRaysKernel<<<gridForCount(h_activeCount), block1D>>>(
+        /*classifyRaysKernel<<<gridForCount(h_activeCount), block1D>>>(
             impl->d_activeQueue, impl->d_hitMask, h_activeCount, impl->d_missQueue, impl->d_missCount,
-            impl->d_lambertQueue, impl->d_lambertCount);
+            impl->d_lambertQueue, impl->d_lambertCount);*/
         /*
         shadeWavefrontKernel<<<gridForCount(h_activeCount), block1D>>>(
             impl->gpuScene, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_radiance,
@@ -752,12 +753,22 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
             impl->d_hits, impl->d_hitMask, impl->d_activeQueue, h_activeCount, impl->d_nextActiveQueue,
             impl->d_nextActiveCount, bounce == 0, bounce);*/
 
-        int h_missCount;
-        int h_hitCount;
+        int h_missCount = 0;
+        int h_lambertCount = 0;
+        int h_metalCount = 0;
+        int h_plasticCount = 0;
+        int h_mirrorCount = 0;
+        int h_transparentCount = 0;
+        int h_emissiveCount = 0;
 
         cudaMemcpy(&h_missCount, impl->d_missCount, sizeof(int), cudaMemcpyDeviceToHost);
 
-        cudaMemcpy(&h_hitCount, impl->d_lambertCount, sizeof(int), cudaMemcpyDeviceToHost);
+        cudaMemcpy(&h_lambertCount, impl->d_lambertCount, sizeof(int), cudaMemcpyDeviceToHost);
+        cudaMemcpy(&h_metalCount, impl->d_metalCount, sizeof(int), cudaMemcpyDeviceToHost);
+        cudaMemcpy(&h_plasticCount, impl->d_plasticCount, sizeof(int), cudaMemcpyDeviceToHost);
+        cudaMemcpy(&h_mirrorCount, impl->d_mirrorCount, sizeof(int), cudaMemcpyDeviceToHost);
+        cudaMemcpy(&h_transparentCount, impl->d_transparentCount, sizeof(int), cudaMemcpyDeviceToHost);
+        cudaMemcpy(&h_emissiveCount, impl->d_emissiveCount, sizeof(int), cudaMemcpyDeviceToHost);
 
         if (h_missCount > 0)
         {
@@ -766,12 +777,51 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
                                                                     impl->d_missQueue, h_missCount, bounce == 0);
         }
 
-        if (h_hitCount > 0)
+        if (h_lambertCount > 0)
         {
-            shadeHitKernel<<<gridForCount(h_hitCount), block1D>>>(
+            shadeLambertKernel<<<gridForCount(h_lambertCount), block1D>>>(
+                impl->gpuScene, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_radiance, impl->d_rng,
+                impl->d_hits, impl->d_lambertQueue, h_lambertCount, impl->d_nextActiveQueue, impl->d_nextActiveCount,
+                bounce);
+        }
+        if (h_metalCount > 0)
+        {
+            shadeMetalKernel<<<gridForCount(h_metalCount), block1D>>>(
+                impl->gpuScene, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_radiance, impl->d_rng,
+                impl->d_hits, impl->d_metalQueue, h_metalCount, impl->d_nextActiveQueue, impl->d_nextActiveCount,
+                bounce);
+        }
+        if (h_plasticCount > 0)
+        {
+            shadePlasticNEEKernel<<<gridForCount(h_plasticCount), block1D>>>(
+                impl->gpuScene, impl->d_directions, impl->d_throughput, impl->d_radiance, impl->d_rng,
+                impl->d_hits, impl->d_plasticQueue, h_plasticCount);
+
+            shadePlasticKernel<<<gridForCount(h_plasticCount), block1D>>>(
+                impl->gpuScene, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_rng,
+                impl->d_hits, impl->d_plasticQueue, h_plasticCount, impl->d_nextActiveQueue, impl->d_nextActiveCount,
+                bounce);
+        }
+        if (h_mirrorCount > 0)
+        {
+            shadeMirrorKernel<<<gridForCount(h_mirrorCount), block1D>>>(
+                impl->gpuScene, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_rng,
+                impl->d_lastBounceWasDelta, impl->d_lastBsdfPdf, impl->d_hits, impl->d_mirrorQueue, h_mirrorCount,
+                impl->d_nextActiveQueue, impl->d_nextActiveCount, bounce);
+        }
+        if (h_transparentCount > 0)
+        {
+            shadeTransparentKernel<<<gridForCount(h_transparentCount), block1D>>>(
+                impl->gpuScene, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_rng, impl->d_isInside,
+                impl->d_lastBounceWasDelta, impl->d_lastBsdfPdf, impl->d_hits, impl->d_transparentQueue,
+                h_transparentCount, impl->d_nextActiveQueue, impl->d_nextActiveCount, bounce);
+        }
+        if (h_emissiveCount > 0)
+        {
+            shadeEmissiveKernel<<<gridForCount(h_emissiveCount), block1D>>>(
                 impl->gpuScene, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_radiance,
-                impl->d_pixelIndices, impl->d_rng, impl->d_isInside, impl->d_lastBounceWasDelta, impl->d_lastBsdfPdf,
-                impl->d_hits, impl->d_lambertQueue, h_hitCount, impl->d_nextActiveQueue, impl->d_nextActiveCount, bounce);
+                impl->d_lastBounceWasDelta, impl->d_lastBsdfPdf, impl->d_hits, impl->d_hitMask, impl->d_emissiveQueue,
+                h_emissiveCount);
         }
 
         err = cudaGetLastError();
@@ -962,6 +1012,7 @@ void Renderer::cleanUp()
     cudaFree(impl->d_plasticQueue);
     cudaFree(impl->d_mirrorQueue);
     cudaFree(impl->d_transparentQueue);
+    cudaFree(impl->d_emissiveQueue);
 
     cudaFree(impl->d_missCount);
     cudaFree(impl->d_lambertCount);
@@ -969,6 +1020,7 @@ void Renderer::cleanUp()
     cudaFree(impl->d_plasticCount);
     cudaFree(impl->d_mirrorCount);
     cudaFree(impl->d_transparentCount);
+    cudaFree(impl->d_emissiveCount);
 
     cudaFree(impl->d_brightBuffer);
 

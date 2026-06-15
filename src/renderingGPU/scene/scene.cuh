@@ -139,6 +139,7 @@ struct CudaScene
         float remainingDistance = p_tMax;
         float3 originT = origin;
         float3 directionT = direction;
+
         // Trace through up to 2 transparent surfaces
         for (int bounce = 0; bounce < 2; ++bounce)
         {

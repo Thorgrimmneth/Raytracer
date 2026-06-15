@@ -573,8 +573,10 @@ CudaScene singleObject(float4 sunDir)
     helper.materialsGPU.push_back(transparent);
     Material mat = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), LAMBERT, 1.0f);
     helper.materialsGPU.push_back(mat);
+    Material matPlas = Material::randomPlastic();
+    helper.materialsGPU.push_back(matPlas);
     Quaternion rotation = quaternionFromAxisAngle(make_float3(0.f, 1.f, 0.f), 0.f);
-    MeshAndPrimitive meshAndPrim = loadTriangleMesh("data/bunny/Bunny.obj", 2, helper.triangleMeshesGPU.size(),
+    MeshAndPrimitive meshAndPrim = loadTriangleMesh("data/bunny/Bunny.obj", 3, helper.triangleMeshesGPU.size(),
                                                     make_float3(2.f, 2.f, 2.f), rotation, make_float3(0.f, 0.f, 0.f));
     helper.triangleMeshesGPU.push_back(meshAndPrim.mesh);
     helper.primitivesGPU.push_back(meshAndPrim.prim);

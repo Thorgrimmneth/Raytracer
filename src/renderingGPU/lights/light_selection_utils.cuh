@@ -41,15 +41,15 @@ int selectLightByImportance(const CudaScene &scene, RNG &rng)
 
 // Helper function: Compute probability of selecting a specific light
 D_FORCEINLINE
-float getLightProbability(const CudaScene &scene, int lightIndex)
+float getLightProbability(const int &nbLights, float *lightProbabilities, int &lightIndex)
 {
     // Use pre-computed light probabilities
-    if (lightIndex < 0 || lightIndex >= scene.nbLights)
+    if (lightIndex < 0 || lightIndex >= nbLights)
         return 1.0f;
     
-    if (scene.nbLights <= 0)
+    if (nbLights <= 0)
         return 1.0f;
     
     // Return pre-computed probability
-    return scene.lightProbabilities[lightIndex];
+    return lightProbabilities[lightIndex];
 }

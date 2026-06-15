@@ -32,7 +32,7 @@ struct BSDFVal
 struct Material
 {
     float4 baseColor; // xyz=color, w=type
-    float4 params;    // x=roughness, y=metalness, z=ior, w=emission/intensity/shininess
+    float4 params;    // x=alpha, y=metalness, z=ior, w=emission/intensity/shininess
 
     HOST static Material makeMaterial(float3 color = make_float3(1.f), MaterialType type = LAMBERT, float rough = 0.5f,
                                       float metal = 0.f, float ior = 1.5f, float emission = 0.f)
@@ -49,7 +49,7 @@ struct Material
 
         float rough = 0.03f + 0.35f * randomFloat();
 
-        return makeMaterial(color, METAL, rough, 1.f, 1.5f, 0.f);
+        return makeMaterial(color, METAL, rough * rough, 1.f, 1.5f, 0.f);
     }
 
     HOST static Material randomLambert()
@@ -65,7 +65,7 @@ struct Material
 
         float rough = 0.05f + 0.25f * randomFloat();
 
-        return makeMaterial(color, PLASTIC, rough, 0.f, 1.5f, 0.f);
+        return makeMaterial(color, PLASTIC, rough * rough, 0.f, 1.5f, 0.f);
     }
 
     HOST static Material randomTransparent()
@@ -91,7 +91,7 @@ struct Material
 
     HD_INLINE MaterialType type() const { return (MaterialType)((int)baseColor.w); }
 
-    HD_INLINE float roughness() const { return params.x; }
+    HD_INLINE float alpha() const { return params.x; }
 
     HD_INLINE float metalness() const { return params.y; }
 
@@ -108,13 +108,13 @@ struct Material
     DEVICE float pdfLambert(const float3 normal, const float3 direction) const;
 
     // ==== GGX ====
-    DEVICE float computeD(const float3 &p_normal, const float3 &h) const;
+    DEVICE float computeD(const float3 &p_normal, const float3 &h, const float alphaSquared) const;
 
     DEVICE float3 computeF(const float3 &wo, const float3 &h, const float3 &F0) const;
 
-    DEVICE float computeG1(const float &NdotV) const;
+    DEVICE float computeG1(const float &NdotV, const float alphaSquared) const;
 
-    DEVICE float computeG(const float3 &wi, const float3 &wo, const float3 &n) const;
+    DEVICE float computeG(const float &NdotV, const float &NdotL, const float alphaSquared) const;
 
     DEVICE float3 evaluateGGX(const float3 &wo, const float3 &normal, const float3 &wi, const float3 &F0) const;
 
@@ -127,7 +127,7 @@ struct Material
 
     DEVICE void createONB(const float3 &n, float3 &tangent, float3 &bitangent) const;
 
-    D_FORCEINLINE
+    DEVICE
     float3 fresnelSchlick(float cosTheta, const float3& F0) const
     {
         float m  = saturate(1.f - fabsf(cosTheta));
@@ -136,13 +136,12 @@ struct Material
         return F0 + (make_float3(1.f) - F0) * m5;
     }
 
-    D_FORCEINLINE
+    DEVICE
     float3 computeTransmission() const
     {
         // Energy-based transmission: Fresnel at normal incidence
         // Uses IOR to compute the reflection coefficient at normal angle
-        float ior = this->ior();
-        float eta = 1.f / ior;  // ratio of refraction indices (air to material)
+        float eta = 1.f / this->ior();  // ratio of refraction indices (air to material)
         float r0 = (1.f - eta) / (1.f + eta);  // reflection coefficient at normal incidence
         r0 *= r0;
         float transmission = 1.f - r0;  // transmission = 1 - reflection

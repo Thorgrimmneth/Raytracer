@@ -59,7 +59,7 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const float3 &orig
         {
             // Select light by importance (weighted by intensity)
             int lightIndex = selectLightByImportance(scene, rng);
-            float lightSelectionProb = getLightProbability(scene, lightIndex);
+            float lightSelectionProb = getLightProbability(scene.nbLights, scene.lightProbabilities, lightIndex);
 
             const Light &light = scene.lights[lightIndex];
             LightSample ls = light.sample(hit.position, rng, scene);

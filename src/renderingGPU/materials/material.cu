@@ -53,15 +53,13 @@ DEVICE float Material::pdfLambert(const float3 normal, const float3 direction) c
 //  GGX / Cook-Torrance
 // ------------------------------------------------------------
 
-DEVICE float Material::computeD(const float3 &p_normal, const float3 &h) const
+DEVICE float Material::computeD(const float3 &p_normal, const float3 &h, const float alphaSquared) const
 {
-    float alpha = roughness() * roughness();
-    float alpha2 = alpha * alpha;
     float NdotH = fmaxf(dot(p_normal, h), 0.f);
     float NdotH2 = NdotH * NdotH;
-    float denom = (NdotH2 * (alpha2 - 1.f) + 1.f);
+    float denom = (NdotH2 * (alphaSquared - 1.f) + 1.f);
     denom = GPUPIf * denom * denom;
-    return alpha2 / fmaxf(denom, 1e-8f);
+    return alphaSquared / fmaxf(denom, 1e-8f);
 }
 
 DEVICE float3 Material::computeF(const float3 &wo, const float3 &h, const float3 &F0) const
@@ -70,24 +68,20 @@ DEVICE float3 Material::computeF(const float3 &wo, const float3 &h, const float3
     return F0 + (make_float3(1.f) - F0) * powf(1.f - HdotV, 5.f);
 }
 
-DEVICE float Material::computeG1(const float &NdotV) const
+DEVICE float Material::computeG1(const float &NdotV, const float alphaSquared) const
 {
     if (NdotV <= 0.f)
         return 0.f;
 
-    float alpha = roughness() * roughness();
-
     float tan2 = (1.f - NdotV * NdotV) / fmaxf(NdotV * NdotV, 1e-8f);
 
-    return 2.f / (1.f + sqrtf(1.f + alpha * alpha * tan2));
+    return 2.f / (1.f + sqrtf(1.f + alphaSquared * tan2));
 }
 
-DEVICE float Material::computeG(const float3 &wi, const float3 &wo, const float3 &n) const
+DEVICE float Material::computeG(const float &NdotV, const float &NdotL, const float alphaSquared) const
 {
-    float NdotV = fmaxf(dot(n, wo), 0.f);
-    float NdotL = fmaxf(dot(n, wi), 0.f);
 
-    return computeG1(NdotV) * computeG1(NdotL);
+    return computeG1(NdotV, alphaSquared) * computeG1(NdotL, alphaSquared);
 }
 
 DEVICE inline float3 Material::evaluateGGX(const float3 &wo, const float3 &normal, const float3 &wi,
@@ -100,9 +94,11 @@ DEVICE inline float3 Material::evaluateGGX(const float3 &wo, const float3 &norma
     if (NdotV <= 0.f || NdotL <= 0.f)
         return make_float3(0.f);
 
-    float D = computeD(normal, h);
+    float alphaT = alpha();
+    float alphaSquared = alphaT * alphaT;
+    float D = computeD(normal, h, alphaSquared);
     float3 F = computeF(wo, h, F0);
-    float G = computeG(wi, wo, normal);
+    float G = computeG(NdotV, NdotL, alphaSquared);
 
     float denom = 4.f * NdotV * NdotL;
     if (denom < 1e-6f)
@@ -113,9 +109,7 @@ DEVICE inline float3 Material::evaluateGGX(const float3 &wo, const float3 &norma
 
 DEVICE float3 Material::samplingGGX(const float3 &wo, const float3 &normal, RNG &rngStates) const
 {
-    float roughness = this->roughness();
-    float alpha = roughness * roughness;
-    float a = fmaxf(alpha, 1e-4f);
+    float a = fmaxf(alpha(), 1e-4f);
 
     float3 T, B;
     createONB(normal, T, B);
@@ -162,9 +156,10 @@ DEVICE float Material::pdfGGX(const float3 n, const float3 wi, const float3 wo) 
 
     if (NdotV <= 0.f)
         return 0.f;
-
-    float D = computeD(n, h);
-    float G1 = computeG1(NdotV);
+    float alphaT = alpha();
+    float alphaSquared = alphaT * alphaT;
+    float D = computeD(n, h, alphaSquared);
+    float G1 = computeG1(NdotV, alphaSquared);
 
     return (G1 * D) / (4.f * NdotV);
 }
@@ -216,7 +211,6 @@ DEVICE BSDFVal Material::getPlasticBSDF(const float3 &direction, const float3 &n
 {
     float3 wo = -direction;
     BSDFVal bsdf;
-
     float3 F0 = make_float3(0.04f);
     float cosTheta = saturate(dot(normal, wo));
     float3 F = fresnelSchlick(cosTheta, F0);
