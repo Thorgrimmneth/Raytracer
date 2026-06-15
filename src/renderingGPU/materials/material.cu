@@ -14,8 +14,6 @@ DEVICE void Material::createONB(const float3 &n, float3 &tangent, float3 &bitang
 
     tangent = make_float3(1.0f - n.x * n.x * a, b, -n.x);
     bitangent = make_float3(b, 1.0f - n.y * n.y * a, -n.y);
-    tangent = normalize(tangent);
-    bitangent = normalize(bitangent);
 }
 
 DEVICE float3 Material::toWorld(const float3 &normal, const float3 direction) const
@@ -58,8 +56,8 @@ DEVICE float Material::computeD(const float3 &p_normal, const float3 &h, const f
     float NdotH = fmaxf(dot(p_normal, h), 0.f);
     float NdotH2 = NdotH * NdotH;
     float denom = (NdotH2 * (alphaSquared - 1.f) + 1.f);
-    denom = GPUPIf * denom * denom;
-    return alphaSquared / fmaxf(denom, 1e-8f);
+    denom = 1.f / GPUPIf * denom * denom;
+    return alphaSquared * denom;
 }
 
 DEVICE float3 Material::computeF(const float3 &wo, const float3 &h, const float3 &F0) const
@@ -72,8 +70,8 @@ DEVICE float Material::computeG1(const float &NdotV, const float alphaSquared) c
 {
     if (NdotV <= 0.f)
         return 0.f;
-
-    float tan2 = (1.f - NdotV * NdotV) / fmaxf(NdotV * NdotV, 1e-8f);
+    float NdotV2 = NdotV * NdotV;
+    float tan2 = (1.f - NdotV2) / fmaxf(NdotV2, 1e-8f);
 
     return 2.f / (1.f + sqrtf(1.f + alphaSquared * tan2));
 }
@@ -84,7 +82,7 @@ DEVICE float Material::computeG(const float &NdotV, const float &NdotL, const fl
     return computeG1(NdotV, alphaSquared) * computeG1(NdotL, alphaSquared);
 }
 
-DEVICE inline float3 Material::evaluateGGX(const float3 &wo, const float3 &normal, const float3 &wi,
+DEVICE float3 Material::evaluateGGX(const float3 &wo, const float3 &normal, const float3 &wi,
                                            const float3 &F0) const
 {
     float3 h = normalize(wi + wo);
@@ -125,7 +123,7 @@ DEVICE float3 Material::samplingGGX(const float3 &wo, const float3 &normal, RNG 
     float e2 = rngStates.nextFloat();
     float r = sqrtf(e1);
     float phi = 2.f * GPUPIf * e2;
-
+    
     float t1 = r * cosf(phi);
     float t2 = r * sinf(phi);
 
@@ -208,11 +206,12 @@ DEVICE BSDFVal Material::getPlasticBSDF(const float3 &direction, const float3 &n
 {
     float3 wo = -direction;
     BSDFVal bsdf;
-    float3 F0 = make_float3(0.04f);
     float cosTheta = saturate(dot(normal, wo));
+    float3 F0 = make_float3(0.04f);
     float3 F = fresnelSchlick(cosTheta, F0);
+    
     float specW = (F.x + F.y + F.z) / 3.f;
-
+    
     if (rngStates.nextFloat() < specW)
     {
         bsdf.direction = samplingGGX(wo, normal, rngStates);
@@ -231,7 +230,6 @@ DEVICE BSDFVal Material::getPlasticBSDF(const float3 &direction, const float3 &n
         bsdf.direction = samplingLambert(normal, rngStates);
         bsdf.brdf = evaluateLambert();
     }
-
     bsdf.pdf = specW * pdfGGX(normal, bsdf.direction, wo) + (1.f - specW) * pdfLambert(normal, bsdf.direction);
 
     return bsdf;

@@ -420,8 +420,9 @@ __global__ void shadeMissKernel(float3 *origins, float4 *directions, float3 *thr
 }
 
 __global__ void shadeLambertKernel(CudaScene scene, float3 *origins, float4 *directions, float3 *p_throughput,
-                                   float3 *p_radiance, RNG *p_rng, OptixHit *p_hits, bool *lastBounceWasDelta, const int *hitQueue, int hitCount,
-                                   int *nextActiveQueue, int *nextActiveCount, uint depth)
+                                   float3 *p_radiance, RNG *p_rng, OptixHit *p_hits, bool *lastBounceWasDelta,
+                                   const int *hitQueue, int hitCount, int *nextActiveQueue, int *nextActiveCount,
+                                   uint depth)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -534,8 +535,9 @@ __global__ void shadeLambertKernel(CudaScene scene, float3 *origins, float4 *dir
 }
 
 __global__ void shadeMetalKernel(CudaScene scene, float3 *origins, float4 *directions, float3 *p_throughput,
-                                 float3 *p_radiance, RNG *p_rng, OptixHit *p_hits, bool *lastBounceWasDelta, const int *hitQueue, int hitCount,
-                                 int *nextActiveQueue, int *nextActiveCount, uint depth)
+                                 float3 *p_radiance, RNG *p_rng, OptixHit *p_hits, bool *lastBounceWasDelta,
+                                 const int *hitQueue, int hitCount, int *nextActiveQueue, int *nextActiveCount,
+                                 uint depth)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -639,7 +641,7 @@ __global__ void shadeMetalKernel(CudaScene scene, float3 *origins, float4 *direc
     float3 dir = bsdf.direction;
     origin = hit.position + dir * 1e-3f;
     directions[idx] = make_float4(dir, 0.f);
-lastBounceWasDelta[idx] = false;
+    lastBounceWasDelta[idx] = false;
     // ------------------------------------------------------------
     // COMPACT NEXT ACTIVE QUEUE
     // ------------------------------------------------------------
@@ -648,7 +650,8 @@ lastBounceWasDelta[idx] = false;
     nextActiveQueue[dst] = idx;
 }
 
-__global__ void shadePlasticNEEKernel(CudaScene &scene, float4 *directions, float3 *p_throughput, float3 *p_radiance, RNG *p_rng, OptixHit *p_hits, const int *hitQueue, int hitCount)
+__global__ void shadePlasticNEEKernel(CudaScene &scene, float4 *directions, float3 *p_throughput, float3 *p_radiance,
+                                      RNG *p_rng, OptixHit *p_hits, const int *hitQueue, int hitCount)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -688,7 +691,8 @@ __global__ void shadePlasticNEEKernel(CudaScene &scene, float4 *directions, floa
                 {
                     float3 f = mtl.evalPlasticBSDF(direction, normal, ls.direction);
                     float pdf_bsdf = mtl.plasticPDF(direction, normal, ls.direction);
-                    float lightSelectionProb = getLightProbability(scene.nbLights, scene.lightProbabilities, lightIndex);
+                    float lightSelectionProb =
+                        getLightProbability(scene.nbLights, scene.lightProbabilities, lightIndex);
                     float pdf_light = ls.pdf * lightSelectionProb;
 
                     if (pdf_light > 0.f)
@@ -701,11 +705,10 @@ __global__ void shadePlasticNEEKernel(CudaScene &scene, float4 *directions, floa
             }
         }
     }
-
 }
 __global__ void shadePlasticKernel(CudaScene &scene, float3 *origins, float4 *directions, float3 *p_throughput,
-                                    RNG *p_rng, OptixHit *p_hits, bool *p_lastBounceWasDelta, const int *hitQueue, int hitCount,
-                                   int *nextActiveQueue, int *nextActiveCount, uint depth)
+                                   RNG *p_rng, OptixHit *p_hits, bool *p_lastBounceWasDelta, const int *hitQueue,
+                                   int hitCount, int *nextActiveQueue, int *nextActiveCount, uint depth)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -714,17 +717,205 @@ __global__ void shadePlasticKernel(CudaScene &scene, float3 *origins, float4 *di
 
     int idx = hitQueue[qid];
 
+    // lancer le plus tôt possible les loads globaux
+    float4 dir4 = directions[idx];
+    float3 normal = p_hits[idx].normal;
+    int materialIndex = p_hits[idx].materialIndex;
+    float3 pos = p_hits[idx].position;
+    RNG rng = p_rng[idx];
+
+    // ne pas toucher aux données chargées tout de suite
     float3 &throughput = p_throughput[idx];
 
-    float3 direction = make_float3(directions[idx]);
+    // extraire ce qui servira plus tard
 
-    OptixHit &hit = p_hits[idx];
+    Material mtl = scene.materials[materialIndex];
 
-    Material &mtl = scene.materials[hit.materialIndex];
+    // charger les paramètres matériau immédiatement
+    float alpha = mtl.alpha();
+    float alphaSquared = alpha * alpha;
+    float3 baseColor = mtl.color();
 
-    RNG &rng = p_rng[idx];
-    float3 &normal = hit.normal;
-    BSDFVal bsdf = mtl.getPlasticBSDF(direction, normal, rng); //beaucoup de registres
+    // seulement maintenant utiliser les données chargées
+
+    float3 wo = -make_float3(dir4);
+    // ============================================================
+    // getPlasticBSDF INLINE
+    // ============================================================
+
+    BSDFVal bsdf;
+
+    float cosThetaView = saturate(dot(normal, wo));
+
+    float3 F0 = make_float3(0.04f);
+    float t = 1.f - cosThetaView;
+    float t2 = t * t;
+    float t4 = t2 * t2;
+    float t5 = t4 * t;
+
+    float3 F = F0 + (make_float3(0.96f)) * t5;
+
+    float specW = (F.x + F.y + F.z) * (1.f / 3.f);
+
+    float e1 = rng.nextFloat();
+    float e2 = rng.nextFloat();
+    float sign = copysignf(1.0f, normal.z);
+    const float a = -1.0f / (sign + normal.z);
+    const float b = normal.x * normal.y * a;
+    float3 T = make_float3(1.0f + sign * normal.x * normal.x * a, sign * b, -sign * normal.x);
+    float3 B = make_float3(b, sign + normal.y * normal.y * a, -normal.y);
+    if (rng.nextFloat() < specW)
+    {
+        // ========================================================
+        // samplingGGX INLINE
+        // ========================================================
+
+        float alphaC = fmaxf(mtl.alpha(), 1e-4f);
+
+        float3 V = normalize(make_float3(dot(wo, T), dot(wo, B), dot(wo, normal)));
+
+        V = normalize(make_float3(alphaC * V.x, alphaC * V.y, V.z));
+
+        float3 T1 = (V.z < 0.9999f) ? normalize(cross(make_float3(0.f, 0.f, 1.f), V)) : make_float3(1.f, 0.f, 0.f);
+
+        float3 T2 = cross(V, T1);
+
+        float r = sqrtf(e1);
+        float phi = 2.f * GPUPIf * e2;
+
+        float t1 = r * cosf(phi);
+        float t2 = r * sinf(phi);
+
+        float s = 0.5f * (1.f + V.z);
+
+        t2 = (1.f - s) * sqrtf(1.f - t1 * t1) + s * t2;
+
+        float3 Nh = t1 * T1 + t2 * T2 + sqrtf(fmaxf(0.f, 1.f - t1 * t1 - t2 * t2)) * V;
+
+        float3 h = normalize(make_float3(alphaC * Nh.x, alphaC * Nh.y, fmaxf(0.f, Nh.z)));
+
+        h = h.x * T + h.y * B + h.z * normal;
+
+        bsdf.direction = reflect(-wo, h);
+
+        if (dot(normal, bsdf.direction) <= 0.f)
+        {
+            bsdf.pdf = 0.f;
+            bsdf.brdf = make_float3(0.f);
+        }
+        else
+        {
+            // ====================================================
+            // evaluateGGX INLINE
+            // ====================================================
+
+            float3 hEval = normalize(bsdf.direction + wo);
+
+            float NdotV = fmaxf(dot(normal, wo), 0.f);
+
+            float NdotL = fmaxf(dot(normal, bsdf.direction), 0.f);
+
+            if (NdotV <= 0.f || NdotL <= 0.f)
+            {
+                bsdf.brdf = make_float3(0.f);
+            }
+            else
+            {
+                float NdotH = fmaxf(dot(normal, hEval), 0.f);
+
+                float NdotH2 = NdotH * NdotH;
+
+                float denomD = (NdotH2 * (alphaSquared - 1.f) + 1.f);
+
+                float D = alphaSquared / (GPUPIf * denomD * denomD);
+
+                float HdotV = clamp(dot(hEval, wo), 0.f, 1.f);
+
+                float ft = 1.f - HdotV;
+                float ft2 = ft * ft;
+                float ft4 = ft2 * ft2;
+                float ft5 = ft4 * ft;
+
+                float3 Fspec = F0 + make_float3(0.96f) * ft5;
+
+                // =================================================
+                // computeG INLINE
+                // =================================================
+
+                float G1V;
+                {
+                    float NdotV2 = NdotV * NdotV;
+                    float tan2 = (1.f - NdotV2) / fmaxf(NdotV2, 1e-8f);
+
+                    G1V = 2.f / (1.f + sqrtf(1.f + alphaSquared * tan2));
+                }
+
+                float G1L;
+                {
+                    float NdotL2 = NdotL * NdotL;
+                    float tan2 = (1.f - NdotL2) / fmaxf(NdotL2, 1e-8f);
+
+                    G1L = 2.f / (1.f + sqrtf(1.f + alphaSquared * tan2));
+                }
+
+                float G = G1V * G1L;
+
+                float denom = 4.f * NdotV * NdotL;
+
+                bsdf.brdf = (D * G / denom) * Fspec;
+            }
+
+            // ====================================================
+            // pdfGGX INLINE
+            // ====================================================
+
+            float pdf = 0.f;
+
+            if (dot(wo, hEval) > 0.f)
+            {
+
+                if (NdotV > 0.f)
+                {
+                    float NdotH = fmaxf(dot(normal, hEval), 0.f);
+
+                    float NdotH2 = NdotH * NdotH;
+
+                    float denomD = (NdotH2 * (alphaSquared - 1.f) + 1.f);
+
+                    float D = alphaSquared / (GPUPIf * denomD * denomD);
+
+                    float NdotV2 = NdotV * NdotV;
+
+                    float tan2 = (1.f - NdotV2) / fmaxf(NdotV2, 1e-8f);
+
+                    float G1 = 2.f / (1.f + sqrtf(1.f + alphaSquared * tan2));
+
+                    pdf = (G1 * D) / (4.f * NdotV);
+                }
+            }
+
+            float diffusePdf = fmaxf(dot(normal, bsdf.direction), 0.f) * GPUInvPIf;
+
+            bsdf.pdf = specW * pdf + (1.f - specW) * diffusePdf;
+        }
+    }
+    else
+    {
+        float r = sqrtf(e1);
+        float phi = 2.f * GPUPIf * e2;
+
+        float x = r * cosf(phi);
+        float y = r * sinf(phi);
+        float z = sqrtf(fmaxf(0.f, 1.f - x * x - y * y));
+
+        bsdf.direction = normalize(x * T + y * B + z * normal);
+
+        bsdf.brdf = baseColor * GPUInvPIf;
+
+        float diffusePdf = fmaxf(dot(normal, bsdf.direction), 0.f) * GPUInvPIf;
+
+        bsdf.pdf = (1.f - specW) * diffusePdf;
+    }
 
     if (bsdf.pdf <= 1e-4f)
     {
@@ -734,7 +925,7 @@ __global__ void shadePlasticKernel(CudaScene &scene, float3 *origins, float4 *di
     // UPDATE THROUGHPUT
     // ------------------------------------------------------------
 
-    float cosTheta = fmaxf(dot(hit.normal, bsdf.direction), 0.0f);
+    float cosTheta = fmaxf(dot(normal, bsdf.direction), 0.0f);
 
     throughput *= bsdf.brdf * cosTheta / bsdf.pdf;
 
@@ -760,7 +951,7 @@ __global__ void shadePlasticKernel(CudaScene &scene, float3 *origins, float4 *di
     // NEXT origin, direction
     // ------------------------------------------------------------
     float3 dir = bsdf.direction;
-    origins[idx] = hit.position + dir * 1e-3f;
+    origins[idx] = pos + dir * 1e-3f;
     directions[idx] = make_float4(dir, 0.f);
     p_lastBounceWasDelta[idx] = false;
     // ------------------------------------------------------------
@@ -771,8 +962,8 @@ __global__ void shadePlasticKernel(CudaScene &scene, float3 *origins, float4 *di
     nextActiveQueue[dst] = idx;
 }
 
-__global__ void shadeMirrorKernel(CudaScene scene, float3 *origins, float4 *directions, float3 *p_throughput, RNG *p_rng,
-                                  bool *p_lastBounceWasDelta, float *p_lastBsdfPdf, OptixHit *p_hits,
+__global__ void shadeMirrorKernel(CudaScene scene, float3 *origins, float4 *directions, float3 *p_throughput,
+                                  RNG *p_rng, bool *p_lastBounceWasDelta, float *p_lastBsdfPdf, OptixHit *p_hits,
                                   const int *hitQueue, int hitCount, int *nextActiveQueue, int *nextActiveCount,
                                   uint depth)
 {
@@ -843,10 +1034,9 @@ __global__ void shadeMirrorKernel(CudaScene scene, float3 *origins, float4 *dire
 }
 
 __global__ void shadeTransparentKernel(CudaScene scene, float3 *origins, float4 *directions, float3 *p_throughput,
-                                       RNG *p_rng, bool *p_isInside,
-                                       bool *p_lastBounceWasDelta, float *p_lastBsdfPdf, OptixHit *p_hits,
-                                       const int *hitQueue, int hitCount, int *nextActiveQueue, int *nextActiveCount,
-                                       uint depth)
+                                       RNG *p_rng, bool *p_isInside, bool *p_lastBounceWasDelta, float *p_lastBsdfPdf,
+                                       OptixHit *p_hits, const int *hitQueue, int hitCount, int *nextActiveQueue,
+                                       int *nextActiveCount, uint depth)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -914,9 +1104,8 @@ __global__ void shadeTransparentKernel(CudaScene scene, float3 *origins, float4 
 }
 
 __global__ void shadeEmissiveKernel(CudaScene &scene, float3 *origins, float4 *directions, float3 *p_throughput,
-                                    float3 *p_radiance, bool *p_lastBounceWasDelta,
-                                    float *p_lastBsdfPdf, OptixHit *p_hits, int *hitMask, const int *activeQueue,
-                                    int activeCount)
+                                    float3 *p_radiance, bool *p_lastBounceWasDelta, float *p_lastBsdfPdf,
+                                    OptixHit *p_hits, int *hitMask, const int *activeQueue, int activeCount)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -927,7 +1116,7 @@ __global__ void shadeEmissiveKernel(CudaScene &scene, float3 *origins, float4 *d
 
     float3 &throughput = p_throughput[idx];
     float3 &radiance = p_radiance[idx];
-    
+
     // ------------------------------------------------------------
     // HIT
     // ------------------------------------------------------------
