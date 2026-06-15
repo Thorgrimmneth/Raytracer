@@ -776,7 +776,6 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
                                                                     impl->d_throughput, impl->d_radiance,
                                                                     impl->d_missQueue, h_missCount, bounce == 0);
         }
-
         if (h_lambertCount > 0)
         {
             shadeLambertKernel<<<gridForCount(h_lambertCount), block1D>>>(
@@ -795,7 +794,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         {
             shadePlasticNEEKernel<<<gridForCount(h_plasticCount), block1D>>>(
                 impl->gpuScene, impl->d_directions, impl->d_throughput, impl->d_radiance, impl->d_rng,
-                impl->d_hits, impl->d_plasticQueue, h_plasticCount);
+                impl->d_hits, impl->d_plasticQueue, h_plasticCount, impl->gpuScene.nbLights);
 
             shadePlasticKernel<<<gridForCount(h_plasticCount), block1D>>>(
                 impl->gpuScene, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_rng,

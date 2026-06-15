@@ -26,7 +26,7 @@ __global__ void shadeMetalKernel(CudaScene scene, float3 *origins, float4 *direc
                                  int *nextActiveQueue, int *nextActiveCount, uint depth);
 
 __global__ void shadePlasticNEEKernel(CudaScene &scene, float4 *directions, float3 *p_throughput, float3 *p_radiance,
-                                      RNG *p_rng, OptixHit *p_hits, const int *hitQueue, int hitCount);
+                                      RNG *p_rng, OptixHit *p_hits, const int *hitQueue, int hitCount, int nbLights);
 
 __global__ void shadePlasticKernel(CudaScene &scene, float3 *origins, float4 *directions, float3 *p_throughput,
                                         RNG *p_rng, OptixHit *p_hits, bool *lastBounceWasDelta,const int *hitQueue,
