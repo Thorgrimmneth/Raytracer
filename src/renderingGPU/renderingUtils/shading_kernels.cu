@@ -463,7 +463,7 @@ __global__ void shadeLambertKernel(CudaScene scene, float3 *origins, float4 *dir
         if (ls.pdf > 0.f)
         {
 
-            float3 shadowTint = scene.traceShadowRay(pos + normal * 1e-3f, ls.direction, 1e-3f, ls.distance - 1e-3f);
+            float3 shadowTint = scene.traceShadowRay(pos + normal * 1e-3f, ls.direction, 1e-3f, ls.distance - 1e-3f); // problèmes
 
             if (length(shadowTint) > 1e-6f)
             {

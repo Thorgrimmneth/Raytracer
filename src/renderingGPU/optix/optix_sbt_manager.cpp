@@ -4,36 +4,59 @@
 
 #include "../utils/macro.cuh"
 
-void OptixSBTManager::create(OptixProgramGroup raygenPG, OptixProgramGroup missPG, OptixProgramGroup hitPG,
-                             float3 *vertices, float3 *normals, float2 *uvs, uint3 *triangles, int materialIndex)
+void OptixSBTManager::create(const OptixProgramGroupManager &pgm, const std::vector<TriangleMesh> &meshes)
 {
-    RaygenRecord rg = {};
-    OPTIX_CHECK(optixSbtRecordPackHeader(raygenPG, &rg));
+    destroy();
+
+    //
+    // Raygen
+    //
+    RaygenRecord rg{};
+    OPTIX_CHECK(optixSbtRecordPackHeader(pgm.raygenPG, &rg));
 
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_raygenRecord), sizeof(RaygenRecord)));
 
     CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(d_raygenRecord), &rg, sizeof(RaygenRecord), cudaMemcpyHostToDevice));
 
-    MissRecord ms = {};
-    OPTIX_CHECK(optixSbtRecordPackHeader(missPG, &ms));
+    //
+    // Miss
+    //
+    MissRecord ms{};
+    OPTIX_CHECK(optixSbtRecordPackHeader(pgm.missPG, &ms));
 
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_missRecord), sizeof(MissRecord)));
 
     CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(d_missRecord), &ms, sizeof(MissRecord), cudaMemcpyHostToDevice));
 
-    HitRecordSBT hg = {};
+    //
+    // Hit groups
+    //
+    std::vector<HitRecordSBT> hitRecords(meshes.size());
 
-    OPTIX_CHECK(optixSbtRecordPackHeader(hitPG, &hg));
+    for (size_t i = 0; i < meshes.size(); ++i)
+    {
+        const TriangleMesh &mesh = meshes[i];
 
-    hg.data.vertices = vertices;
-    hg.data.normals = normals;
-    hg.data.uvs = uvs;
-    hg.data.triangles = triangles;
-    hg.data.materialIndex = materialIndex;
+        OPTIX_CHECK(optixSbtRecordPackHeader(pgm.hitPG, &hitRecords[i]));
 
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_hitRecord), sizeof(HitRecordSBT)));
+        hitRecords[i].data.vertices = mesh.vertices;
+        hitRecords[i].data.normals = mesh.normals;
+        hitRecords[i].data.uvs = mesh.uvs;
 
-    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(d_hitRecord), &hg, sizeof(HitRecordSBT), cudaMemcpyHostToDevice));
+        hitRecords[i].data.triangles = mesh.triangles;
+
+        hitRecords[i].data.materialIndex = mesh.materialIndex;
+    }
+
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_hitRecords), sizeof(HitRecordSBT) * hitRecords.size()));
+
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(d_hitRecords), hitRecords.data(),
+                          sizeof(HitRecordSBT) * hitRecords.size(), cudaMemcpyHostToDevice));
+
+    //
+    // SBT
+    //
+    sbt = {};
 
     sbt.raygenRecord = d_raygenRecord;
 
@@ -41,33 +64,25 @@ void OptixSBTManager::create(OptixProgramGroup raygenPG, OptixProgramGroup missP
     sbt.missRecordStrideInBytes = sizeof(MissRecord);
     sbt.missRecordCount = 1;
 
-    sbt.hitgroupRecordBase = d_hitRecord;
+    sbt.hitgroupRecordBase = d_hitRecords;
     sbt.hitgroupRecordStrideInBytes = sizeof(HitRecordSBT);
-    sbt.hitgroupRecordCount = 1;
-
-    std::cout << "raygenRecord = " << sbt.raygenRecord << "\nmissCount = " << sbt.missRecordCount
-              << "\nhitCount = " << sbt.hitgroupRecordCount << std::endl;
-}
-
-void OptixSBTManager::create(OptixProgramGroupManager programGroupManager, TriangleMesh mesh)
-{
-    create(programGroupManager.raygenPG, programGroupManager.missPG, programGroupManager.hitPG,
-                      mesh.vertices, mesh.normals, mesh.uvs,
-                      mesh.triangles, mesh.materialIndex);
+    sbt.hitgroupRecordCount = static_cast<unsigned int>(hitRecords.size());
 }
 
 void OptixSBTManager::destroy()
 {
     if (d_raygenRecord)
-        cudaFree(reinterpret_cast<void *>(d_raygenRecord));
+        CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_raygenRecord)));
 
     if (d_missRecord)
-        cudaFree(reinterpret_cast<void *>(d_missRecord));
+        CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_missRecord)));
 
-    if (d_hitRecord)
-        cudaFree(reinterpret_cast<void *>(d_hitRecord));
+    if (d_hitRecords)
+        CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_hitRecords)));
 
     d_raygenRecord = 0;
     d_missRecord = 0;
-    d_hitRecord = 0;
+    d_hitRecords = 0;
+
+    sbt = {};
 }

@@ -628,29 +628,6 @@ void classifyMaterialKernel(CudaScene scene, const int *activeQueue, int activeC
     }
     }
 }
-/*
-GLOBAL
-void classifyRaysKernel(const int *activeQueue, const int *hitMask, int activeCount, int *missQueue, int *missCount,
-                        int *hitQueue, int *hitCount)
-{
-    int qid = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (qid >= activeCount)
-        return;
-
-    int idx = activeQueue[qid];
-
-    if (hitMask[idx])
-    {
-        int dst = atomicAdd(hitCount, 1);
-        hitQueue[dst] = idx;
-    }
-    else
-    {
-        int dst = atomicAdd(missCount, 1);
-        missQueue[dst] = idx;
-    }
-}*/
 
 float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
 {
@@ -734,6 +711,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
                                 0, // stream
                                 impl->gpuScene.optixData.d_launchParams, sizeof(LaunchParams),
                                 &impl->gpuScene.optixData.sbt, h_activeCount, 1, 1));
+                                
         // ---------------------------------------------------------------------
         // 2.2 Shading + compaction nextActiveQueue
         // ---------------------------------------------------------------------

@@ -47,6 +47,6 @@ inline void initOptix(OptixContext &context, OptixProgramGroupManager &programGr
                                           2 * 1024, // directCallableStackSizeFromTraversal
                                           2 * 1024, // directCallableStackSizeFromState
                                           2 * 1024, // continuationStackSize
-                                          1         // maxTraversableGraphDepth
+                                          2         // maxTraversableGraphDepth
                                           ));
 }

@@ -3,6 +3,8 @@
 #include "../utils/macro.cuh"
 #include "mesh_loader.cuh"
 
+#include <vector>
+
 #include "../lights/light.cuh"
 #include "../materials/material.cuh"
 
@@ -24,6 +26,7 @@
 #include "../optix/optix_pipeline_manager.h"
 #include "../optix/optix_program_group_manager.h"
 #include "../optix/optix_sbt_manager.h"
+#include "../optix/optix_ias.h"
 #include "../../../devicePrograms/launch_params.cuh"
 #include "scene_helper.cuh"
 #include "init_optix.cuh"
@@ -40,13 +43,14 @@ struct OptixSceneData
     CUdeviceptr d_launchParams = 0;
     LaunchParams launchParams = {};
 
-    OptixTraversableHandle gasHandle = 0;
-    CUdeviceptr d_gasBuffer = 0;
+    OptixTraversableHandle iasHandle = 0;
+    CUdeviceptr d_iasBuffer = 0;
+    std::vector<OptixGAS> gasList;
 
     OptixSceneData() = default;
     OptixSceneData(OptixPipeline p, OptixShaderBindingTable s, CUdeviceptr lp, LaunchParams lpStruct,
-                   OptixTraversableHandle gasH, CUdeviceptr gasBuf)
-        : pipeline(p), sbt(s), d_launchParams(lp), launchParams(lpStruct), gasHandle(gasH), d_gasBuffer(gasBuf)
+                   OptixTraversableHandle gasH, CUdeviceptr gasBuf, std::vector<OptixGAS> gas)
+        : pipeline(p), sbt(s), d_launchParams(lp), launchParams(lpStruct), iasHandle(gasH), d_iasBuffer(gasBuf), gasList(gas)
     {
     }
 
@@ -56,8 +60,8 @@ struct OptixSceneData
             optixPipelineDestroy(pipeline);
         if (d_launchParams)
             CUDA_CHECK(cudaFree((void *)d_launchParams));
-        if (d_gasBuffer)
-            CUDA_CHECK(cudaFree((void *)d_gasBuffer));
+        if (d_iasBuffer)
+            CUDA_CHECK(cudaFree((void *)d_iasBuffer));
     }
 };
 
@@ -110,11 +114,11 @@ struct CudaScene
                 hit = true;
             }
         }
-        if (bvhScene.intersect(origin, direction, p_tMin, tMax, p_hitRecord))
+        /*if (bvhScene.intersect(origin, direction, p_tMin, tMax, p_hitRecord))
         {
             tMax = p_hitRecord.t; // update tMax to conserve the nearest hit
             hit = true;
-        }
+        }*/
 
         return hit;
     }

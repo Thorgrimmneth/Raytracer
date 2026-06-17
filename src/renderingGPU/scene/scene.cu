@@ -578,29 +578,63 @@ CudaScene singleObject(float4 sunDir)
     helper.materialsGPU.push_back(matPlas);
 
     Quaternion rotation = quaternionFromAxisAngle(make_float3(0.f, 1.f, 0.f), 0.f);
-    TriangleMesh mesh = loadTriangleMesh("data/bunny/Bunny.obj", 0, helper.triangleMeshesGPU.size(), make_float3(2.f),
+    TriangleMesh mesh = loadTriangleMesh("data/bunny/Bunny.obj", 2, helper.triangleMeshesGPU.size(), make_float3(2.f),
                                          rotation, make_float3(0.f));
     helper.triangleMeshesGPU.push_back(mesh);
+
+    /*TriangleMesh mesh2 = loadTriangleMesh("data/bunny/Bunny.obj", 2, helper.triangleMeshesGPU.size(), make_float3(2.f),
+                                         rotation, make_float3(3.f, -2.f, 0.f));
+    helper.triangleMeshesGPU.push_back(mesh2);*/
 
     OptixContext context;
     OptixProgramGroupManager programGroupManager;
     OptixPipelineManager pipelineManager;
     OptixSBTManager sbtManager;
     OptixLaunchParamsManager launchParamsManager;
-    initOptix(context, programGroupManager, pipelineManager, launchParamsManager, "build/raygen.ptx",
-              "build/miss.ptx", "build/closesthit.ptx");
+    initOptix(context, programGroupManager, pipelineManager, launchParamsManager, "build/raygen.ptx", "build/miss.ptx",
+              "build/closesthit.ptx");
 
-    sbtManager.create(programGroupManager, mesh);
+    sbtManager.create(programGroupManager, helper.triangleMeshesGPU);
 
-    OptixGAS gas;
-    gas.build(context, mesh);
+    // create GAS
+    std::vector<OptixGAS> gasList;
 
-    launchParamsManager.params.traversable = gas.handle;
+    for (auto &mesh : helper.triangleMeshesGPU)
+    {
+        OptixGAS gas;
+        gas.build(context, mesh);
+        gasList.push_back(std::move(gas));
+    }
+
+    // create instances from GAS
+    std::vector<OptixInstance> instances;
+    float transform[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
+    for (uint32_t i = 0; i < gasList.size(); ++i)
+    {
+        OptixInstance instance{};
+
+        memcpy(instance.transform, transform, sizeof(transform));
+
+        instance.instanceId = i;
+        instance.sbtOffset = i;
+
+        instance.visibilityMask = 255;
+        instance.flags = OPTIX_INSTANCE_FLAG_NONE;
+
+        instance.traversableHandle = gasList[i].handle;
+
+        instances.push_back(instance);
+    }
+    OptixIAS ias;
+    ias.build(context.deviceContext, instances);
+
+    launchParamsManager.params.traversable = ias.handle;
     CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManager.d_params), &launchParamsManager.params,
                           sizeof(LaunchParams), cudaMemcpyHostToDevice));
 
-    gpuScene.optixData = OptixSceneData{pipelineManager.pipeline,   sbtManager.sbt, launchParamsManager.d_params,
-                                        launchParamsManager.params, gas.handle,     gas.d_gasBuffer};
+    gpuScene.optixData = OptixSceneData{
+        pipelineManager.pipeline, sbtManager.sbt, launchParamsManager.d_params, launchParamsManager.params, ias.handle,
+        ias.getBuffer(),          gasList};
     programGroupManager.destroy();
     gpuScene.uploadObjects(helper);
     gpuScene.uploadLights(helper);
