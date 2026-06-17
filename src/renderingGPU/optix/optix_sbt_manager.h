@@ -1,11 +1,14 @@
 #pragma once
 
+
 #include <optix.h>
 #include <optix_stubs.h>
 #include "../src/renderingGPU/utils/op.cuh"
 
-template<typename T>
-struct alignas(OPTIX_SBT_RECORD_ALIGNMENT) SbtRecord
+#include "optix_program_group_manager.h"
+#include "../objects/triangle_mesh.cuh"
+
+template <typename T> struct alignas(OPTIX_SBT_RECORD_ALIGNMENT) SbtRecord
 {
     char header[OPTIX_SBT_RECORD_HEADER_SIZE];
     T data;
@@ -21,41 +24,32 @@ struct MissData
 
 struct HitData
 {
-    float3* vertices;
-    float3* normals;
-    float2* uvs;
+    float3 *vertices;
+    float3 *normals;
+    float2 *uvs;
 
-    uint3* triangles;
+    uint3 *triangles;
 
     int materialIndex;
 };
 
 using RaygenRecord = SbtRecord<RaygenData>;
-using MissRecord   = SbtRecord<MissData>;
+using MissRecord = SbtRecord<MissData>;
 using HitRecordSBT = SbtRecord<HitData>;
 
 class OptixSBTManager
 {
-public:
+  public:
+    void create(OptixProgramGroup raygenPG, OptixProgramGroup missPG, OptixProgramGroup hitPG, float3 *vertices,
+                float3 *normals, float2 *uvs, uint3 *triangles, int materialIndex);
 
-    void create(
-        OptixProgramGroup raygenPG,
-        OptixProgramGroup missPG,
-        OptixProgramGroup hitPG,
-        float3* vertices,
-        float3* normals,
-        float2* uvs,
-        uint3* triangles,
-        int materialIndex
-    );
-
+    void create(OptixProgramGroupManager programGroupManager, TriangleMesh mesh);
     void destroy();
 
     OptixShaderBindingTable sbt = {};
 
-private:
-
+  private:
     CUdeviceptr d_raygenRecord = 0;
-    CUdeviceptr d_missRecord   = 0;
-    CUdeviceptr d_hitRecord    = 0;
+    CUdeviceptr d_missRecord = 0;
+    CUdeviceptr d_hitRecord = 0;
 };

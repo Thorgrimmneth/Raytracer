@@ -44,6 +44,16 @@ void OptixSBTManager::create(OptixProgramGroup raygenPG, OptixProgramGroup missP
     sbt.hitgroupRecordBase = d_hitRecord;
     sbt.hitgroupRecordStrideInBytes = sizeof(HitRecordSBT);
     sbt.hitgroupRecordCount = 1;
+
+    std::cout << "raygenRecord = " << sbt.raygenRecord << "\nmissCount = " << sbt.missRecordCount
+              << "\nhitCount = " << sbt.hitgroupRecordCount << std::endl;
+}
+
+void OptixSBTManager::create(OptixProgramGroupManager programGroupManager, TriangleMesh mesh)
+{
+    create(programGroupManager.raygenPG, programGroupManager.missPG, programGroupManager.hitPG,
+                      mesh.vertices, mesh.normals, mesh.uvs,
+                      mesh.triangles, mesh.materialIndex);
 }
 
 void OptixSBTManager::destroy()

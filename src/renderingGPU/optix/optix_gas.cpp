@@ -80,6 +80,16 @@ void OptixGAS::build(OptixDeviceContext context, CUstream stream, const float3 *
     CUDA_CHECK(cudaStreamSynchronize(stream));
 
     CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_tempBuffer)));
+
+    std::cout << "GAS handle = " << handle << std::endl;
+    std::cout << "Vertices  : " << vertexCount << std::endl;
+
+    std::cout << "Triangles : " << triangleCount << std::endl;
+}
+
+void OptixGAS::build(OptixContext context, TriangleMesh mesh)
+{
+    build(context.deviceContext, context.stream, mesh.vertices, mesh.vertexCount, mesh.triangles, mesh.triangleCount);
 }
 
 void OptixGAS::destroy()

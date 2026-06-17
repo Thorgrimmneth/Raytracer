@@ -26,6 +26,8 @@
 #include "../optix/optix_sbt_manager.h"
 #include "../../../devicePrograms/launch_params.cuh"
 #include "scene_helper.cuh"
+#include "init_optix.cuh"
+#include "sun_helper.h"
 
 struct Light;
 

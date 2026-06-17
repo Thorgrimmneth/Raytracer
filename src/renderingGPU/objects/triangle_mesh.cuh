@@ -1,7 +1,5 @@
 #pragma once
 
-#include "../materials/material.cuh"
-
 struct TriangleMesh
 {
     uint3 *triangles = nullptr;

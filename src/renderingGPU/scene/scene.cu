@@ -1,6 +1,4 @@
-#include "../camera/camera.cuh"
 #include "scene.cuh"
-#include "scene_helper.cuh"
 
 HOST void CudaScene::uploadObjects(CudaSceneHelper &helper)
 {
@@ -567,98 +565,43 @@ CudaScene singleObject(float4 sunDir)
 {
     CudaScene gpuScene;
     CudaSceneHelper helper;
-    Material mirror = Material::makeMaterial(make_float3(1.f, 1.f, 1.f), MIRROR);
-    Material transparent = Material::makeMaterial(make_float3(0.9f, 0.9f, 0.9f), TRANSPARENT, 0.f, 0.f, 1.5f);
+    Light sun = createSun(sunDir, helper);
+    helper.lightsGPU.push_back(sun);
+
+    Material mirror = Material::makeMaterial(make_float3(1.f), MIRROR);
     helper.materialsGPU.push_back(mirror);
+    Material transparent = Material::makeMaterial(make_float3(0.9f), TRANSPARENT, 0.f, 0.f, 1.5f);
     helper.materialsGPU.push_back(transparent);
     Material mat = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), LAMBERT, 1.0f);
     helper.materialsGPU.push_back(mat);
     Material matPlas = Material::randomPlastic();
     helper.materialsGPU.push_back(matPlas);
+
     Quaternion rotation = quaternionFromAxisAngle(make_float3(0.f, 1.f, 0.f), 0.f);
-    MeshAndPrimitive meshAndPrim = loadTriangleMesh("data/bunny/Bunny.obj", 0, helper.triangleMeshesGPU.size(),
-                                                    make_float3(2.f, 2.f, 2.f), rotation, make_float3(0.f, 0.f, 0.f));
-    helper.triangleMeshesGPU.push_back(meshAndPrim.mesh);
-    helper.primitivesGPU.push_back(meshAndPrim.prim);
-    Light l;
-    l.color_power = make_float4(1.f, 0.95f, 0.9f, 100.f);
-    l.direction = make_float4(sunDir.x, sunDir.y, sunDir.z, 0.f);
-    l.metadata = Light::packMetadata(LightType::SUN, 0);
-    helper.lightsGPU.push_back(l);
+    TriangleMesh mesh = loadTriangleMesh("data/bunny/Bunny.obj", 0, helper.triangleMeshesGPU.size(), make_float3(2.f),
+                                         rotation, make_float3(0.f));
+    helper.triangleMeshesGPU.push_back(mesh);
 
     OptixContext context;
-    context.initialize();
-
-    OptixModuleManager raygenModuleManager;
-
-    raygenModuleManager.createFromPath(context.deviceContext, "build/raygen.ptx");
-
-    std::cout << "Optix module created successfully" << std::endl;
-
-    OptixModuleManager missModuleManager;
-    missModuleManager.createFromPath(context.deviceContext, "build/miss.ptx");
-
-    OptixModuleManager chitModuleManager;
-    chitModuleManager.createFromPath(context.deviceContext, "build/closesthit.ptx");
-
     OptixProgramGroupManager programGroupManager;
-    programGroupManager.create(context.deviceContext, raygenModuleManager.module, missModuleManager.module,
-                               chitModuleManager.module);
-
-    std::cout << "RaygenPG = " << programGroupManager.raygenPG << "\nMissPG   = " << programGroupManager.missPG
-              << "\nHitPG    = " << programGroupManager.hitPG << std::endl;
-
     OptixPipelineManager pipelineManager;
-
-    pipelineManager.create(context.deviceContext, raygenModuleManager.getPipelineCompileOptions(),
-                           programGroupManager.raygenPG, programGroupManager.missPG, programGroupManager.hitPG);
-
-    std::cout << "Pipeline = " << pipelineManager.pipeline << std::endl;
-
     OptixSBTManager sbtManager;
-    sbtManager.create(programGroupManager.raygenPG, programGroupManager.missPG, programGroupManager.hitPG,
-                      meshAndPrim.mesh.vertices, meshAndPrim.mesh.normals, meshAndPrim.mesh.uvs,
-                      meshAndPrim.mesh.triangles, meshAndPrim.mesh.materialIndex);
-
-    std::cout << "raygenRecord = " << sbtManager.sbt.raygenRecord << "\nmissCount = " << sbtManager.sbt.missRecordCount
-              << "\nhitCount = " << sbtManager.sbt.hitgroupRecordCount << std::endl;
-
     OptixLaunchParamsManager launchParamsManager;
-    launchParamsManager.create();
-    std::cout << "d_params = " << launchParamsManager.d_params << std::endl;
+    initOptix(context, programGroupManager, pipelineManager, launchParamsManager, "build/raygen.ptx",
+              "build/miss.ptx", "build/closesthit.ptx");
 
-    OPTIX_CHECK(optixPipelineSetStackSize(pipelineManager.pipeline,
-                                          2 * 1024, // directCallableStackSizeFromTraversal
-                                          2 * 1024, // directCallableStackSizeFromState
-                                          2 * 1024, // continuationStackSize
-                                          1         // maxTraversableGraphDepth
-                                          ));
+    sbtManager.create(programGroupManager, mesh);
 
     OptixGAS gas;
-    gas.build(context.deviceContext, context.stream, meshAndPrim.mesh.vertices, meshAndPrim.mesh.vertexCount,
-              meshAndPrim.mesh.triangles, meshAndPrim.mesh.triangleCount);
-    std::cout << "GAS handle = " << gas.handle << std::endl;
-    std::cout << "Vertices  : " << meshAndPrim.mesh.vertexCount << std::endl;
+    gas.build(context, mesh);
 
-    std::cout << "Triangles : " << meshAndPrim.mesh.triangleCount << std::endl;
     launchParamsManager.params.traversable = gas.handle;
     CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManager.d_params), &launchParamsManager.params,
                           sizeof(LaunchParams), cudaMemcpyHostToDevice));
-    /*
-    OPTIX_CHECK(optixLaunch(pipelineManager.pipeline,
-                            0, // stream
-                            launchParamsManager.d_params, sizeof(LaunchParams), &sbtManager.sbt,
-                            launchParamsManager.params.width, launchParamsManager.params.height, 1));
-    CUDA_CHECK(cudaDeviceSynchronize());
-    auto framebuffer = launchParamsManager.downloadFramebuffer();*/
+
     gpuScene.optixData = OptixSceneData{pipelineManager.pipeline,   sbtManager.sbt, launchParamsManager.d_params,
                                         launchParamsManager.params, gas.handle,     gas.d_gasBuffer};
-    raygenModuleManager.destroy();
-    missModuleManager.destroy();
-    chitModuleManager.destroy();
-
     programGroupManager.destroy();
-
     gpuScene.uploadObjects(helper);
     gpuScene.uploadLights(helper);
     gpuScene.uploadMaterials(helper);

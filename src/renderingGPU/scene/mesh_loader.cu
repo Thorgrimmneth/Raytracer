@@ -1,7 +1,7 @@
 #include "mesh_loader.cuh"
 
 HOST 
-MeshAndPrimitive loadTriangleMesh(const std::string &p_path, int materialIndex, int index, float3 scale,
+TriangleMesh loadTriangleMesh(const std::string &p_path, int materialIndex, int index, float3 scale,
                                        Quaternion rotation, float3 translation)
 {
     std::cout << "Loading: " << p_path << std::endl;
@@ -25,8 +25,6 @@ MeshAndPrimitive loadTriangleMesh(const std::string &p_path, int materialIndex, 
 
     unsigned int cptTriangles = 0;
     unsigned int cptVertices = 0;
-    float3 mini = make_float3(+INFINITY);
-    float3 maxi = make_float3(-INFINITY);
     float totalArea = 0.f;
     std::vector<float> areaCdf;
     for (unsigned int m = 0; m < scene->mNumMeshes; ++m)
@@ -48,8 +46,6 @@ MeshAndPrimitive loadTriangleMesh(const std::string &p_path, int materialIndex, 
             float3 vertex = make_float3(mesh->mVertices[v].x, mesh->mVertices[v].y, mesh->mVertices[v].z);
             vertex = transformPoint(vertex, scale, rotation, translation);
 
-            mini = getMin(mini, vertex);
-            maxi = getMax(maxi, vertex);
             vertices.push_back(make_float3(vertex.x, vertex.y, vertex.z));
 
             float3 normal = make_float3(mesh->mNormals[v].x, mesh->mNormals[v].y, mesh->mNormals[v].z);
@@ -154,5 +150,5 @@ MeshAndPrimitive loadTriangleMesh(const std::string &p_path, int materialIndex, 
 
     triMesh.meshArea = totalArea;
 
-    return MeshAndPrimitive(triMesh, mini, maxi, ObjectType::TRIANGLE, index);
+    return triMesh;
 }
