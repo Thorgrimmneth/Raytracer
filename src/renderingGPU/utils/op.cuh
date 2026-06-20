@@ -106,26 +106,40 @@ HD_FORCEINLINE float3 operator*(const float a, const float3 &b) { return make_fl
 
 HD_FORCEINLINE float3 operator/(const float3 &a, const float b)
 {
+#ifdef __CUDA_ARCH__
+    const float inv = __fdividef(1.0f, b);
+#else
     const float inv = 1.0f / b;
-
+#endif
     return make_float3(a.x * inv, a.y * inv, a.z * inv);
 }
 
 HD_FORCEINLINE float4 operator/(const float4 &a, const float b)
 {
+#ifdef __CUDA_ARCH__
+    const float inv = __fdividef(1.0f, b);
+#else
     const float inv = 1.0f / b;
-
+#endif
     return make_float4(a.x * inv, a.y * inv, a.z * inv, 0.f);
 }
 
 HD_FORCEINLINE float3 operator/(const float3 &a, const float3 &b)
 {
+#ifdef __CUDA_ARCH__
+    return make_float3(a.x * __fdividef(1.0f, b.x), a.y * __fdividef(1.0f, b.y), a.z * __fdividef(1.0f, b.z));
+#else
     return make_float3(a.x * (1.0f / b.x), a.y * (1.0f / b.y), a.z * (1.0f / b.z));
+#endif
 }
 
 HD_FORCEINLINE float3 operator/=(float3 &a, const float b)
 {
+#ifdef __CUDA_ARCH__
+    const float inv = __fdividef(1.0f, b);
+#else
     const float inv = 1.0f / b;
+#endif
     a.x *= inv;
     a.y *= inv;
     a.z *= inv;
@@ -134,7 +148,11 @@ HD_FORCEINLINE float3 operator/=(float3 &a, const float b)
 
 HD_FORCEINLINE float4 operator/=(float4 &a, const float b)
 {
+#ifdef __CUDA_ARCH__
+    const float inv = __fdividef(1.0f, b);
+#else
     const float inv = 1.0f / b;
+#endif
     a.x *= inv;
     a.y *= inv;
     a.z *= inv;
@@ -203,14 +221,14 @@ HD_FORCEINLINE float distance2(const float3 &a, const float3 &b) { return length
 
 HD_FORCEINLINE float distance(const float3 &a, const float3 &b) { return length(a - b); }
 
-D_FORCEINLINE float3 abs(const float3 &a) { return make_float3(fabsf(a.x), fabsf(a.y), fabsf(a.z)); }
+HD_FORCEINLINE float3 abs(const float3 &a) { return make_float3(fabsf(a.x), fabsf(a.y), fabsf(a.z)); }
 // ============================================================
 // Scalar helpers
 // ============================================================
 
 HD_FORCEINLINE float clamp(const float x, const float lo, const float hi) { return fminf(fmaxf(x, lo), hi); }
 
-D_FORCEINLINE float3 clamp(const float3 x, const float3 lo, const float3 hi)
+HD_FORCEINLINE float3 clamp(const float3 x, const float3 lo, const float3 hi)
 {
     return make_float3(clamp(x.x, lo.x, hi.x), clamp(x.y, lo.y, hi.y), clamp(x.z, lo.z, hi.z));
 }
@@ -230,37 +248,47 @@ HD_INLINE float getAxis(const float3 &v, int axis) { return axis == 0 ? v.x : ax
 
 HD_FORCEINLINE float3 reflect(const float3 &a, const float3 &b)
 {
+    // Use FMA chain: k = -2 * dot(a, b)
     float k = -2.0f * dot(a, b);
-
     return make_float3(fmaf(k, b.x, a.x), fmaf(k, b.y, a.y), fmaf(k, b.z, a.z));
 }
 
 HD_FORCEINLINE float3 refract(const float3 &a, const float3 &b, const float c)
 {
     const float cosi = -dot(a, b);
-    const float k = 1.0f - c * c * (1.0f - cosi * cosi);
+    // Optimize: 1.0 - c*c*(1 - cosi*cosi) = 1.0 - c*c + c*c*cosi*cosi
+    const float k = fmaf(c * c, cosi * cosi, 1.0f - c * c);
 
     if (k < 0.0f)
     {
         return make_float3(0.0f);
     }
 
+#ifdef __CUDA_ARCH__
+    float t = fmaf(c, cosi, -sqrtf(k));
+#else
     float t = c * cosi - sqrtf(k);
-
+#endif
     return make_float3(fmaf(c, a.x, t * b.x), fmaf(c, a.y, t * b.y), fmaf(c, a.z, t * b.z));
 }
 
 HD_FORCEINLINE bool refract(const float3 &a, const float3 &b, const float c, float3 &out)
 {
     const float cosi = -dot(a, b);
-    const float k = 1.0f - c * c * (1.0f - cosi * cosi);
+    // Optimize: 1.0 - c*c*(1 - cosi*cosi) = 1.0 - c*c + c*c*cosi*cosi
+    const float k = fmaf(c * c, cosi * cosi, 1.0f - c * c);
 
     if (k < 0.0f)
     {
         return false;
     }
 
-    out = c * a + (c * cosi - sqrtf(k)) * b;
+#ifdef __CUDA_ARCH__
+    float t = fmaf(c, cosi, -sqrtf(k));
+#else
+    float t = c * cosi - sqrtf(k);
+#endif
+    out = c * a + t * b;
     return true;
 }
 

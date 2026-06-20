@@ -580,7 +580,7 @@ CudaScene singleObject(float4 sunDir)
     helper.materialsGPU.push_back(matPlas);
 
     Quaternion rotation = quaternionFromAxisAngle(make_float3(0.f, 1.f, 0.f), 0.f);
-    TriangleMesh mesh = loadTriangleMesh("data/bunny/Bunny.obj", 4, helper.triangleMeshesGPU.size(), make_float3(2.f),
+    TriangleMesh mesh = loadTriangleMesh("data/bunny/Bunny.obj", 1, helper.triangleMeshesGPU.size(), make_float3(2.f),
                                          rotation, make_float3(0.f));
     helper.triangleMeshesGPU.push_back(mesh);
 
