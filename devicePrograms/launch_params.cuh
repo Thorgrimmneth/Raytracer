@@ -21,7 +21,7 @@ struct OptixHit
 
 struct LaunchParams
 {
-    float3* origins = nullptr;
+    float4* origins = nullptr;
     float4* directions = nullptr;
 
     // Hit data in SoA format (only relevant fields for active kernels)

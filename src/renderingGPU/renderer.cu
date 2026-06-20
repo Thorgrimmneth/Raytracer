@@ -60,7 +60,7 @@ class Renderer::Impl
     float *d_value = nullptr;
     CudaScene gpuScene;
 
-    float3 *d_throughput = nullptr;
+    float4 *d_throughput = nullptr;
     float3 *d_radiance = nullptr;
 
     int *d_pixelIndices = nullptr;
@@ -83,7 +83,7 @@ class Renderer::Impl
 
     float3 *d_convergenceBuffer = nullptr;
 
-    float3 *d_origins = nullptr;
+    float4 *d_origins = nullptr;
     float4 *d_directions = nullptr;
 
     // Hit data in SoA format
@@ -245,7 +245,7 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     // GPU buffers
     // =========================
 
-    cudaMalloc(&impl->d_throughput, impl->width * impl->height * sizeof(float3));
+    cudaMalloc(&impl->d_throughput, impl->width * impl->height * sizeof(float4));
     cudaMalloc(&impl->d_radiance, impl->width * impl->height * sizeof(float3));
     cudaMalloc(&impl->d_pixelIndices, impl->width * impl->height * sizeof(int));
     cudaMalloc(&impl->d_rng, impl->width * impl->height * sizeof(RNG));
@@ -284,7 +284,7 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     cudaMalloc(&impl->d_transparentCount, sizeof(int));
     cudaMalloc(&impl->d_emissiveCount, sizeof(int));
 
-    cudaMalloc(&impl->d_origins, impl->hdrBufferSize);
+    cudaMalloc(&impl->d_origins, impl->width * impl->height * sizeof(float4));
     cudaMalloc(&impl->d_directions, pixelCount * sizeof(float4));
     cudaMalloc(&impl->d_hitPositions, pixelCount * sizeof(float4));
     cudaMalloc(&impl->d_hitNormals, pixelCount * sizeof(float4));
@@ -668,9 +668,9 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
     int threads = 256;
     int blocks = (pixelCount + threads - 1) / threads;
 
-    initFloat3Buffer<<<blocks, threads>>>(impl->d_origins, pixelCount, impl->h_camera.cameraPos);
+    initFloat4Buffer<<<blocks, threads>>>(impl->d_origins, pixelCount, make_float4(impl->h_camera.cameraPos, 0.f));
 
-    initFloat3Buffer<<<blocks, threads>>>(impl->d_throughput, pixelCount, make_float3(1.f));
+    initFloat4Buffer<<<blocks, threads>>>(impl->d_throughput, pixelCount, make_float4(1.f, 1.f, 1.f, 0.f));
 
     initFloat3Buffer<<<blocks, threads>>>(impl->d_radiance, pixelCount, make_float3(0.f));
 
