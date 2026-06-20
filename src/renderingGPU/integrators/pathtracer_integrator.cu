@@ -17,8 +17,8 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const float3 &orig
     bool isInside = false;
     bool lastBounceWasDelta = true;
     float lastBsdfPdf = 1.f;
-
-    for (int depth = 0; depth < nbBounces; depth++)
+    return finalColor;
+    /*for (int depth = 0; depth < nbBounces; depth++)
     {
         OptixHit hit;
         if (!scene.intersect(primOrigin, primDirection, tMin, tMax, hit))
@@ -108,7 +108,7 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const float3 &orig
         primDirection = bsdf.direction;
     }
 
-    return finalColor;
+    return finalColor;*/
 }
 
 DEVICE 

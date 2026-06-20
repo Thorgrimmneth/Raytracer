@@ -168,6 +168,7 @@ HD_INLINE float4 operator*(const float a, const float4 &b) { return make_float4(
 
 HD_FORCEINLINE float dot(const float3 &a, const float3 &b) { return fmaf(a.x, b.x, fmaf(a.y, b.y, a.z * b.z)); }
 HD_FORCEINLINE float dot4f3(const float4 &a, const float3 &b) { return fmaf(a.x, b.x, fmaf(a.y, b.y, a.z * b.z)); }
+HD_FORCEINLINE float dot(const float4 &a, const float4 &b) { return fmaf(a.x, b.x, fmaf(a.y, b.y, a.z * b.z)); }
 
 HD_FORCEINLINE float3 cross(const float3 &a, const float3 &b)
 {

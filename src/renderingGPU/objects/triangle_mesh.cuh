@@ -16,5 +16,4 @@ struct TriangleMesh
 
     float meshArea = 0.0f;
     float *triangleAreaCdf = nullptr;
-
 };

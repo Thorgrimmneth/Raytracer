@@ -1,8 +1,7 @@
 #include "mesh_loader.cuh"
 
-HOST 
-TriangleMesh loadTriangleMesh(const std::string &p_path, int materialIndex, int index, float3 scale,
-                                       Quaternion rotation, float3 translation)
+HOST TriangleMesh loadTriangleMesh(const std::string &p_path, int materialIndex, int index, float3 scale,
+                                   Quaternion rotation, float3 translation)
 {
     std::cout << "Loading: " << p_path << std::endl;
 
@@ -72,9 +71,8 @@ TriangleMesh loadTriangleMesh(const std::string &p_path, int materialIndex, int 
             tri.x = vertexOffset + face.mIndices[0];
             tri.y = vertexOffset + face.mIndices[1];
             tri.z = vertexOffset + face.mIndices[2];
-            float area =
-                0.5f * abs((vertices[tri.y].x - vertices[tri.x].x) * (vertices[tri.z].y - vertices[tri.x].y) -
-                           (vertices[tri.y].y - vertices[tri.x].y) * (vertices[tri.z].x - vertices[tri.x].x));
+            float area = 0.5f * abs((vertices[tri.y].x - vertices[tri.x].x) * (vertices[tri.z].y - vertices[tri.x].y) -
+                                    (vertices[tri.y].y - vertices[tri.x].y) * (vertices[tri.z].x - vertices[tri.x].x));
             totalArea += area;
             areaCdf.push_back(area);
             triangles.push_back(tri);
@@ -112,8 +110,7 @@ TriangleMesh loadTriangleMesh(const std::string &p_path, int materialIndex, int 
     {
         cudaMalloc(&triMesh.triangles, triangles.size() * sizeof(uint3));
 
-        cudaMemcpy(triMesh.triangles, triangles.data(), triangles.size() * sizeof(uint3),
-                   cudaMemcpyHostToDevice);
+        cudaMemcpy(triMesh.triangles, triangles.data(), triangles.size() * sizeof(uint3), cudaMemcpyHostToDevice);
     }
 
     // Allocate and copy vertices to GPU
@@ -151,4 +148,54 @@ TriangleMesh loadTriangleMesh(const std::string &p_path, int materialIndex, int 
     triMesh.meshArea = totalArea;
 
     return triMesh;
+}
+
+TriangleMesh PlaneToMesh(const Plane &plane, float size)
+{
+    TriangleMesh mesh;
+
+    float3 n = make_float3(plane.normal.x, plane.normal.y, plane.normal.z);
+
+    float d = plane.normal.w;
+
+    float3 pos = -d * n;
+
+    mesh.vertexCount = 4;
+    mesh.triangleCount = 2;
+    mesh.materialIndex = plane.materialIndex;
+
+    mesh.vertices = new float3[4];
+    mesh.normals = new float3[4];
+    mesh.uvs = new float2[4];
+    mesh.triangles = new uint3[2];
+
+    float3 tangent =
+        fabs(n.y) < 0.999f ? normalize(cross(make_float3(0, 1, 0), n)) : normalize(cross(make_float3(1, 0, 0), n));
+
+    float3 bitangent = cross(n, tangent);
+
+    float h = size * 0.5f;
+
+    mesh.vertices[0] = pos + (-tangent - bitangent) * h;
+    mesh.vertices[1] = pos + (tangent - bitangent) * h;
+    mesh.vertices[2] = pos + (tangent + bitangent) * h;
+    mesh.vertices[3] = pos + (-tangent + bitangent) * h;
+
+    for (int i = 0; i < 4; ++i)
+        mesh.normals[i] = n;
+
+    mesh.uvs[0] = make_float2(0, 0);
+    mesh.uvs[1] = make_float2(1, 0);
+    mesh.uvs[2] = make_float2(1, 1);
+    mesh.uvs[3] = make_float2(0, 1);
+
+    mesh.triangles[0] = make_uint3(0, 1, 2);
+    mesh.triangles[1] = make_uint3(0, 2, 3);
+
+    mesh.meshArea = size * size;
+    mesh.triangleAreaCdf = new float[2];
+    mesh.triangleAreaCdf[0] = 0.5f;
+    mesh.triangleAreaCdf[1] = 1.0f;
+
+    return mesh;
 }

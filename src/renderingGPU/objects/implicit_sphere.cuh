@@ -56,10 +56,11 @@ struct ImplicitSphere
         return normalize(point - center);
     }
 
-    D_FORCEINLINE 
+   /*D_FORCEINLINE 
     bool intersect(const float3 &origin, const float3 &direction, const float p_tMin, const float p_tMax,
                                               OptixHit &p_hitRecord) const
     {
+        return false;
         float t = p_tMin;
         const float threshold = 1e-4f;
         const float minStep = 1e-4f;
@@ -107,5 +108,5 @@ struct ImplicitSphere
         }
 
         return false;
-    }
+    }*/
 };

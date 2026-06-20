@@ -568,6 +568,8 @@ CudaScene singleObject(float4 sunDir)
     Light sun = createSun(sunDir, helper);
     helper.lightsGPU.push_back(sun);
 
+    Material emissive = Material::makeMaterial(make_float3(1.f, 0.f, 0.f), EMISSIVE, 0.f, 0.f, 1.f, 11.f);
+    helper.materialsGPU.push_back(emissive);
     Material mirror = Material::makeMaterial(make_float3(1.f), MIRROR);
     helper.materialsGPU.push_back(mirror);
     Material transparent = Material::makeMaterial(make_float3(0.9f), TRANSPARENT, 0.f, 0.f, 1.5f);
@@ -578,13 +580,19 @@ CudaScene singleObject(float4 sunDir)
     helper.materialsGPU.push_back(matPlas);
 
     Quaternion rotation = quaternionFromAxisAngle(make_float3(0.f, 1.f, 0.f), 0.f);
-    TriangleMesh mesh = loadTriangleMesh("data/bunny/Bunny.obj", 2, helper.triangleMeshesGPU.size(), make_float3(2.f),
+    TriangleMesh mesh = loadTriangleMesh("data/bunny/Bunny.obj", 4, helper.triangleMeshesGPU.size(), make_float3(2.f),
                                          rotation, make_float3(0.f));
     helper.triangleMeshesGPU.push_back(mesh);
 
-    /*TriangleMesh mesh2 = loadTriangleMesh("data/bunny/Bunny.obj", 2, helper.triangleMeshesGPU.size(), make_float3(2.f),
-                                         rotation, make_float3(3.f, -2.f, 0.f));
-    helper.triangleMeshesGPU.push_back(mesh2);*/
+    Plane p = Plane(make_float3(0.f, 0.f, 0.f), make_float3(0.f, 1.f, 0.f));
+
+    Material ground = Material::makeMaterial(make_float3(0.5f), LAMBERT, 1.0f);
+    helper.materialsGPU.push_back(ground);
+    p.materialIndex = 4;
+    helper.triangleMeshesGPU.push_back(PlaneToMesh(p, 1000.f));
+
+    TriangleMesh mesh2 = loadTriangleMesh("data/bunny/Bunny.obj", 4, helper.triangleMeshesGPU.size(),
+    make_float3(2.f), rotation, make_float3(3.f, -2.f, 0.f)); helper.triangleMeshesGPU.push_back(mesh2);
 
     OptixContext context;
     OptixProgramGroupManager programGroupManager;

@@ -99,55 +99,25 @@ struct CudaScene
     {
         float tMax = p_tMax;
         bool hit = false;
-        for (int i = 0; i < nbPlanes; ++i)
-        {
-            OptixHit planeHit;
-
-            if (planes[i].intersect(origin, direction, p_tMin, tMax, planeHit))
-            {
-                tMax = planeHit.t;
-                p_hitRecord = planeHit;
-
-                p_hitRecord.objectType = HIT_PLANE;
-                p_hitRecord.objectIndex = i;
-
-                hit = true;
-            }
-        }
-        /*if (bvhScene.intersect(origin, direction, p_tMin, tMax, p_hitRecord))
-        {
-            tMax = p_hitRecord.t; // update tMax to conserve the nearest hit
-            hit = true;
-        }*/
 
         return hit;
     }
 
     D_FORCEINLINE bool intersectAny(const float3 &origin, const float3 &direction, const float p_tMin, const float p_tMax) const
     {
-        for (int i = 0; i < nbPlanes; ++i)
-        {
-            if (planes[i].intersectAny(origin, direction, p_tMin, p_tMax, materials))
-            {
-                return true;
-            }
-        }
-        if (bvhScene.intersectAny(origin, direction, p_tMin, p_tMax, materials))
-        {
-            return true;
-        }
         return false;
     }
 
     D_FORCEINLINE float3 traceShadowRay(const float3 &origin, const float3 &direction, const float p_tMin, const float p_tMax) const
     {
+        
         float3 shadowColor = make_float3(1.f);
         float remainingDistance = p_tMax;
         float3 originT = origin;
         float3 directionT = direction;
-
+        return shadowColor;
         // Trace through up to 2 transparent surfaces
-        for (int bounce = 0; bounce < 2; ++bounce)
+        /*for (int bounce = 0; bounce < 2; ++bounce)
         {
             OptixHit hit;
 
@@ -190,7 +160,7 @@ struct CudaScene
         }
 
         // After max bounces, assume ray reached the light
-        return shadowColor;
+        return shadowColor;*/
     }
 
     D_FORCEINLINE float lightPdf(const float3 &origin, const float3 &dir) const
@@ -242,7 +212,7 @@ struct CudaScene
         {
             const TriangleMesh &mesh = triangleMeshes[hit.objectIndex];
 
-            const float cosTheta = fmaxf(dot(hit.normal, -dir), 0.0f);
+            const float cosTheta = fmaxf(dot4f3(hit.normal, -dir), 0.0f);
 
             if (cosTheta <= 0.0f)
                 return 0.0f;

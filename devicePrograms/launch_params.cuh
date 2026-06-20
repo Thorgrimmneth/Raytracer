@@ -8,30 +8,15 @@
 #include "../src/renderingGPU/raytracingUtils/ray.cuh"
 #include "../src/renderingGPU/utils/op.cuh"
 
+// Minimal hit record for internal scene queries (lightPdf, etc)
 struct OptixHit
 {
-    float3 position;
-    float3 normal;
-
+    float4 position;
+    float4 normal;
     float t;
-
     int materialIndex;
     int objectIndex;
     HitObjectType objectType;
-
-    D_FORCEINLINE void setHitInfo(const float3 &p, const float3 &n, float distance, int matIndex, int objIndex,
-                                  HitObjectType objType)
-    {
-        position = p;
-        t = distance;
-        normal = n;
-        materialIndex = matIndex;
-        objectIndex = objIndex;
-        objectType = objType;
-    }
-    
-
-    D_FORCEINLINE void faceNormal(const float3 &direction) { normal = dot(direction, normal) < 0.f ? normal : -normal; }
 };
 
 struct LaunchParams
@@ -39,7 +24,10 @@ struct LaunchParams
     float3* origins = nullptr;
     float4* directions = nullptr;
 
-    OptixHit* hits = nullptr;
+    // Hit data in SoA format (only relevant fields for active kernels)
+    float4* hitPositions = nullptr;
+    float4* hitNormals = nullptr;
+    int* hitMaterialIndices = nullptr;
     
     int* hitMask = nullptr;
 

@@ -29,9 +29,10 @@ struct Sphere
         center2.w = intBitsToFloat(materialIndex);
     }
 
-    D_FORCEINLINE 
+    /*D_FORCEINLINE 
     bool intersect(const float3 &origin, const float3 &direction, const float tMin, const float tMax, OptixHit &hit) const
     {
+        return false;
         const float3 center = getCenter1() + 0.f * (getCenter2() - getCenter1()); // 0.f = time
 
         const float3 oc = origin - center;
@@ -80,7 +81,7 @@ struct Sphere
             t = -half_b + sqrtDelta;
 
         return t >= tMin && t <= tMax;
-    }
+    }*/
 
     D_FORCEINLINE 
     float3 computeNormal(const float3 &point, const double time) const

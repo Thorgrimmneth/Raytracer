@@ -76,7 +76,7 @@ struct BVHScene
     HOST 
     size_t getDeviceSize() const;
 
-    D_FORCEINLINE 
+    /*D_FORCEINLINE 
     bool intersect(const float3& origin, const float3 &direction, const float tMin, const float tMaxInit, OptixHit &hit) const
     {
         constexpr int STACK_SIZE = 32;
@@ -314,5 +314,5 @@ struct BVHScene
         }
 
         return false;
-    }
+    }*/
 };

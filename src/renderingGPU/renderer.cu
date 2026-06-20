@@ -86,7 +86,11 @@ class Renderer::Impl
     float3 *d_origins = nullptr;
     float4 *d_directions = nullptr;
 
-    OptixHit *d_hits = nullptr;
+    // Hit data in SoA format
+    float4 *d_hitPositions = nullptr;
+    float4 *d_hitNormals = nullptr;
+    int *d_hitMaterialIndices = nullptr;
+    
     int *d_hitMask = nullptr;
 
     int *d_missQueue = nullptr;
@@ -282,7 +286,9 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
 
     cudaMalloc(&impl->d_origins, impl->hdrBufferSize);
     cudaMalloc(&impl->d_directions, pixelCount * sizeof(float4));
-    cudaMalloc(&impl->d_hits, pixelCount * sizeof(OptixHit));
+    cudaMalloc(&impl->d_hitPositions, pixelCount * sizeof(float4));
+    cudaMalloc(&impl->d_hitNormals, pixelCount * sizeof(float4));
+    cudaMalloc(&impl->d_hitMaterialIndices, pixelCount * sizeof(int));
     cudaMalloc(&impl->d_hitMask, pixelCount * sizeof(int));
     cudaMalloc(&impl->d_activeQueue, pixelCount * sizeof(int));
     cudaMalloc(&impl->d_nextActiveQueue, pixelCount * sizeof(int));
@@ -567,7 +573,7 @@ float Renderer::renderFrame(bool outputImage, bool convergence)
 
 GLOBAL
 void classifyMaterialKernel(CudaScene scene, const int *activeQueue, int activeCount, const int *hitMask,
-                            const OptixHit *hits, int *missQueue, int *missCount, int *lambertQueue, int *lambertCount,
+                            const int *hitMaterialIndices, int *missQueue, int *missCount, int *lambertQueue, int *lambertCount,
                             int *metalQueue, int *metalCount, int *plasticQueue, int *plasticCount, int *mirrorQueue,
                             int *mirrorCount, int *transparentQueue, int *transparentCount, int *emissiveQueue,
                             int *emissiveCount)
@@ -586,8 +592,8 @@ void classifyMaterialKernel(CudaScene scene, const int *activeQueue, int activeC
         return;
     }
 
-    const OptixHit &hit = hits[idx];
-    const Material &mtl = scene.materials[hit.materialIndex];
+    int materialIndex = hitMaterialIndices[idx];
+    const Material &mtl = scene.materials[materialIndex];
 
     switch (mtl.type())
     {
@@ -695,12 +701,15 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         cudaMemset(impl->d_plasticCount, 0, sizeof(int));
         cudaMemset(impl->d_mirrorCount, 0, sizeof(int));
         cudaMemset(impl->d_transparentCount, 0, sizeof(int));
+        cudaMemset(impl->d_emissiveCount, 0, sizeof(int));
         // ---------------------------------------------------------------------
         // 2.1 Intersection uniquement des rayons actifs
         // ---------------------------------------------------------------------
         impl->gpuScene.optixData.launchParams.origins = impl->d_origins;
         impl->gpuScene.optixData.launchParams.directions = impl->d_directions;
-        impl->gpuScene.optixData.launchParams.hits = impl->d_hits;
+        impl->gpuScene.optixData.launchParams.hitPositions = impl->d_hitPositions;
+        impl->gpuScene.optixData.launchParams.hitNormals = impl->d_hitNormals;
+        impl->gpuScene.optixData.launchParams.hitMaterialIndices = impl->d_hitMaterialIndices;
         impl->gpuScene.optixData.launchParams.hitMask = impl->d_hitMask;
         impl->gpuScene.optixData.launchParams.activeQueue = impl->d_activeQueue;
         impl->gpuScene.optixData.launchParams.activeCount = h_activeCount;
@@ -716,20 +725,10 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         // 2.2 Shading + compaction nextActiveQueue
         // ---------------------------------------------------------------------
         classifyMaterialKernel<<<gridForCount(h_activeCount), block1D>>>(
-            impl->gpuScene, impl->d_activeQueue, h_activeCount, impl->d_hitMask, impl->d_hits, impl->d_missQueue,
+            impl->gpuScene, impl->d_activeQueue, h_activeCount, impl->d_hitMask, impl->d_hitMaterialIndices, impl->d_missQueue,
             impl->d_missCount, impl->d_lambertQueue, impl->d_lambertCount, impl->d_metalQueue, impl->d_metalCount,
             impl->d_plasticQueue, impl->d_plasticCount, impl->d_mirrorQueue, impl->d_mirrorCount,
             impl->d_transparentQueue, impl->d_transparentCount, impl->d_emissiveQueue, impl->d_emissiveCount);
-
-        /*classifyRaysKernel<<<gridForCount(h_activeCount), block1D>>>(
-            impl->d_activeQueue, impl->d_hitMask, h_activeCount, impl->d_missQueue, impl->d_missCount,
-            impl->d_lambertQueue, impl->d_lambertCount);*/
-        /*
-        shadeWavefrontKernel<<<gridForCount(h_activeCount), block1D>>>(
-            impl->gpuScene, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_radiance,
-            impl->d_pixelIndices, impl->d_rng, impl->d_isInside, impl->d_lastBounceWasDelta, impl->d_lastBsdfPdf,
-            impl->d_hits, impl->d_hitMask, impl->d_activeQueue, h_activeCount, impl->d_nextActiveQueue,
-            impl->d_nextActiveCount, bounce == 0, bounce);*/
 
         int h_missCount = 0;
         int h_lambertCount = 0;
@@ -758,47 +757,51 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         {
             shadeLambertKernel<<<gridForCount(h_lambertCount), block1D>>>(
                 impl->gpuScene, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_radiance, impl->d_rng,
-                impl->d_hits, impl->d_lastBounceWasDelta, impl->d_lambertQueue, h_lambertCount, impl->d_nextActiveQueue, impl->d_nextActiveCount,
+                impl->d_hitPositions, impl->d_hitNormals, impl->d_hitMaterialIndices,
+                impl->d_lastBounceWasDelta, impl->d_lambertQueue, h_lambertCount, impl->d_nextActiveQueue, impl->d_nextActiveCount,
                 bounce);
         }
         if (h_metalCount > 0)
         {
             shadeMetalKernel<<<gridForCount(h_metalCount), block1D>>>(
                 impl->gpuScene, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_radiance, impl->d_rng,
-                impl->d_hits, impl->d_lastBounceWasDelta, impl->d_metalQueue, h_metalCount, impl->d_nextActiveQueue, impl->d_nextActiveCount,
+                impl->d_hitPositions, impl->d_hitNormals, impl->d_hitMaterialIndices,
+                impl->d_lastBounceWasDelta, impl->d_metalQueue, h_metalCount, impl->d_nextActiveQueue, impl->d_nextActiveCount,
                 bounce);
         }
         if (h_plasticCount > 0)
         {
             shadePlasticNEEKernel<<<gridForCount(h_plasticCount), block1D>>>(
                 impl->gpuScene, impl->d_directions, impl->d_throughput, impl->d_radiance, impl->d_rng,
-                impl->d_hits, impl->d_plasticQueue, h_plasticCount, impl->gpuScene.nbLights);
+                impl->d_hitPositions, impl->d_hitNormals, impl->d_hitMaterialIndices,
+                impl->d_plasticQueue, h_plasticCount, impl->gpuScene.nbLights);
 
             shadePlasticKernel<<<gridForCount(h_plasticCount), block1D>>>(
-                impl->gpuScene, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_rng,
-                impl->d_hits, impl->d_lastBounceWasDelta, impl->d_plasticQueue, h_plasticCount, impl->d_nextActiveQueue, impl->d_nextActiveCount,
+                impl->gpuScene.materials, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_rng,
+                impl->d_hitPositions, impl->d_hitNormals, impl->d_hitMaterialIndices,
+                impl->d_lastBounceWasDelta, impl->d_plasticQueue, h_plasticCount, impl->d_nextActiveQueue, impl->d_nextActiveCount,
                 bounce);
         }
         if (h_mirrorCount > 0)
         {
             shadeMirrorKernel<<<gridForCount(h_mirrorCount), block1D>>>(
                 impl->gpuScene, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_rng,
-                impl->d_lastBounceWasDelta, impl->d_lastBsdfPdf, impl->d_hits, impl->d_mirrorQueue, h_mirrorCount,
-                impl->d_nextActiveQueue, impl->d_nextActiveCount, bounce);
+                impl->d_lastBounceWasDelta, impl->d_lastBsdfPdf, impl->d_hitPositions, impl->d_hitNormals,
+                impl->d_hitMaterialIndices, impl->d_mirrorQueue, h_mirrorCount, impl->d_nextActiveQueue, impl->d_nextActiveCount, bounce);
         }
         if (h_transparentCount > 0)
         {
             shadeTransparentKernel<<<gridForCount(h_transparentCount), block1D>>>(
                 impl->gpuScene, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_rng, impl->d_isInside,
-                impl->d_lastBounceWasDelta, impl->d_lastBsdfPdf, impl->d_hits, impl->d_transparentQueue,
-                h_transparentCount, impl->d_nextActiveQueue, impl->d_nextActiveCount, bounce);
+                impl->d_lastBounceWasDelta, impl->d_lastBsdfPdf, impl->d_hitPositions, impl->d_hitNormals,
+                impl->d_hitMaterialIndices, impl->d_transparentQueue, h_transparentCount, impl->d_nextActiveQueue, impl->d_nextActiveCount, bounce);
         }
         if (h_emissiveCount > 0)
         {
             shadeEmissiveKernel<<<gridForCount(h_emissiveCount), block1D>>>(
                 impl->gpuScene, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_radiance,
-                impl->d_lastBounceWasDelta, impl->d_lastBsdfPdf, impl->d_hits, impl->d_hitMask, impl->d_emissiveQueue,
-                h_emissiveCount);
+                impl->d_lastBounceWasDelta, impl->d_lastBsdfPdf, impl->d_hitMaterialIndices,
+                impl->d_hitMask, impl->d_emissiveQueue, h_emissiveCount);
         }
 
         err = cudaGetLastError();
@@ -829,7 +832,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
     accumulateWavefrontKernel<<<gridAllPixels, block1D>>>(impl->d_pixelIndices, impl->d_radiance, impl->d_accumBuffer,
                                                           impl->width, impl->height);
 
-    cudaDeviceSynchronize(); // Assurer que tous les calculs sont terminés avant de vérifier les erreurs
+    cudaDeviceSynchronize();
     err = cudaGetLastError();
     if (err != cudaSuccess)
     {
@@ -1011,7 +1014,9 @@ void Renderer::cleanUp()
 
     cudaFree(impl->d_origins);
     cudaFree(impl->d_directions);
-    cudaFree(impl->d_hits);
+    cudaFree(impl->d_hitPositions);
+    cudaFree(impl->d_hitNormals);
+    cudaFree(impl->d_hitMaterialIndices);
     cudaFree(impl->d_hitMask);
     cudaFree(impl->d_activeQueue);
     cudaFree(impl->d_activeCount);
