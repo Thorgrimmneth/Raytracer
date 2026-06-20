@@ -572,7 +572,7 @@ float Renderer::renderFrame(bool outputImage, bool convergence)
 }
 
 GLOBAL
-void classifyMaterialKernel(CudaScene scene, const int *activeQueue, int activeCount, const int *hitMask,
+void classifyMaterialKernel(Material *materials, const int *activeQueue, int activeCount, const int *hitMask,
                             const int *hitMaterialIndices, int *missQueue, int *missCount, int *lambertQueue, int *lambertCount,
                             int *metalQueue, int *metalCount, int *plasticQueue, int *plasticCount, int *mirrorQueue,
                             int *mirrorCount, int *transparentQueue, int *transparentCount, int *emissiveQueue,
@@ -593,7 +593,7 @@ void classifyMaterialKernel(CudaScene scene, const int *activeQueue, int activeC
     }
 
     int materialIndex = hitMaterialIndices[idx];
-    const Material &mtl = scene.materials[materialIndex];
+    const Material &mtl = materials[materialIndex];
 
     switch (mtl.type())
     {
@@ -725,7 +725,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         // 2.2 Shading + compaction nextActiveQueue
         // ---------------------------------------------------------------------
         classifyMaterialKernel<<<gridForCount(h_activeCount), block1D>>>(
-            impl->gpuScene, impl->d_activeQueue, h_activeCount, impl->d_hitMask, impl->d_hitMaterialIndices, impl->d_missQueue,
+            impl->gpuScene.materials, impl->d_activeQueue, h_activeCount, impl->d_hitMask, impl->d_hitMaterialIndices, impl->d_missQueue,
             impl->d_missCount, impl->d_lambertQueue, impl->d_lambertCount, impl->d_metalQueue, impl->d_metalCount,
             impl->d_plasticQueue, impl->d_plasticCount, impl->d_mirrorQueue, impl->d_mirrorCount,
             impl->d_transparentQueue, impl->d_transparentCount, impl->d_emissiveQueue, impl->d_emissiveCount);
@@ -774,7 +774,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
             shadePlasticNEEKernel<<<gridForCount(h_plasticCount), block1D>>>(
                 impl->gpuScene, impl->d_directions, impl->d_throughput, impl->d_radiance, impl->d_rng,
                 impl->d_hitPositions, impl->d_hitNormals, impl->d_hitMaterialIndices,
-                impl->d_plasticQueue, h_plasticCount, impl->gpuScene.nbLights);
+                impl->d_plasticQueue, h_plasticCount, impl->gpuScene.nbLights, impl->gpuScene.lightCumulativeWeights);
 
             shadePlasticKernel<<<gridForCount(h_plasticCount), block1D>>>(
                 impl->gpuScene.materials, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_rng,

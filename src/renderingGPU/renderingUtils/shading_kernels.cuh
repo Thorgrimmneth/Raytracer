@@ -30,7 +30,7 @@ __global__ void shadeMetalKernel(CudaScene scene, float4 *origins, float4 *direc
 
 __global__ void shadePlasticNEEKernel(CudaScene &scene, float4 *directions, float4 *p_throughput, float3 *p_radiance,
                                       RNG *p_rng, float4 *p_hitPositions, float4 *p_hitNormals,
-                                      int *p_hitMaterialIndices, const int *hitQueue, int hitCount, int nbLights);
+                                      int *p_hitMaterialIndices, const int *hitQueue, int hitCount, int nbLights, float *lightWeights);
 
 __global__ void shadePlasticKernel(Material *materials, float4 *origins, float4 *directions, float4 *p_throughput,
                                    RNG *p_rng, float4 *p_hitPositions, float4 *p_hitNormals, int *p_hitMaterialIndices,

@@ -349,9 +349,10 @@ __global__ void shadeMissKernel(float4 *origins, float4 *directions, float4 *thr
     const int sunSamples = 4;
     const float sunSegmentLength = 15000.f;
     const float3 sunDirSegLength = sunDirection * sunSegmentLength;
+    float3 samplePosition = origin + direction * (segmentLength * 0.5f);
     for (int i = 0; i < skyColorSamples; ++i)
     {
-        float3 samplePosition = origin + direction * (tCurrent + segmentLength * 0.5f);
+        samplePosition += make_float3(direction * segmentLength);
 
         float height = fmaxf(samplePosition.y, 0.0f);
 
@@ -651,88 +652,85 @@ __global__ void shadeMetalKernel(CudaScene scene, float4 *origins, float4 *direc
 
 __global__ void shadePlasticNEEKernel(CudaScene &scene, float4 *directions, float4 *p_throughput, float3 *p_radiance,
                                       RNG *p_rng, float4 *p_hitPositions, float4 *p_hitNormals,
-                                      int *p_hitMaterialIndices, const int *hitQueue, int hitCount, int nbLights)
+                                      int *p_hitMaterialIndices, const int *hitQueue, int hitCount, int nbLights, float *lightWeights)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (qid >= hitCount)
+    if (qid >= hitCount || nbLights <= 0) // Early exit for empty light lists
         return;
 
     int idx = hitQueue[qid];
 
-    float4 dir4 = directions[idx];
-    float4 thru4 = p_throughput[idx];
-    float3 throughput = make_float3(thru4);
-
     float3 pos = make_float3(p_hitPositions[idx]);
-    int materialIndex = p_hitMaterialIndices[idx];
     float3 normal = make_float3(p_hitNormals[idx]);
+    int materialIndex = p_hitMaterialIndices[idx];
     Material &mtl = scene.materials[materialIndex];
-
     RNG &rng = p_rng[idx];
 
-    if (nbLights > 0)
+    int lightIndex = 0;
+    float totalWeight = lightWeights[nbLights - 1];
+
+    if (totalWeight > 0.0f)
     {
-        int lightIndex = 0;
-
-        // Get total weight from last entry
-        float totalWeight = scene.lightCumulativeWeights[scene.nbLights - 1];
-
-        if (totalWeight <= 0.0f)
+        float random = rng.nextFloat() * totalWeight;
+        int left = 0, right = nbLights - 1;
+        for (int i = 0; i < 10 && left < right; i++)
         {
-            // Fallback to uniform selection if no lights have intensity
-            lightIndex = min(int(rng.nextFloat() * scene.nbLights), nbLights - 1);
+            int mid = (left + right) >> 1; // Faster than division
+            if (lightWeights[mid] < random)
+                left = mid + 1;
+            else
+                right = mid;
         }
-        else
-        {
-            // Binary search in cumulative weights array
-            float random = rng.nextFloat() * totalWeight;
-
-            int left = 0;
-            int right = nbLights - 1;
-
-            while (left < right)
-            {
-                int mid = (left + right) / 2;
-                if (scene.lightCumulativeWeights[mid] < random)
-                    left = mid + 1;
-                else
-                    right = mid;
-            }
-            lightIndex = left;
-        }
-
-        const Light &light = scene.lights[lightIndex];
-
-        LightSample ls = light.sample(pos, rng, scene);
-
-        if (ls.pdf > 0.f)
-        {
-
-            float3 shadowTint = scene.traceShadowRay(pos + normal * 1e-3f, ls.direction, 1e-3f, ls.distance - 1e-3f);
-
-            if (length(shadowTint) > 1e-6f)
-            {
-                float cosTheta = fmaxf(dot(normal, ls.direction), 0.0f);
-
-                if (cosTheta > 0.f)
-                {
-                    float3 direction = make_float3(dir4);
-                    float3 f = mtl.evalPlasticBSDF(direction, normal, ls.direction);
-                    float pdf_bsdf = mtl.plasticPDF(direction, normal, ls.direction);
-                    float lightSelectionProb = (lightIndex >= nbLights) ? 1.f : scene.lightProbabilities[lightIndex];
-                    float pdf_light = ls.pdf * lightSelectionProb;
-
-                    if (pdf_light > 0.f)
-                    {
-                        float w = powerHeuristic(pdf_light, pdf_bsdf);
-                        p_radiance[idx] += throughput * f * ls.radiance * shadowTint * cosTheta * w / pdf_light;
-                    }
-                }
-            }
-        }
+        lightIndex = left;
     }
+    else
+    {
+        lightIndex = min(int(rng.nextFloat() * nbLights), nbLights - 1);
+    }
+
+    // Sample light once, reuse result
+    LightSample ls = scene.lights[lightIndex].sample(pos, rng, scene); //lots of registers
+
+    if (ls.pdf <= 0.f) // Early exit for invalid samples
+        return;
+
+    float cosTheta = fmaxf(dot(normal, ls.direction), 0.0f);
+    if (cosTheta <= 0.f) // Early exit for backfacing
+        return;
+
+    // Compute shadow ray - reuse temporary space efficiently
+    float3 shadowTint = scene.traceShadowRay(pos + normal * 1e-3f, ls.direction, 1e-3f, ls.distance - 1e-3f);
+
+    // Inline length check to avoid storing shadowTint if not needed
+    if (shadowTint.x <= 1e-6f && shadowTint.y <= 1e-6f && shadowTint.z <= 1e-6f)
+        return;
+
+    // Only unpack direction when needed
+    float3 direction = make_float3(directions[idx]);
+
+    // Compute BSDF contributions - interleave to help dependency chain
+    float3 f = mtl.evalPlasticBSDF(direction, normal, ls.direction);
+    float pdf_bsdf = mtl.plasticPDF(direction, normal, ls.direction);
+
+    // Early exit for zero BSDF
+    if (f.x <= 0.f && f.y <= 0.f && f.z <= 0.f)
+        return;
+
+    float lightSelectionProb = scene.lightProbabilities[lightIndex];
+    float pdf_light = ls.pdf * lightSelectionProb;
+
+    if (pdf_light <= 0.f)
+        return;
+
+    // Final computation - combine terms efficiently
+    float w = powerHeuristic(pdf_light, pdf_bsdf);
+    float3 throughput = make_float3(p_throughput[idx]);
+
+    // Compute contribution inline without extra temporaries
+    p_radiance[idx] += throughput * (f * ls.radiance * shadowTint) * (cosTheta * w / pdf_light);
 }
+
 __global__ void shadePlasticKernel(Material *materials,
                                    float4 *origins, // float4 pour coalescence
                                    float4 *directions,
@@ -885,10 +883,10 @@ __global__ void shadePlasticKernel(Material *materials,
     nextActiveQueue[dst] = idx;
 }
 
-__global__ void shadeMirrorKernel(CudaScene scene, float4 *origins, float4 *directions, float4 *p_throughput, RNG *p_rng,
-                                 bool *p_lastBounceWasDelta, float *p_lastBsdfPdf, float4 *p_hitPositions,
-                                 float4 *p_hitNormals, int *p_hitMaterialIndices, const int *hitQueue, int hitCount,
-                                 int *nextActiveQueue, int *nextActiveCount, uint depth)
+__global__ void shadeMirrorKernel(CudaScene scene, float4 *origins, float4 *directions, float4 *p_throughput,
+                                  RNG *p_rng, bool *p_lastBounceWasDelta, float *p_lastBsdfPdf, float4 *p_hitPositions,
+                                  float4 *p_hitNormals, int *p_hitMaterialIndices, const int *hitQueue, int hitCount,
+                                  int *nextActiveQueue, int *nextActiveCount, uint depth)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
 
