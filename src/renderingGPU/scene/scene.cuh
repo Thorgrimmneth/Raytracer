@@ -112,12 +112,13 @@ struct CudaScene
     {
         
         float3 shadowColor = make_float3(1.f);
-        float remainingDistance = p_tMax;
+        return shadowColor;
+        /*float remainingDistance = p_tMax;
         float3 originT = origin;
         float3 directionT = direction;
-        return shadowColor;
+        
         // Trace through up to 2 transparent surfaces
-        /*for (int bounce = 0; bounce < 2; ++bounce)
+        for (int bounce = 0; bounce < 2; ++bounce)
         {
             OptixHit hit;
 

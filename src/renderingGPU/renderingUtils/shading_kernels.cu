@@ -1,314 +1,5 @@
 #include "shading_kernels.cuh"
 
-/*
-__global__ void shadeWavefrontKernel(CudaScene &scene, float3 *origins, float4 *directions, float3 *p_throughput,
-                                     float3 *p_radiance, int *pixelIndices, RNG *p_rng, bool *p_isInside,
-                                     bool *p_lastBounceWasDelta, float *p_lastBsdfPdf, OptixHit *p_hits, int *hitMask,
-                                     const int *activeQueue, int activeCount, int *nextActiveQueue,
-                                     int *nextActiveCount, bool safeSun, uint depth)
-{
-    int qid = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (qid >= activeCount)
-        return;
-
-    int idx = activeQueue[qid];
-
-    float3 &throughput = p_throughput[idx];
-    float3 &radiance = p_radiance[idx];
-    RNG &rng = p_rng[idx];
-    bool &isInside = p_isInside[idx];
-    bool &lastBounceWasDelta = p_lastBounceWasDelta[idx];
-    float &lastBsdfPdf = p_lastBsdfPdf[idx];
-
-    float3 &origin = origins[idx];
-    float3 direction = make_float3(directions[idx]);
-
-    // ------------------------------------------------------------
-    // MISS / SKY
-    // ------------------------------------------------------------
-    if (!hitMask[idx])
-    {
-
-        // float mult = lerp(1.f, 20.f, (max(-0.4f,sunDir.y) + 0.4)/1.4f);
-        float t = clamp((sunDirection.y + 0.4f) / 1.4f, 0.0f, 1.0f);
-
-        const float horizonFade = smoothstep(-0.05f, 0.02f, direction.y);
-
-        if (horizonFade <= 0.0f)
-        {
-            return;
-        }
-
-        float segmentLength = sizeAtmosphere / skyColorSamples;
-        float tCurrent = 0.0f;
-
-        float3 sumR = make_float3(0.f);
-        float3 sumM = make_float3(0.f);
-
-        float opticalDepthR = 0.0f;
-        float opticalDepthM = 0.0f;
-
-        float mu = dot(direction, sunDirection);
-
-        // float g = 0.76f;
-
-        float mu2Term = 1.0f + mu * mu;
-
-        float phaseR = 0.0596831f * mu2Term;
-        // float phaseR = (3.0f / (16.0f * GPUPIf)) * (1.0f + mu * mu);
-
-        float temp = 1.5776f - 1.52f * mu;
-        // float temp = 1.0f + g * g - 2.0f * g * mu;
-
-        // float phaseM = (3.0f / (8.0f * GPUPIf)) * ((1.0f - g * g) * (1.0f + mu * mu)) / ((2.0f + g * g) * temp *
-        // sqrtf(temp));
-        float phaseM = 0.0195609427f * mu2Term * rsqrtf(temp) / temp;
-
-        const int sunSamples = 4;
-        float sunSegmentLength = 15000.f;
-
-        for (int i = 0; i < skyColorSamples; ++i)
-        {
-            float3 samplePosition = origin + direction * (tCurrent + segmentLength * 0.5f);
-
-            float height = fmaxf(samplePosition.y, 0.0f);
-
-            float hrLocal = __expf(-height * hr);
-            float hmLocal = __expf(-height * hm);
-
-            opticalDepthR += hrLocal * segmentLength;
-            opticalDepthM += hmLocal * segmentLength;
-
-            float3 sunSamplePosition = samplePosition;
-
-            float opticalDepthLightR = 0.0f;
-            float opticalDepthLightM = 0.0f;
-
-            for (int j = 0; j < sunSamples; ++j)
-            {
-                sunSamplePosition += sunDirection * sunSegmentLength;
-
-                float heightLight = fmaxf(sunSamplePosition.y, 0.0f);
-
-                opticalDepthLightR += __expf(-heightLight * hr) * sunSegmentLength;
-                opticalDepthLightM += __expf(-heightLight * hm) * sunSegmentLength;
-            }
-
-            float3 mTau =
-                -(betaR * (opticalDepthR + opticalDepthLightR) + betaM * (opticalDepthM + opticalDepthLightM));
-
-            float3 attenuation = make_float3(__expf(mTau.x), __expf(mTau.y), __expf(mTau.z));
-
-            sumR += attenuation * hrLocal * segmentLength;
-            sumM += attenuation * hmLocal * segmentLength;
-
-            tCurrent += segmentLength;
-        }
-
-        float3 sky = sumR * betaR * phaseR + sumM * betaM * phaseM * 0.3f;
-
-        float sunAngularRadius = 2.1f * GPUPIf / 180.f;
-        float cosTheta = dot(direction, sunDirection);
-
-        float sunDisk = smoothstep(cos(sunAngularRadius), cos(sunAngularRadius * 0.5f), cosTheta);
-
-        float sunset = (1.f - t) * (1.f - t);
-        float3 sunColor = lerp(make_float3(30.f, 27.f, 24.f), make_float3(60.f, 25.f, 10.f), sunset);
-        if (!safeSun)
-        {
-            sunColor = clamp(sunColor, make_float3(0.f), make_float3(1.f));
-        }
-        sky += sunColor * sunDisk;
-
-        float mult = 1.0f + 19.0f * t * t * t;
-        sky = sky * mult * horizonFade;
-
-        radiance += throughput * sky;
-
-        return;
-    }
-
-    // ------------------------------------------------------------
-    // HIT
-    // ------------------------------------------------------------
-
-    OptixHit &hit = p_hits[idx];
-    Material &mtl = scene.materials[hit.materialIndex];
-
-    // ------------------------------------------------------------
-    // EMISSIVE
-    // ------------------------------------------------------------
-    if (mtl.type() == EMISSIVE)
-    {
-        float3 emission = mtl.color() * mtl.intensity();
-
-        if (lastBounceWasDelta)
-        {
-            radiance += throughput * emission;
-        }
-        else
-        {
-            float lightPdf = scene.lightPdf(origin, direction);
-
-            float w = powerHeuristic(lastBsdfPdf, lightPdf);
-
-            radiance += throughput * emission * w;
-        }
-
-        return;
-    }
-
-    BSDFVal bsdf;
-    float3 &normal = hit.normal;
-    switch (mtl.type())
-    {
-    case LAMBERT:
-        bsdf = mtl.getLambertBSDF(direction, normal, rng);
-        break;
-
-    case METAL:
-        bsdf = mtl.getMetalBSDF(direction, normal, rng);
-        break;
-
-    case PLASTIC:
-        bsdf = mtl.getPlasticBSDF(direction, normal, rng);
-        break;
-
-    case MIRROR:
-        bsdf = mtl.getMirrorBSDF(direction, normal);
-        break;
-
-    case TRANSPARENT:
-        bsdf = mtl.getTransparentBSDF(direction, normal, rng, isInside);
-        break;
-
-    default:
-        return;
-    }
-
-    if (bsdf.pdf <= 1e-4f)
-    {
-        return;
-    }
-
-    // ------------------------------------------------------------
-    // DIRECT LIGHTING / NEE
-    // Seulement pour les matériaux non-delta.
-    // ------------------------------------------------------------
-
-    if (!bsdf.isDelta && scene.nbLights > 0)
-    {
-        int lightIndex = selectLightByImportance(scene, rng);
-
-        float lightSelectionProb = getLightProbability(scene.nbLights, scene.lightProbabilities, lightIndex);
-
-        const Light &light = scene.lights[lightIndex];
-
-        LightSample ls = light.sample(hit.position, rng, scene);
-
-        if (ls.pdf > 0.f)
-        {
-
-            float3 shadowTint =
-                scene.traceShadowRay(hit.position + hit.normal * 1e-3f, ls.direction, 1e-3f, ls.distance - 1e-3f);
-
-            if (length(shadowTint) > 1e-6f)
-            {
-                float cosTheta = fmaxf(dot(hit.normal, ls.direction), 0.0f);
-
-                if (cosTheta > 0.f)
-                {
-                    float3 f;
-                    float pdf_bsdf;
-
-                    switch (mtl.type())
-                    {
-                    case LAMBERT:
-                        f = mtl.evalLambertBSDF();
-                        pdf_bsdf = mtl.lambertPDF(direction, normal, ls.direction);
-                        break;
-
-                    case METAL:
-                        f = mtl.evalMetalBSDF(direction, normal, ls.direction);
-                        pdf_bsdf = mtl.metalPDF(direction, normal, ls.direction);
-                        break;
-
-                    case PLASTIC:
-                        f = mtl.evalPlasticBSDF(direction, normal, ls.direction);
-                        pdf_bsdf = mtl.plasticPDF(direction, normal, ls.direction);
-                        break;
-
-                    default:
-                        f = make_float3(0.f);
-                        pdf_bsdf = 0.f;
-                        break;
-                    }
-
-                    float pdf_light = ls.pdf * lightSelectionProb;
-
-                    if (pdf_light > 0.f)
-                    {
-                        float w = powerHeuristic(pdf_light, pdf_bsdf);
-
-                        radiance += throughput * f * ls.radiance * shadowTint * cosTheta * w / pdf_light;
-                    }
-                }
-            }
-        }
-    }
-
-    // ------------------------------------------------------------
-    // UPDATE THROUGHPUT
-    // ------------------------------------------------------------
-
-    if (bsdf.isDelta)
-    {
-        throughput *= bsdf.brdf;
-    }
-    else
-    {
-        float cosTheta = fmaxf(dot(hit.normal, bsdf.direction), 0.0f);
-
-        throughput *= bsdf.brdf * cosTheta / bsdf.pdf;
-    }
-
-    // ------------------------------------------------------------
-    // NEXT origin, direction
-    // ------------------------------------------------------------
-    float3 dir = bsdf.direction;
-    origin = hit.position + dir * 1e-3f;
-    directions[idx] = make_float4(dir, 0.f);
-
-    lastBounceWasDelta = bsdf.isDelta;
-    lastBsdfPdf = bsdf.pdf;
-
-    // ------------------------------------------------------------
-    // RUSSIAN ROULETTE
-    // ------------------------------------------------------------
-
-    if (depth > 2)
-    {
-        float p = fmaxf(throughput.x, fmaxf(throughput.y, throughput.z));
-
-        p = clamp(p, 0.1f, 1.f);
-
-        if (rng.nextFloat() > p)
-        {
-            return;
-        }
-
-        throughput /= p;
-    }
-
-    // ------------------------------------------------------------
-    // COMPACT NEXT ACTIVE QUEUE
-    // ------------------------------------------------------------
-
-    int dst = atomicAdd(nextActiveCount, 1);
-    nextActiveQueue[dst] = idx;
-}*/
-
 __global__ void shadeMissKernel(float4 *origins, float4 *directions, float4 *throughput, float3 *radiance,
                                 const int *missQueue, int missCount, bool safeSun)
 {
@@ -746,19 +437,13 @@ __global__ void shadePlasticKernel(Material *materials,
 
     int idx = hitQueue[qid];
 
-    // Load une seule fois (évite les re-lectures)
-    float4 pos4 = hitPositions[idx];
-    float4 normal4 = hitNormals[idx];
-    float4 dir4 = directions[idx];
-    float4 thru4 = throughput[idx];
     int matIdx = hitMaterialIndices[idx];
     RNG rng_local = rng[idx];
 
     // Extraire composantes (le compilateur optimise ça en registres)
-    float3 pos = make_float3(pos4);
-    float3 normal = make_float3(normal4);
-    float3 dir = make_float3(dir4);
-    float3 thru = make_float3(thru4);
+    float3 normal = make_float3(hitNormals[idx]);
+    float3 dir = make_float3(directions[idx]);
+    float3 thru = make_float3(throughput[idx]);
 
     // Material inline (pas de struct en mémoire)
     float alpha = materials[matIdx].alpha();
@@ -784,7 +469,7 @@ __global__ void shadePlasticKernel(Material *materials,
     float3 newDir;
     float3 brdf;
     float pdf;
-
+    float cosThetaNew;
     if (rng_local.nextFloat() < specW)
     {
         // SPECULAR (GGX)
@@ -810,8 +495,8 @@ __global__ void shadePlasticKernel(Material *materials,
         float3 H = h.x * T + h.y * B + h.z * normal;
 
         newDir = reflect(-wo, H);
-
-        if (dot(normal, newDir) <= 0.f)
+        cosThetaNew = dot(normal, newDir);
+        if (cosThetaNew <= 0.f)
         {
             pdf = 0.f;
             brdf = make_float3(0.f);
@@ -820,8 +505,8 @@ __global__ void shadePlasticKernel(Material *materials,
         {
             // Évaluer GGX sans redondance
             float NdotH = dot(normal, H);
-            float NdotV = dot(normal, wo);
-            float NdotL = dot(normal, newDir);
+            float NdotV = cosThetaView;
+            float NdotL = cosThetaNew;
             float HdotV = dot(H, wo);
 
             // Calculer D, G, F en une passe
@@ -849,9 +534,12 @@ __global__ void shadePlasticKernel(Material *materials,
         float phi = 2.f * GPUPIf * e2;
         float sint = r;
         float cost = sqrtf(1.f - sint * sint);
-        newDir = normalize(sint * cosf(phi) * T + sint * sinf(phi) * B + cost * normal);
+        float s,c;
+        sincosf(phi, &s, &c);
+        newDir = sint * c * T + sint * s * B + cost * normal;
         brdf = baseColor * GPUInvPIf;
-        pdf = (1.f - specW) * fmaxf(dot(normal, newDir), 0.f) * GPUInvPIf;
+        cosThetaNew = dot(normal, newDir);
+        pdf = (1.f - specW) * fmaxf(cosThetaNew, 0.f) * GPUInvPIf;
     }
 
     // === EARLY EXIT ===
@@ -859,7 +547,7 @@ __global__ void shadePlasticKernel(Material *materials,
         return;
 
     // === UPDATE THROUGHPUT ===
-    float cosTheta = fmaxf(dot(normal, newDir), 0.f);
+    float cosTheta = fmaxf(cosThetaNew, 0.f);
     thru *= brdf * cosTheta / pdf;
 
     // === RUSSIAN ROULETTE ===
@@ -873,9 +561,9 @@ __global__ void shadePlasticKernel(Material *materials,
     }
 
     // === WRITE BACK (une seule fois, coalescé) ===
-    origins[idx] = make_float4(pos + newDir * 1e-3f, 0.f);
+    origins[idx] = hitPositions[idx] + make_float4(newDir * 1e-3f,0.f);
     directions[idx] = make_float4(newDir, 0.f);
-    throughput[idx] = make_float4(thru, thru4.w); // Préserver le .w
+    throughput[idx] = make_float4(thru, 0.f); // Préserver le .w
     lastBounceWasDelta[idx] = false;
 
     // === QUEUE DISPATCH ===
