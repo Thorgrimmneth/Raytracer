@@ -141,12 +141,12 @@ __global__ void shadeLambertKernel(CudaScene scene, float3 *origins, float3 *dir
     // DIRECT LIGHTING / NEE
     // Seulement pour les matériaux non-delta.
     // ------------------------------------------------------------
-
-    if (scene.nbLights > 0)
+    int nbLights = scene.nbLights;
+    if (nbLights > 0)
     {
-        int lightIndex = selectLightByImportance(scene, rng);
+        int lightIndex = selectLightByImportance(nbLights, scene.lightCumulativeWeights, rng);
 
-        float lightSelectionProb = getLightProbability(scene.nbLights, scene.lightProbabilities, lightIndex);
+        float lightSelectionProb = getLightProbability(nbLights, scene.lightProbabilities, lightIndex);
 
         const Light &light = scene.lights[lightIndex];
 
@@ -259,11 +259,12 @@ __global__ void shadeMetalKernel(CudaScene scene, float3 *origins, float3 *direc
     // Seulement pour les matériaux non-delta.
     // ------------------------------------------------------------
 
-    if (scene.nbLights > 0)
+    int nbLights = scene.nbLights;
+    if (nbLights > 0)
     {
-        int lightIndex = selectLightByImportance(scene, rng);
+        int lightIndex = selectLightByImportance(nbLights, scene.lightCumulativeWeights, rng);
 
-        float lightSelectionProb = getLightProbability(scene.nbLights, scene.lightProbabilities, lightIndex);
+        float lightSelectionProb = getLightProbability(nbLights, scene.lightProbabilities, lightIndex);
 
         const Light &light = scene.lights[lightIndex];
 
@@ -467,6 +468,7 @@ __global__ void shadePlasticKernel(Material *materials,
     float3 brdf;
     float pdf;
     float cosThetaNew;
+    
     if (rng_local.nextFloat() < specW)
     {
         // SPECULAR (GGX)
@@ -474,12 +476,6 @@ __global__ void shadePlasticKernel(Material *materials,
         float Vx = dot(wo, T);
         float Vy = dot(wo, B);
         float Vz = dot(wo, normal);
-
-        // Normaliser inline sans struct
-        float lenV = rsqrtf(Vx * Vx + Vy * Vy + Vz * Vz + 1e-8f);
-        Vx *= lenV;
-        Vy *= lenV;
-        Vz *= lenV;
 
         // Stretch
         Vx *= alpha;
@@ -490,7 +486,7 @@ __global__ void shadePlasticKernel(Material *materials,
 
         // Transform back
         float3 H = h.x * T + h.y * B + h.z * normal;
-
+        float HdotV = dot(H, wo);
         newDir = reflect(-wo, H);
         cosThetaNew = dot(normal, newDir);
         if (cosThetaNew <= 0.f)
@@ -504,7 +500,6 @@ __global__ void shadePlasticKernel(Material *materials,
             float NdotH = dot(normal, H);
             float NdotV = cosThetaView;
             float NdotL = cosThetaNew;
-            float HdotV = dot(H, wo);
 
             // Calculer D, G, F en une passe
             float denom = fmaxf(NdotH * NdotH * (alphaSquared - 1.f) + 1.f, 1e-8f);
@@ -520,7 +515,7 @@ __global__ void shadePlasticKernel(Material *materials,
             float3 Fspec = make_float3(0.04f + 0.96f * cosT5_h);
 
             brdf = (D * G / fmaxf(4.f * NdotV * NdotL, 1e-8f)) * Fspec;
-            pdf = (dot(wo, H) > 0.f && NdotV > 0.f) ? G1V * D / fmaxf(4.f * NdotV, 1e-8f) : 0.f;
+            pdf = (HdotV > 0.f && NdotV > 0.f) ? G1V * D / fmaxf(4.f * NdotV, 1e-8f) : 0.f;
             pdf = specW * pdf + (1.f - specW) * fmaxf(NdotL, 0.f) * GPUInvPIf;
         }
     }
@@ -628,7 +623,7 @@ __global__ void shadeMirrorKernel(CudaScene scene, float3 *origins, float3 *dire
     float3 dir = bsdf.direction;
     origins[idx] = pos + dir * 1e-3f;
     directions[idx] = dir;
-
+    p_throughput[idx] = throughput;
     p_lastBounceWasDelta[idx] = true;
     p_lastBsdfPdf[idx] = bsdf.pdf;
 

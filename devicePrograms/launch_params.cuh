@@ -7,6 +7,7 @@
 #include "../src/renderingGPU/utils/objectType.h"
 #include "../src/renderingGPU/raytracingUtils/ray.cuh"
 #include "../src/renderingGPU/utils/op.cuh"
+#include "../src/renderingGPU/objects/triangle_mesh.cuh"
 
 // Minimal hit record for internal scene queries (lightPdf, etc)
 struct OptixHit
@@ -36,4 +37,8 @@ struct LaunchParams
     int activeCount = 0;
 
     OptixTraversableHandle traversable = 0;
+    
+    // Mesh instances for per-instance data lookup (material, geometry index, etc.)
+    MeshInstance* meshInstances = nullptr;
+    int nbMeshInstances = 0;
 };

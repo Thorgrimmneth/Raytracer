@@ -52,7 +52,7 @@ HOST void CudaScene::uploadObjects(CudaSceneHelper &helper)
     }
 
     // =========================
-    // Upload meshes
+    // Upload meshes (legacy)
     // =========================
     nbTriangleMeshes = helper.triangleMeshesGPU.size();
     if (nbTriangleMeshes > 0)
@@ -65,6 +65,36 @@ HOST void CudaScene::uploadObjects(CudaSceneHelper &helper)
     else
     {
         triangleMeshes = nullptr;
+    }
+
+    // =========================
+    // Upload mesh geometries (shared geometry data)
+    // =========================
+    nbMeshGeometries = helper.meshGeometriesGPU.size();
+    if (nbMeshGeometries > 0)
+    {
+        cudaMalloc(&meshGeometries, nbMeshGeometries * sizeof(MeshGeometry));
+        cudaMemcpy(meshGeometries, helper.meshGeometriesGPU.data(), nbMeshGeometries * sizeof(MeshGeometry),
+                   cudaMemcpyHostToDevice);
+    }
+    else
+    {
+        meshGeometries = nullptr;
+    }
+
+    // =========================
+    // Upload mesh instances (per-instance data with transforms and materials)
+    // =========================
+    nbMeshInstances = helper.meshInstancesGPU.size();
+    if (nbMeshInstances > 0)
+    {
+        cudaMalloc(&meshInstances, nbMeshInstances * sizeof(MeshInstance));
+        cudaMemcpy(meshInstances, helper.meshInstancesGPU.data(), nbMeshInstances * sizeof(MeshInstance),
+                   cudaMemcpyHostToDevice);
+    }
+    else
+    {
+        meshInstances = nullptr;
     }
 
     nbImplicitSpheres = helper.implicitSpheresGPU.size();
@@ -568,31 +598,76 @@ CudaScene singleObject(float4 sunDir)
     Light sun = createSun(sunDir, helper);
     helper.lightsGPU.push_back(sun);
 
-    Material emissive = Material::makeMaterial(make_float3(1.f, 0.f, 0.f), EMISSIVE, 0.f, 0.f, 1.f, 11.f);
-    helper.materialsGPU.push_back(emissive);
-    Material mirror = Material::makeMaterial(make_float3(1.f), MIRROR);
-    helper.materialsGPU.push_back(mirror);
-    Material transparent = Material::makeMaterial(make_float3(0.9f), TRANSPARENT, 0.f, 0.f, 1.5f);
-    helper.materialsGPU.push_back(transparent);
-    Material mat = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), LAMBERT, 1.0f);
-    helper.materialsGPU.push_back(mat);
-    Material matPlas = Material::randomPlastic();
-    helper.materialsGPU.push_back(matPlas);
+    /*for (int i = 0; i < 5; i++)
+    {
+        Material emissive = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), EMISSIVE,
+                                                   0.f, 0.f, 1.f, randomFloat() * 6.f + 5.f);
+        helper.materialsGPU.push_back(emissive);
+    }
+    for (int i = 0; i < 10; i++)
+    {
+        Material mirror = Material::makeMaterial(make_float3(1.f), MIRROR);
+        helper.materialsGPU.push_back(mirror);
+    }
 
-    Quaternion rotation = quaternionFromAxisAngle(make_float3(0.f, 1.f, 0.f), 0.f);
-    TriangleMesh mesh = loadTriangleMesh("data/bunny/Bunny.obj", 1, helper.triangleMeshesGPU.size(), make_float3(2.f),
-                                         rotation, make_float3(0.f));
-    helper.triangleMeshesGPU.push_back(mesh);
+    for (int i = 0; i < 10; i++)
+    {
+        Material transparent = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()),
+                                                      TRANSPARENT, 0.f, 0.f, 1.5f);
+        helper.materialsGPU.push_back(transparent);
+    }
+    for (int i = 0; i < 15; i++)
+    {
+        Material lambert =
+            Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), LAMBERT, 1.0f);
+        helper.materialsGPU.push_back(lambert);
+    }*/
+    
+    for (int i = 0; i < 10; i++)
+    {
+        Material metal = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), METAL,
+                                                randomFloat() * 0.5f);
+        helper.materialsGPU.push_back(metal);
+    }
+    /*
+    for (int i = 0; i < 10; i++)
+    {
+        Material plastic = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), PLASTIC,
+                                                  randomFloat() * 0.5f);
+        helper.materialsGPU.push_back(plastic);
+    }*/
 
+    // ===== MESH INSTANCING: Load geometry once, create multiple instances =====
+    // Load the dragon mesh geometry once (shared data)
+    MeshGeometry bunnyGeometry = loadMeshGeometry("data/bunny/Bunny.obj");
+    helper.meshGeometriesGPU.push_back(bunnyGeometry);
+    MeshGeometry dragonGeometry = loadMeshGeometry("data/dragon/dragon.obj", make_float3(10.f));
+    helper.meshGeometriesGPU.push_back(dragonGeometry);
+    int dragonGeometryIndex = 1; // Index of the loaded geometry
+
+    // Create 50 instances with different transforms and materials
+    for (int i = 0; i < 50; i++)
+    {
+        Quaternion rotation = quaternionFromAxisAngle(
+            make_float3(randomFloat() * 2.f, randomFloat() * 2.f, randomFloat() * 2.f), randomFloat() * 360.f);
+
+        float3 scale = make_float3(randomFloat() * 0.5f + 0.5f);
+        float3 translation =
+            make_float3(randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f, -randomFloat() * 10.f + 5.f);
+
+        int materialIndex = int(randomFloat() * helper.materialsGPU.size());
+
+        // Create an instance (no GPU allocation here, just structure setup)
+        MeshInstance instance = createMeshInstance(int(randomFloat() * 2.f), materialIndex, scale, rotation, translation);
+        helper.meshInstancesGPU.push_back(instance);
+    }
+
+    // Add ground plane
     Plane p = Plane(make_float3(0.f, 0.f, 0.f), make_float3(0.f, 1.f, 0.f));
-
     Material ground = Material::makeMaterial(make_float3(0.5f), LAMBERT, 1.0f);
     helper.materialsGPU.push_back(ground);
-    p.materialIndex = 4;
+    p.materialIndex = helper.materialsGPU.size() - 1;
     helper.triangleMeshesGPU.push_back(PlaneToMesh(p, 1000.f));
-
-    TriangleMesh mesh2 = loadTriangleMesh("data/bunny/Bunny.obj", 4, helper.triangleMeshesGPU.size(),
-    make_float3(2.f), rotation, make_float3(3.f, -2.f, 0.f)); helper.triangleMeshesGPU.push_back(mesh2);
 
     OptixContext context;
     OptixProgramGroupManager programGroupManager;
@@ -602,11 +677,57 @@ CudaScene singleObject(float4 sunDir)
     initOptix(context, programGroupManager, pipelineManager, launchParamsManager, "build/raygen.ptx", "build/miss.ptx",
               "build/closesthit.ptx");
 
-    sbtManager.create(programGroupManager, helper.triangleMeshesGPU);
+    // =========================
+    // Build list of all meshes for SBT (geometries + legacy meshes)
+    // =========================
+    std::vector<TriangleMesh> allMeshesForSBT;
 
-    // create GAS
+    // Add mesh geometries as TriangleMesh structures for SBT
+    for (const auto &geometry : helper.meshGeometriesGPU)
+    {
+        TriangleMesh tempMesh;
+        tempMesh.triangles = geometry.triangles;
+        tempMesh.vertices = geometry.vertices;
+        tempMesh.normals = geometry.normals;
+        tempMesh.uvs = geometry.uvs;
+        tempMesh.triangleCount = geometry.triangleCount;
+        tempMesh.vertexCount = geometry.vertexCount;
+        tempMesh.meshArea = geometry.meshArea;
+        tempMesh.triangleAreaCdf = geometry.triangleAreaCdf;
+        tempMesh.materialIndex = 0; // Will be determined per-instance
+        allMeshesForSBT.push_back(tempMesh);
+    }
+
+    // Add legacy triangle meshes
+    allMeshesForSBT.insert(allMeshesForSBT.end(), helper.triangleMeshesGPU.begin(), helper.triangleMeshesGPU.end());
+
+    sbtManager.create(programGroupManager, allMeshesForSBT);
+
+    // =========================
+    // Create GAS for shared mesh geometries
+    // =========================
     std::vector<OptixGAS> gasList;
 
+    // Create GAS for each unique mesh geometry
+    for (auto &geometry : helper.meshGeometriesGPU)
+    {
+        OptixGAS gas;
+        // Build GAS from the geometry's vertices and triangles
+        TriangleMesh tempMesh;
+        tempMesh.triangles = geometry.triangles;
+        tempMesh.vertices = geometry.vertices;
+        tempMesh.normals = geometry.normals;
+        tempMesh.uvs = geometry.uvs;
+        tempMesh.triangleCount = geometry.triangleCount;
+        tempMesh.vertexCount = geometry.vertexCount;
+        tempMesh.meshArea = geometry.meshArea;
+        tempMesh.triangleAreaCdf = geometry.triangleAreaCdf;
+
+        gas.build(context, tempMesh);
+        gasList.push_back(std::move(gas));
+    }
+
+    // Create GAS for legacy triangle meshes (like ground plane)
     for (auto &mesh : helper.triangleMeshesGPU)
     {
         OptixGAS gas;
@@ -614,25 +735,74 @@ CudaScene singleObject(float4 sunDir)
         gasList.push_back(std::move(gas));
     }
 
-    // create instances from GAS
+    // =========================
+    // Create instances from GAS with transformations
+    // =========================
     std::vector<OptixInstance> instances;
-    float transform[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
-    for (uint32_t i = 0; i < gasList.size(); ++i)
+    // Create instances for mesh instances with their transformations
+    for (uint32_t i = 0; i < helper.meshInstancesGPU.size(); ++i)
     {
+        const MeshInstance &meshInst = helper.meshInstancesGPU[i];
+
         OptixInstance instance{};
 
-        memcpy(instance.transform, transform, sizeof(transform));
+        // Create transformation matrix from quaternion, scale, and translation
+        float4 q = meshInst.rotation;
+        float x2 = q.x + q.x, y2 = q.y + q.y, z2 = q.z + q.z;
+        float xx = q.x * x2, xy = q.x * y2, xz = q.x * z2;
+        float yy = q.y * y2, yz = q.y * z2, zz = q.z * z2;
+        float wx = q.w * x2, wy = q.w * y2, wz = q.w * z2;
+
+        float r00 = 1.f - (yy + zz), r01 = xy - wz, r02 = xz + wy;
+        float r10 = xy + wz, r11 = 1.f - (xx + zz), r12 = yz - wx;
+        float r20 = xz - wy, r21 = yz + wx, r22 = 1.f - (xx + yy);
+
+        float3 s = meshInst.scale;
+        float3 t = meshInst.translation;
+
+        instance.transform[0] = r00 * s.x;
+        instance.transform[1] = r01 * s.y;
+        instance.transform[2] = r02 * s.z;
+        instance.transform[3] = t.x;
+        instance.transform[4] = r10 * s.x;
+        instance.transform[5] = r11 * s.y;
+        instance.transform[6] = r12 * s.z;
+        instance.transform[7] = t.y;
+        instance.transform[8] = r20 * s.x;
+        instance.transform[9] = r21 * s.y;
+        instance.transform[10] = r22 * s.z;
+        instance.transform[11] = t.z;
 
         instance.instanceId = i;
-        instance.sbtOffset = i;
+        instance.sbtOffset = meshInst.geometryIndex;
 
         instance.visibilityMask = 255;
         instance.flags = OPTIX_INSTANCE_FLAG_NONE;
 
-        instance.traversableHandle = gasList[i].handle;
+        instance.traversableHandle = gasList[meshInst.geometryIndex].handle;
 
         instances.push_back(instance);
     }
+
+    // Create instances for legacy triangle meshes (identity transform)
+    float identityTransform[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
+    for (uint32_t i = 0; i < helper.triangleMeshesGPU.size(); ++i)
+    {
+        OptixInstance instance{};
+
+        memcpy(instance.transform, identityTransform, sizeof(identityTransform));
+
+        instance.instanceId = helper.meshInstancesGPU.size() + i;
+        instance.sbtOffset = helper.meshGeometriesGPU.size() + i;
+
+        instance.visibilityMask = 255;
+        instance.flags = OPTIX_INSTANCE_FLAG_NONE;
+
+        instance.traversableHandle = gasList[helper.meshGeometriesGPU.size() + i].handle;
+
+        instances.push_back(instance);
+    }
+
     OptixIAS ias;
     ias.build(context.deviceContext, instances);
 
@@ -640,13 +810,24 @@ CudaScene singleObject(float4 sunDir)
     CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManager.d_params), &launchParamsManager.params,
                           sizeof(LaunchParams), cudaMemcpyHostToDevice));
 
+    
+    gpuScene.uploadObjects(helper);
+    gpuScene.uploadLights(helper);
+    gpuScene.uploadMaterials(helper);
+
+    // Now set mesh instances in launch params after uploadObjects has allocated them
+    if (gpuScene.meshInstances && gpuScene.nbMeshInstances > 0)
+    {
+        launchParamsManager.params.meshInstances = gpuScene.meshInstances;
+        launchParamsManager.params.nbMeshInstances = gpuScene.nbMeshInstances;
+        // Update launch params on GPU with mesh instance pointers
+        CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManager.d_params), &launchParamsManager.params,
+                              sizeof(LaunchParams), cudaMemcpyHostToDevice));
+    }
     gpuScene.optixData = OptixSceneData{
         pipelineManager.pipeline, sbtManager.sbt, launchParamsManager.d_params, launchParamsManager.params, ias.handle,
         ias.getBuffer(),          gasList};
     programGroupManager.destroy();
-    gpuScene.uploadObjects(helper);
-    gpuScene.uploadLights(helper);
-    gpuScene.uploadMaterials(helper);
     // gpuScene.sceneSize(helper);
     return gpuScene;
 }

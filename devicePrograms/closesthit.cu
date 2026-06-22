@@ -3,8 +3,13 @@
 #include "../src/renderingGPU/utils/objectType.h"
 #include "../src/renderingGPU/utils/op.cuh"
 #include "../src/renderingGPU/utils/packing.h"
+#include "launch_params.cuh"
 #include <optix.h>
 #include <optix_device.h>
+
+extern "C" {
+__constant__ LaunchParams params;
+}
 
 extern "C" __global__ void __closesthit__radiance()
 {
@@ -33,7 +38,17 @@ extern "C" __global__ void __closesthit__radiance()
 
     payload->objectIndex = primID;
 
-    payload->materialIndex = data->materialIndex;
+    // Get material index from mesh instance data
+    uint instanceIndex = optixGetInstanceId();
+    
+    if (params.meshInstances && instanceIndex < params.nbMeshInstances)
+    {
+        payload->materialIndex = params.meshInstances[instanceIndex].materialIndex;
+    }
+    else
+    {
+        payload->materialIndex = data->materialIndex; // Fallback to SBT data
+    }
 
     payload->objectType = HIT_TRIANGLE_MESH;
 }

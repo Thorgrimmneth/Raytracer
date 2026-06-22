@@ -39,6 +39,10 @@ extern "C" __global__ void __raygen__intersect()
 
     if (payload.hit)
     {
+        /*printf("Hit at index %d: position (%f, %f, %f), normal (%f, %f, %f), materialIndex %d\n", idx,
+               payload.position.x, payload.position.y, payload.position.z,
+               payload.normal.x, payload.normal.y, payload.normal.z,
+               payload.materialIndex);*/
         // Store hit data in SoA format
         params.hitPositions[idx] = payload.position;
         params.hitNormals[idx] = payload.normal;

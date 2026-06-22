@@ -86,7 +86,6 @@ class Renderer::Impl
     float3 *d_origins = nullptr;
     float3 *d_directions = nullptr;
 
-    // Hit data in SoA format
     float3 *d_hitPositions = nullptr;
     float3 *d_hitNormals = nullptr;
     int *d_hitMaterialIndices = nullptr;

@@ -1,5 +1,322 @@
 #include "mesh_loader.cuh"
 
+// Internal helper: Load geometry without transform
+HOST MeshGeometry loadMeshGeometry(const std::string &p_path)
+{
+    std::cout << "Loading geometry: " << p_path << std::endl;
+
+    Assimp::Importer importer;
+
+    // Read scene and triangulate meshes
+    const aiScene *const scene =
+        importer.ReadFile(p_path, aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_GenUVCoords);
+
+    if (scene == nullptr)
+    {
+        throw std::runtime_error("Failed to load file: " + p_path);
+    }
+
+    // Aggregate all meshes into one
+    std::vector<float3> vertices;
+    std::vector<float3> normals;
+    std::vector<float2> uvs;
+    std::vector<uint3> triangles;
+
+    unsigned int cptTriangles = 0;
+    unsigned int cptVertices = 0;
+    float totalArea = 0.f;
+    std::vector<float> areaCdf;
+
+    for (unsigned int m = 0; m < scene->mNumMeshes; ++m)
+    {
+        const aiMesh *const mesh = scene->mMeshes[m];
+        if (mesh == nullptr)
+        {
+            throw std::runtime_error("Failed to load file: " + p_path + ": mesh is null");
+        }
+
+        std::cout << "-- Load mesh " << m + 1 << "/" << scene->mNumMeshes << std::endl;
+
+        const bool hasUV = mesh->HasTextureCoords(0);
+        int vertexOffset = vertices.size();
+
+        // Add vertices, normals, and UVs (no transform applied)
+        for (unsigned int v = 0; v < mesh->mNumVertices; ++v)
+        {
+            float3 vertex = make_float3(mesh->mVertices[v].x, mesh->mVertices[v].y, mesh->mVertices[v].z);
+            vertices.push_back(vertex);
+
+            float3 normal = make_float3(mesh->mNormals[v].x, mesh->mNormals[v].y, mesh->mNormals[v].z);
+            normals.push_back(normalize(normal));
+
+            if (hasUV)
+            {
+                uvs.push_back(make_float2(mesh->mTextureCoords[0][v].x, mesh->mTextureCoords[0][v].y));
+            }
+            else
+            {
+                uvs.push_back(make_float2(0.f, 0.f));
+            }
+        }
+
+        // Add triangles
+        for (unsigned int f = 0; f < mesh->mNumFaces; ++f)
+        {
+            const aiFace &face = mesh->mFaces[f];
+            uint3 tri;
+            tri.x = vertexOffset + face.mIndices[0];
+            tri.y = vertexOffset + face.mIndices[1];
+            tri.z = vertexOffset + face.mIndices[2];
+            float area = 0.5f * abs((vertices[tri.y].x - vertices[tri.x].x) * (vertices[tri.z].y - vertices[tri.x].y) -
+                                    (vertices[tri.y].y - vertices[tri.x].y) * (vertices[tri.z].x - vertices[tri.x].x));
+            totalArea += area;
+            areaCdf.push_back(area);
+            triangles.push_back(tri);
+        }
+
+        cptTriangles += mesh->mNumFaces;
+        cptVertices += mesh->mNumVertices;
+
+        std::cout << "-- [DONE] " << mesh->mNumFaces << " triangles, " << mesh->mNumVertices << " vertices."
+                  << std::endl;
+    }
+
+    std::cout << "[DONE] " << scene->mNumMeshes << " meshes, " << cptTriangles << " triangles, " << cptVertices
+              << " vertices." << std::endl;
+
+    // Create MeshGeometry structure
+    MeshGeometry geometry;
+
+    geometry.triangleCount = static_cast<int>(triangles.size());
+    geometry.vertexCount = static_cast<int>(vertices.size());
+    geometry.meshArea = totalArea;
+
+    // Allocate and copy triangles to GPU
+    if (!triangles.empty())
+    {
+        cudaMalloc(&geometry.triangles, triangles.size() * sizeof(uint3));
+        cudaMemcpy(geometry.triangles, triangles.data(), triangles.size() * sizeof(uint3), cudaMemcpyHostToDevice);
+    }
+
+    // Allocate and copy vertices to GPU
+    if (!vertices.empty())
+    {
+        cudaMalloc(&geometry.vertices, vertices.size() * sizeof(float3));
+        cudaMemcpy(geometry.vertices, vertices.data(), vertices.size() * sizeof(float3), cudaMemcpyHostToDevice);
+    }
+
+    // Allocate and copy normals to GPU
+    if (!normals.empty())
+    {
+        cudaMalloc(&geometry.normals, normals.size() * sizeof(float3));
+        cudaMemcpy(geometry.normals, normals.data(), normals.size() * sizeof(float3), cudaMemcpyHostToDevice);
+    }
+
+    // Allocate and copy UVs to GPU
+    if (!uvs.empty())
+    {
+        cudaMalloc(&geometry.uvs, uvs.size() * sizeof(float2));
+        cudaMemcpy(geometry.uvs, uvs.data(), uvs.size() * sizeof(float2), cudaMemcpyHostToDevice);
+    }
+
+    // Allocate and copy triangle area CDF to GPU
+    if (!areaCdf.empty())
+    {
+        cudaMalloc(&geometry.triangleAreaCdf, areaCdf.size() * sizeof(float));
+        cudaMemcpy(geometry.triangleAreaCdf, areaCdf.data(), areaCdf.size() * sizeof(float), cudaMemcpyHostToDevice);
+    }
+
+    return geometry;
+}
+
+// Internal helper: Load geometry without transform
+HOST MeshGeometry loadMeshGeometry(const std::string &p_path, const float3 scale)
+{
+    std::cout << "Loading geometry: " << p_path << std::endl;
+
+    Assimp::Importer importer;
+
+    // Read scene and triangulate meshes
+    const aiScene *const scene =
+        importer.ReadFile(p_path, aiProcess_Triangulate | aiProcess_GenNormals | aiProcess_GenUVCoords);
+
+    if (scene == nullptr)
+    {
+        throw std::runtime_error("Failed to load file: " + p_path);
+    }
+
+    // Aggregate all meshes into one
+    std::vector<float3> vertices;
+    std::vector<float3> normals;
+    std::vector<float2> uvs;
+    std::vector<uint3> triangles;
+
+    unsigned int cptTriangles = 0;
+    unsigned int cptVertices = 0;
+    float totalArea = 0.f;
+    std::vector<float> areaCdf;
+
+    for (unsigned int m = 0; m < scene->mNumMeshes; ++m)
+    {
+        const aiMesh *const mesh = scene->mMeshes[m];
+        if (mesh == nullptr)
+        {
+            throw std::runtime_error("Failed to load file: " + p_path + ": mesh is null");
+        }
+
+        std::cout << "-- Load mesh " << m + 1 << "/" << scene->mNumMeshes << std::endl;
+
+        const bool hasUV = mesh->HasTextureCoords(0);
+        int vertexOffset = vertices.size();
+
+        // Add vertices, normals, and UVs (apply scaling)
+        for (unsigned int v = 0; v < mesh->mNumVertices; ++v)
+        {
+            float3 vertex = make_float3(mesh->mVertices[v].x, mesh->mVertices[v].y, mesh->mVertices[v].z) * scale;
+            vertices.push_back(vertex);
+
+            float3 normal = make_float3(mesh->mNormals[v].x, mesh->mNormals[v].y, mesh->mNormals[v].z);
+            normals.push_back(normalize(normal));
+
+            if (hasUV)
+            {
+                uvs.push_back(make_float2(mesh->mTextureCoords[0][v].x, mesh->mTextureCoords[0][v].y));
+            }
+            else
+            {
+                uvs.push_back(make_float2(0.f, 0.f));
+            }
+        }
+
+        // Add triangles
+        for (unsigned int f = 0; f < mesh->mNumFaces; ++f)
+        {
+            const aiFace &face = mesh->mFaces[f];
+            uint3 tri;
+            tri.x = vertexOffset + face.mIndices[0];
+            tri.y = vertexOffset + face.mIndices[1];
+            tri.z = vertexOffset + face.mIndices[2];
+            float area = 0.5f * abs((vertices[tri.y].x - vertices[tri.x].x) * (vertices[tri.z].y - vertices[tri.x].y) -
+                                    (vertices[tri.y].y - vertices[tri.x].y) * (vertices[tri.z].x - vertices[tri.x].x));
+            totalArea += area;
+            areaCdf.push_back(area);
+            triangles.push_back(tri);
+        }
+
+        cptTriangles += mesh->mNumFaces;
+        cptVertices += mesh->mNumVertices;
+
+        std::cout << "-- [DONE] " << mesh->mNumFaces << " triangles, " << mesh->mNumVertices << " vertices."
+                  << std::endl;
+    }
+
+    std::cout << "[DONE] " << scene->mNumMeshes << " meshes, " << cptTriangles << " triangles, " << cptVertices
+              << " vertices." << std::endl;
+
+    // Create MeshGeometry structure
+    MeshGeometry geometry;
+
+    geometry.triangleCount = static_cast<int>(triangles.size());
+    geometry.vertexCount = static_cast<int>(vertices.size());
+    geometry.meshArea = totalArea;
+
+    // Allocate and copy triangles to GPU
+    if (!triangles.empty())
+    {
+        cudaMalloc(&geometry.triangles, triangles.size() * sizeof(uint3));
+        cudaMemcpy(geometry.triangles, triangles.data(), triangles.size() * sizeof(uint3), cudaMemcpyHostToDevice);
+    }
+
+    // Allocate and copy vertices to GPU
+    if (!vertices.empty())
+    {
+        cudaMalloc(&geometry.vertices, vertices.size() * sizeof(float3));
+        cudaMemcpy(geometry.vertices, vertices.data(), vertices.size() * sizeof(float3), cudaMemcpyHostToDevice);
+    }
+
+    // Allocate and copy normals to GPU
+    if (!normals.empty())
+    {
+        cudaMalloc(&geometry.normals, normals.size() * sizeof(float3));
+        cudaMemcpy(geometry.normals, normals.data(), normals.size() * sizeof(float3), cudaMemcpyHostToDevice);
+    }
+
+    // Allocate and copy UVs to GPU
+    if (!uvs.empty())
+    {
+        cudaMalloc(&geometry.uvs, uvs.size() * sizeof(float2));
+        cudaMemcpy(geometry.uvs, uvs.data(), uvs.size() * sizeof(float2), cudaMemcpyHostToDevice);
+    }
+
+    // Allocate and copy triangle area CDF to GPU
+    if (!areaCdf.empty())
+    {
+        cudaMalloc(&geometry.triangleAreaCdf, areaCdf.size() * sizeof(float));
+        cudaMemcpy(geometry.triangleAreaCdf, areaCdf.data(), areaCdf.size() * sizeof(float), cudaMemcpyHostToDevice);
+    }
+
+    return geometry;
+}
+
+// Helper: Create 3x4 transformation matrix from scale, rotation quaternion, and translation
+HOST void buildTransformMatrix(float* out_transform, float3 scale, Quaternion rotation, float3 translation)
+{
+    // Convert quaternion to rotation matrix (3x3)
+    float q_x = rotation.x;
+    float q_y = rotation.y;
+    float q_z = rotation.z;
+    float q_w = rotation.w;
+    
+    // Rotation matrix from quaternion
+    float r00 = 1.f - 2.f*(q_y*q_y + q_z*q_z);
+    float r01 = 2.f*(q_x*q_y - q_w*q_z);
+    float r02 = 2.f*(q_x*q_z + q_w*q_y);
+    
+    float r10 = 2.f*(q_x*q_y + q_w*q_z);
+    float r11 = 1.f - 2.f*(q_x*q_x + q_z*q_z);
+    float r12 = 2.f*(q_y*q_z - q_w*q_x);
+    
+    float r20 = 2.f*(q_x*q_z - q_w*q_y);
+    float r21 = 2.f*(q_y*q_z + q_w*q_x);
+    float r22 = 1.f - 2.f*(q_x*q_x + q_y*q_y);
+    
+    // Build 3x4 matrix: [R*S | T]
+    // Row 0: [r00*sx, r01*sx, r02*sx, tx]
+    out_transform[0] = r00 * scale.x;
+    out_transform[1] = r01 * scale.x;
+    out_transform[2] = r02 * scale.x;
+    out_transform[3] = translation.x;
+    
+    // Row 1: [r10*sy, r11*sy, r12*sy, ty]
+    out_transform[4] = r10 * scale.y;
+    out_transform[5] = r11 * scale.y;
+    out_transform[6] = r12 * scale.y;
+    out_transform[7] = translation.y;
+    
+    // Row 2: [r20*sz, r21*sz, r22*sz, tz]
+    out_transform[8] = r20 * scale.z;
+    out_transform[9] = r21 * scale.z;
+    out_transform[10] = r22 * scale.z;
+    out_transform[11] = translation.z;
+}
+
+// Create an instance from a loaded geometry
+HOST MeshInstance createMeshInstance(int geometryIndex, int materialIndex, float3 scale, 
+                                    Quaternion rotation, float3 translation)
+{
+    MeshInstance instance;
+    instance.geometryIndex = geometryIndex;
+    instance.materialIndex = materialIndex;
+    instance.scale = scale;
+    instance.translation = translation;
+    
+    // Convert Quaternion to float4 (x, y, z, w)
+    instance.rotation = make_float4(rotation.x, rotation.y, rotation.z, rotation.w);
+    
+    buildTransformMatrix(instance.transform, scale, rotation, translation);
+    return instance;
+}
+
 HOST TriangleMesh loadTriangleMesh(const std::string &p_path, int materialIndex, int index, float3 scale,
                                    Quaternion rotation, float3 translation)
 {

@@ -71,6 +71,8 @@ struct CudaScene
     Sphere *spheres;
     Plane *planes;
     TriangleMesh *triangleMeshes;
+    MeshGeometry *meshGeometries;          // Shared geometry data (loaded once per file)
+    MeshInstance *meshInstances;            // Per-instance data (transform, material)
     ImplicitSphere *implicitSpheres;
     Material *materials;
     BaseObject *primitives;
@@ -83,6 +85,8 @@ struct CudaScene
     int nbSpheres;
     int nbPlanes;
     int nbTriangleMeshes;
+    int nbMeshGeometries;                   // Number of unique mesh geometries
+    int nbMeshInstances;                    // Number of mesh instances
     int nbMaterials;
     int nbLights;
     int nbImplicitSpheres;
