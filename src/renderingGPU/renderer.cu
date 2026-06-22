@@ -60,7 +60,7 @@ class Renderer::Impl
     float *d_value = nullptr;
     CudaScene gpuScene;
 
-    float4 *d_throughput = nullptr;
+    float3 *d_throughput = nullptr;
     float3 *d_radiance = nullptr;
 
     int *d_pixelIndices = nullptr;
@@ -83,12 +83,12 @@ class Renderer::Impl
 
     float3 *d_convergenceBuffer = nullptr;
 
-    float4 *d_origins = nullptr;
-    float4 *d_directions = nullptr;
+    float3 *d_origins = nullptr;
+    float3 *d_directions = nullptr;
 
     // Hit data in SoA format
-    float4 *d_hitPositions = nullptr;
-    float4 *d_hitNormals = nullptr;
+    float3 *d_hitPositions = nullptr;
+    float3 *d_hitNormals = nullptr;
     int *d_hitMaterialIndices = nullptr;
     
     int *d_hitMask = nullptr;
@@ -245,7 +245,7 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     // GPU buffers
     // =========================
 
-    cudaMalloc(&impl->d_throughput, impl->width * impl->height * sizeof(float4));
+    cudaMalloc(&impl->d_throughput, impl->width * impl->height * sizeof(float3));
     cudaMalloc(&impl->d_radiance, impl->width * impl->height * sizeof(float3));
     cudaMalloc(&impl->d_pixelIndices, impl->width * impl->height * sizeof(int));
     cudaMalloc(&impl->d_rng, impl->width * impl->height * sizeof(RNG));
@@ -284,10 +284,10 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     cudaMalloc(&impl->d_transparentCount, sizeof(int));
     cudaMalloc(&impl->d_emissiveCount, sizeof(int));
 
-    cudaMalloc(&impl->d_origins, impl->width * impl->height * sizeof(float4));
-    cudaMalloc(&impl->d_directions, pixelCount * sizeof(float4));
-    cudaMalloc(&impl->d_hitPositions, pixelCount * sizeof(float4));
-    cudaMalloc(&impl->d_hitNormals, pixelCount * sizeof(float4));
+    cudaMalloc(&impl->d_origins, impl->width * impl->height * sizeof(float3));
+    cudaMalloc(&impl->d_directions, pixelCount * sizeof(float3));
+    cudaMalloc(&impl->d_hitPositions, pixelCount * sizeof(float3));
+    cudaMalloc(&impl->d_hitNormals, pixelCount * sizeof(float3));
     cudaMalloc(&impl->d_hitMaterialIndices, pixelCount * sizeof(int));
     cudaMalloc(&impl->d_hitMask, pixelCount * sizeof(int));
     cudaMalloc(&impl->d_activeQueue, pixelCount * sizeof(int));
@@ -409,7 +409,7 @@ void renderKernel(CudaScene gpuScene, float3 *d_accumBuffer, int width, int heig
 
 // WAVEFRONT INIT
 GLOBAL
-void generatePrimaryRaysKernel(float4 *directions, RNG *p_rng, int *p_pixelIndices, int *activeQueue, int *activeCount,
+void generatePrimaryRaysKernel(float3 *directions, RNG *p_rng, int *p_pixelIndices, int *activeQueue, int *activeCount,
                                int width, int height, int sampleCount, float invWidth, float invHeight)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -430,34 +430,11 @@ void generatePrimaryRaysKernel(float4 *directions, RNG *p_rng, int *p_pixelIndic
     float sy = (y + rng.nextFloat()) * invHeight;
     p_rng[pixelIndex] = rng;
     float3 rayTarget = camera.topLeft + sx * camera.viewPortU - sy * camera.viewPortV;
-    float3 dir = normalize(rayTarget - camera.cameraPos);
-    directions[pixelIndex] = make_float4(dir, 0.f);
+    directions[pixelIndex] = normalize(rayTarget - camera.cameraPos);
 
     if (pixelIndex == 0)
         *activeCount = width * height;
 }
-
-/*
-// WAVEFRONT INTERSECTION
-GLOBAL
-void wavefrontIntersectKernel(CudaScene scene, Ray *rays, OptixHit *hits, int *hitMask,
-                              const int *activeQueue, int activeCount, float tMin, float tMax)
-{
-    int qid = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (qid >= activeCount)
-        return;
-
-    int idx = activeQueue[qid];
-
-    OptixHit hit;
-    hitMask[idx] = 0;
-    if (scene.intersect(rays[idx], tMin, tMax, hit))
-    {
-        hits[idx] = hit;
-        hitMask[idx] = 1;
-    }
-}*/
 
 // WAVEFRONT ACCUMULATION
 GLOBAL
@@ -668,9 +645,9 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
     int threads = 256;
     int blocks = (pixelCount + threads - 1) / threads;
 
-    initFloat4Buffer<<<blocks, threads>>>(impl->d_origins, pixelCount, make_float4(impl->h_camera.cameraPos, 0.f));
+    initFloat3Buffer<<<blocks, threads>>>(impl->d_origins, pixelCount, impl->h_camera.cameraPos);
 
-    initFloat4Buffer<<<blocks, threads>>>(impl->d_throughput, pixelCount, make_float4(1.f, 1.f, 1.f, 0.f));
+    initFloat3Buffer<<<blocks, threads>>>(impl->d_throughput, pixelCount, make_float3(1.f));
 
     initFloat3Buffer<<<blocks, threads>>>(impl->d_radiance, pixelCount, make_float3(0.f));
 

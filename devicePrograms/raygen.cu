@@ -32,7 +32,7 @@ extern "C" __global__ void __raygen__intersect()
 
     packPointer(&payload, p0, p1);
 
-    optixTrace(params.traversable, make_float3(params.origins[idx]), make_float3(params.directions[idx]), 0.001f, 1e20f, 0.0f, OptixVisibilityMask(255),
+    optixTrace(params.traversable, params.origins[idx], params.directions[idx], 0.001f, 1e20f, 0.0f, OptixVisibilityMask(255),
                OPTIX_RAY_FLAG_NONE, 0, 1, 0, p0, p1);
 
     params.hitMask[idx] = payload.hit;
@@ -40,8 +40,8 @@ extern "C" __global__ void __raygen__intersect()
     if (payload.hit)
     {
         // Store hit data in SoA format
-        params.hitPositions[idx] = make_float4(payload.position, 0.f);
-        params.hitNormals[idx] = make_float4(payload.normal, 0.f);
+        params.hitPositions[idx] = payload.position;
+        params.hitNormals[idx] = payload.normal;
         params.hitMaterialIndices[idx] = payload.materialIndex;
     }
 }

@@ -1,6 +1,6 @@
 #include "shading_kernels.cuh"
 
-__global__ void shadeMissKernel(float4 *origins, float4 *directions, float4 *throughput, float3 *radiance,
+__global__ void shadeMissKernel(float3 *origins, float3 *directions, float3 *p_throughput, float3 *radiance,
                                 const int *missQueue, int missCount, bool safeSun)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -10,8 +10,8 @@ __global__ void shadeMissKernel(float4 *origins, float4 *directions, float4 *thr
 
     int idx = missQueue[qid];
 
-    const float3 origin = make_float3(origins[idx]);
-    const float4 &direction = directions[idx];
+    const float3 origin = origins[idx];
+    const float3 &direction = directions[idx];
 
     const float horizonFade = smoothstep(-0.05f, 0.02f, direction.y);
 
@@ -27,7 +27,7 @@ __global__ void shadeMissKernel(float4 *origins, float4 *directions, float4 *thr
     float opticalDepthR = 0.0f;
     float opticalDepthM = 0.0f;
 
-    const float mu = dot4f3(direction, sunDirection);
+    const float mu = dot(direction, sunDirection);
 
     const float mu2Term = 1.0f + mu * mu;
 
@@ -43,7 +43,7 @@ __global__ void shadeMissKernel(float4 *origins, float4 *directions, float4 *thr
     float3 samplePosition = origin + direction * (segmentLength * 0.5f);
     for (int i = 0; i < skyColorSamples; ++i)
     {
-        samplePosition += make_float3(direction * segmentLength);
+        samplePosition += direction * segmentLength;
 
         float height = fmaxf(samplePosition.y, 0.0f);
 
@@ -86,7 +86,7 @@ __global__ void shadeMissKernel(float4 *origins, float4 *directions, float4 *thr
 
     float sunAngularRadius = 2.1f * GPUPIf / 180.f;
 
-    float cosTheta = dot4f3(direction, sunDirection);
+    float cosTheta = dot(direction, sunDirection);
 
     float sunDisk = smoothstep(cos(sunAngularRadius), cos(sunAngularRadius * 0.5f), cosTheta);
     float t = clamp((sunDirection.y + 0.4f) / 1.4f, 0.0f, 1.0f);
@@ -105,15 +105,14 @@ __global__ void shadeMissKernel(float4 *origins, float4 *directions, float4 *thr
 
     sky = sky * mult * horizonFade;
 
-    float4 thru4 = throughput[idx];
-    float3 T = make_float3(thru4);
+    float3 throughput = p_throughput[idx];
     float3 &L = radiance[idx];
 
-    L += T * sky;
+    L += throughput * sky;
 }
 
-__global__ void shadeLambertKernel(CudaScene scene, float4 *origins, float4 *directions, float4 *p_throughput,
-                                   float3 *p_radiance, RNG *p_rng, float4 *p_hitPositions, float4 *p_hitNormals,
+__global__ void shadeLambertKernel(CudaScene scene, float3 *origins, float3 *directions, float3 *p_throughput,
+                                   float3 *p_radiance, RNG *p_rng, float3 *p_hitPositions, float3 *p_hitNormals,
                                    int *p_hitMaterialIndices, bool *lastBounceWasDelta, const int *hitQueue,
                                    int hitCount, int *nextActiveQueue, int *nextActiveCount, uint depth)
 {
@@ -123,12 +122,11 @@ __global__ void shadeLambertKernel(CudaScene scene, float4 *origins, float4 *dir
         return;
 
     int idx = hitQueue[qid];
-    float3 direction = make_float3(directions[idx]);
-    float4 thru4 = p_throughput[idx];
-    float3 throughput = make_float3(thru4);
+    float3 direction = directions[idx];
+    float3 throughput = p_throughput[idx];
     int materialIndex = p_hitMaterialIndices[idx];
-    float3 pos = make_float3(p_hitPositions[idx]);
-    float3 normal = make_float3(p_hitNormals[idx]);
+    float3 pos = p_hitPositions[idx];
+    float3 normal = p_hitNormals[idx];
 
     Material &mtl = scene.materials[materialIndex];
 
@@ -208,9 +206,9 @@ __global__ void shadeLambertKernel(CudaScene scene, float4 *origins, float4 *dir
     // NEXT origin, direction
     // ------------------------------------------------------------
     float3 dir = bsdf.direction;
-    origins[idx] = make_float4(pos + dir * 1e-3f, 0.f);
-    directions[idx] = make_float4(dir, 0.f);
-    p_throughput[idx] = make_float4(throughput, thru4.w);
+    origins[idx] = pos + dir * 1e-3f;
+    directions[idx] = dir;
+    p_throughput[idx] = throughput;
 
     lastBounceWasDelta[idx] = false;
 
@@ -222,8 +220,8 @@ __global__ void shadeLambertKernel(CudaScene scene, float4 *origins, float4 *dir
     nextActiveQueue[dst] = idx;
 }
 
-__global__ void shadeMetalKernel(CudaScene scene, float4 *origins, float4 *directions, float4 *p_throughput,
-                                 float3 *p_radiance, RNG *p_rng, float4 *p_hitPositions, float4 *p_hitNormals,
+__global__ void shadeMetalKernel(CudaScene scene, float3 *origins, float3 *directions, float3 *p_throughput,
+                                 float3 *p_radiance, RNG *p_rng, float3 *p_hitPositions, float3 *p_hitNormals,
                                  int *p_hitMaterialIndices, bool *lastBounceWasDelta, const int *hitQueue, int hitCount,
                                  int *nextActiveQueue, int *nextActiveCount, uint depth)
 {
@@ -234,22 +232,21 @@ __global__ void shadeMetalKernel(CudaScene scene, float4 *origins, float4 *direc
 
     int idx = hitQueue[qid];
 
-    float4 thru4 = p_throughput[idx];
-    float3 throughput = make_float3(thru4);
+    float3 throughput = p_throughput[idx];
+
     float3 &radiance = p_radiance[idx];
 
-    float4 origin4 = origins[idx];
-    float3 origin = make_float3(origin4);
+    float3 origin = origins[idx];
 
-    float3 direction = make_float3(directions[idx]);
+    float3 direction = directions[idx];
 
     int materialIndex = p_hitMaterialIndices[idx];
-    float3 pos = make_float3(p_hitPositions[idx]);
+    float3 pos = p_hitPositions[idx];
 
     Material &mtl = scene.materials[materialIndex];
 
     RNG &rng = p_rng[idx];
-    float3 normal = make_float3(p_hitNormals[idx]);
+    float3 normal = p_hitNormals[idx];
     BSDFVal bsdf = mtl.getMetalBSDF(direction, normal, rng);
 
     if (bsdf.pdf <= 1e-4f)
@@ -329,9 +326,9 @@ __global__ void shadeMetalKernel(CudaScene scene, float4 *origins, float4 *direc
     // NEXT origin, direction
     // ------------------------------------------------------------
     float3 dir = bsdf.direction;
-    origins[idx] = make_float4(pos + dir * 1e-3f, 0.f);
-    directions[idx] = make_float4(dir, 0.f);
-    p_throughput[idx] = make_float4(throughput, thru4.w);
+    origins[idx] = pos + dir * 1e-3f;
+    directions[idx] = dir;
+    p_throughput[idx] = throughput;
     lastBounceWasDelta[idx] = false;
     // ------------------------------------------------------------
     // COMPACT NEXT ACTIVE QUEUE
@@ -341,8 +338,8 @@ __global__ void shadeMetalKernel(CudaScene scene, float4 *origins, float4 *direc
     nextActiveQueue[dst] = idx;
 }
 
-__global__ void shadePlasticNEEKernel(CudaScene &scene, float4 *directions, float4 *p_throughput, float3 *p_radiance,
-                                      RNG *p_rng, float4 *p_hitPositions, float4 *p_hitNormals,
+__global__ void shadePlasticNEEKernel(CudaScene &scene, float3 *directions, float3 *p_throughput, float3 *p_radiance,
+                                      RNG *p_rng, float3 *p_hitPositions, float3 *p_hitNormals,
                                       int *p_hitMaterialIndices, const int *hitQueue, int hitCount, int nbLights, float *lightWeights)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -352,8 +349,8 @@ __global__ void shadePlasticNEEKernel(CudaScene &scene, float4 *directions, floa
 
     int idx = hitQueue[qid];
 
-    float3 pos = make_float3(p_hitPositions[idx]);
-    float3 normal = make_float3(p_hitNormals[idx]);
+    float3 pos = p_hitPositions[idx];
+    float3 normal = p_hitNormals[idx];
     int materialIndex = p_hitMaterialIndices[idx];
     Material &mtl = scene.materials[materialIndex];
     RNG &rng = p_rng[idx];
@@ -398,7 +395,7 @@ __global__ void shadePlasticNEEKernel(CudaScene &scene, float4 *directions, floa
         return;
 
     // Only unpack direction when needed
-    float3 direction = make_float3(directions[idx]);
+    float3 direction = directions[idx];
 
     // Compute BSDF contributions - interleave to help dependency chain
     float3 f = mtl.evalPlasticBSDF(direction, normal, ls.direction);
@@ -416,18 +413,18 @@ __global__ void shadePlasticNEEKernel(CudaScene &scene, float4 *directions, floa
 
     // Final computation - combine terms efficiently
     float w = powerHeuristic(pdf_light, pdf_bsdf);
-    float3 throughput = make_float3(p_throughput[idx]);
+    float3 throughput = p_throughput[idx];
 
     // Compute contribution inline without extra temporaries
     p_radiance[idx] += throughput * (f * ls.radiance * shadowTint) * (cosTheta * w / pdf_light);
 }
 
 __global__ void shadePlasticKernel(Material *materials,
-                                   float4 *origins, // float4 pour coalescence
-                                   float4 *directions,
-                                   float4 *throughput, // float4 au lieu de float3
-                                   RNG *rng, float4 *hitPositions,
-                                   float4 *hitNormals, // XYZ = normal, W = padding
+                                   float3 *origins, // float3 pour coalescence
+                                   float3 *directions,
+                                   float3 *throughput, // float3 au lieu de float3
+                                   RNG *rng, float3 *hitPositions,
+                                   float3 *hitNormals, // XYZ = normal, W = padding
                                    int *hitMaterialIndices, bool *lastBounceWasDelta, const int *hitQueue, int hitCount,
                                    int *nextActiveQueue, int *nextActiveCount, uint depth)
 {
@@ -441,9 +438,9 @@ __global__ void shadePlasticKernel(Material *materials,
     RNG rng_local = rng[idx];
 
     // Extraire composantes (le compilateur optimise ça en registres)
-    float3 normal = make_float3(hitNormals[idx]);
-    float3 dir = make_float3(directions[idx]);
-    float3 thru = make_float3(throughput[idx]);
+    float3 normal = hitNormals[idx];
+    float3 dir = directions[idx];
+    float3 thru = throughput[idx];
 
     // Material inline (pas de struct en mémoire)
     float alpha = materials[matIdx].alpha();
@@ -561,9 +558,9 @@ __global__ void shadePlasticKernel(Material *materials,
     }
 
     // === WRITE BACK (une seule fois, coalescé) ===
-    origins[idx] = hitPositions[idx] + make_float4(newDir * 1e-3f,0.f);
-    directions[idx] = make_float4(newDir, 0.f);
-    throughput[idx] = make_float4(thru, 0.f); // Préserver le .w
+    origins[idx] = hitPositions[idx] + newDir * 1e-3f;
+    directions[idx] = newDir;
+    throughput[idx] = thru;
     lastBounceWasDelta[idx] = false;
 
     // === QUEUE DISPATCH ===
@@ -571,9 +568,9 @@ __global__ void shadePlasticKernel(Material *materials,
     nextActiveQueue[dst] = idx;
 }
 
-__global__ void shadeMirrorKernel(CudaScene scene, float4 *origins, float4 *directions, float4 *p_throughput,
-                                  RNG *p_rng, bool *p_lastBounceWasDelta, float *p_lastBsdfPdf, float4 *p_hitPositions,
-                                  float4 *p_hitNormals, int *p_hitMaterialIndices, const int *hitQueue, int hitCount,
+__global__ void shadeMirrorKernel(CudaScene scene, float3 *origins, float3 *directions, float3 *p_throughput,
+                                  RNG *p_rng, bool *p_lastBounceWasDelta, float *p_lastBsdfPdf, float3 *p_hitPositions,
+                                  float3 *p_hitNormals, int *p_hitMaterialIndices, const int *hitQueue, int hitCount,
                                   int *nextActiveQueue, int *nextActiveCount, uint depth)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -583,16 +580,16 @@ __global__ void shadeMirrorKernel(CudaScene scene, float4 *origins, float4 *dire
 
     int idx = hitQueue[qid];
 
-    float3 throughput = make_float3(p_throughput[idx]);
+    float3 throughput = p_throughput[idx];
 
-    float3 direction = make_float3(directions[idx]);
+    float3 direction = directions[idx];
 
     int materialIndex = p_hitMaterialIndices[idx];
-    float3 pos = make_float3(p_hitPositions[idx]);
+    float3 pos = p_hitPositions[idx];
 
     Material &mtl = scene.materials[materialIndex];
 
-    float3 normal = make_float3(p_hitNormals[idx]);
+    float3 normal = p_hitNormals[idx];
     BSDFVal bsdf = mtl.getMirrorBSDF(direction, normal);
 
     if (bsdf.pdf <= 1e-4f)
@@ -629,8 +626,8 @@ __global__ void shadeMirrorKernel(CudaScene scene, float4 *origins, float4 *dire
     // NEXT origin, direction
     // ------------------------------------------------------------
     float3 dir = bsdf.direction;
-    origins[idx] = make_float4(pos + dir * 1e-3f, 0.f);
-    directions[idx] = make_float4(dir, 0.f);
+    origins[idx] = pos + dir * 1e-3f;
+    directions[idx] = dir;
 
     p_lastBounceWasDelta[idx] = true;
     p_lastBsdfPdf[idx] = bsdf.pdf;
@@ -643,9 +640,9 @@ __global__ void shadeMirrorKernel(CudaScene scene, float4 *origins, float4 *dire
     nextActiveQueue[dst] = idx;
 }
 
-__global__ void shadeTransparentKernel(CudaScene scene, float4 *origins, float4 *directions, float4 *p_throughput,
+__global__ void shadeTransparentKernel(CudaScene scene, float3 *origins, float3 *directions, float3 *p_throughput,
                                        RNG *p_rng, bool *p_isInside, bool *p_lastBounceWasDelta, float *p_lastBsdfPdf,
-                                       float4 *p_hitPositions, float4 *p_hitNormals, int *p_hitMaterialIndices,
+                                       float3 *p_hitPositions, float3 *p_hitNormals, int *p_hitMaterialIndices,
                                        const int *hitQueue, int hitCount, int *nextActiveQueue, int *nextActiveCount,
                                        uint depth)
 {
@@ -656,18 +653,17 @@ __global__ void shadeTransparentKernel(CudaScene scene, float4 *origins, float4 
 
     int idx = hitQueue[qid];
 
-    float4 thru4 = p_throughput[idx];
-    float3 throughput = make_float3(thru4);
+    float3 throughput = p_throughput[idx];
 
     bool &isInside = p_isInside[idx];
 
     int materialIndex = p_hitMaterialIndices[idx];
-    float3 pos = make_float3(p_hitPositions[idx]);
-    float3 normal = make_float3(p_hitNormals[idx]);
+    float3 pos = p_hitPositions[idx];
+    float3 normal = p_hitNormals[idx];
 
     Material &mtl = scene.materials[materialIndex];
 
-    BSDFVal bsdf = mtl.getTransparentBSDF(make_float3(directions[idx]), normal, p_rng[idx], isInside);
+    BSDFVal bsdf = mtl.getTransparentBSDF(directions[idx], normal, p_rng[idx], isInside);
 
     if (bsdf.pdf <= 1e-4f)
     {
@@ -703,9 +699,9 @@ __global__ void shadeTransparentKernel(CudaScene scene, float4 *origins, float4 
     // NEXT origin, direction
     // ------------------------------------------------------------
     float3 dir = bsdf.direction;
-    origins[idx] = make_float4(pos + dir * 1e-3f, 0.f);
-    directions[idx] = make_float4(dir, 0.f);
-    p_throughput[idx] = make_float4(throughput, thru4.w);
+    origins[idx] = pos + dir * 1e-3f;
+    directions[idx] = dir;
+    p_throughput[idx] = throughput;
 
     p_lastBounceWasDelta[idx] = true;
     p_lastBsdfPdf[idx] = bsdf.pdf;
@@ -718,7 +714,7 @@ __global__ void shadeTransparentKernel(CudaScene scene, float4 *origins, float4 
     nextActiveQueue[dst] = idx;
 }
 
-__global__ void shadeEmissiveKernel(CudaScene &scene, float4 *origins, float4 *directions, float4 *p_throughput,
+__global__ void shadeEmissiveKernel(CudaScene &scene, float3 *origins, float3 *directions, float3 *p_throughput,
                                     float3 *p_radiance, bool *p_lastBounceWasDelta, float *p_lastBsdfPdf,
                                     int *p_hitMaterialIndices, int *hitMask, const int *activeQueue, int activeCount)
 {
@@ -729,8 +725,7 @@ __global__ void shadeEmissiveKernel(CudaScene &scene, float4 *origins, float4 *d
 
     int idx = activeQueue[qid];
 
-    float4 thru4 = p_throughput[idx];
-    float3 throughput = make_float3(thru4);
+    float3 throughput = p_throughput[idx];
     float3 &radiance = p_radiance[idx];
 
     // ------------------------------------------------------------
@@ -752,7 +747,7 @@ __global__ void shadeEmissiveKernel(CudaScene &scene, float4 *origins, float4 *d
     }
     else
     {
-        float lightPdf = scene.lightPdf(make_float3(origins[idx]), make_float3(directions[idx]));
+        float lightPdf = scene.lightPdf(origins[idx], directions[idx]);
 
         float w = powerHeuristic(p_lastBsdfPdf[idx], lightPdf);
 

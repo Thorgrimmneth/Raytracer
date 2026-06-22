@@ -11,8 +11,8 @@
 // Minimal hit record for internal scene queries (lightPdf, etc)
 struct OptixHit
 {
-    float4 position;
-    float4 normal;
+    float3 position;
+    float3 normal;
     float t;
     int materialIndex;
     int objectIndex;
@@ -21,12 +21,12 @@ struct OptixHit
 
 struct LaunchParams
 {
-    float4* origins = nullptr;
-    float4* directions = nullptr;
+    float3* origins = nullptr;
+    float3* directions = nullptr;
 
     // Hit data in SoA format (only relevant fields for active kernels)
-    float4* hitPositions = nullptr;
-    float4* hitNormals = nullptr;
+    float3* hitPositions = nullptr;
+    float3* hitNormals = nullptr;
     int* hitMaterialIndices = nullptr;
     
     int* hitMask = nullptr;

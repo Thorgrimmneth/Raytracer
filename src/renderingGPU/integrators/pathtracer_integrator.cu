@@ -10,15 +10,15 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const float3 &orig
                                              const float tMax, RNG &rng)
 {
     float3 finalColor = make_float3(0.f);
-
-    float3 primOrigin = origin;
+    return finalColor;
+    /*float3 primOrigin = origin;
     float3 primDirection = direction;
     float3 throughput = make_float3(1.f);
     bool isInside = false;
     bool lastBounceWasDelta = true;
     float lastBsdfPdf = 1.f;
-    return finalColor;
-    /*for (int depth = 0; depth < nbBounces; depth++)
+    
+    for (int depth = 0; depth < nbBounces; depth++)
     {
         OptixHit hit;
         if (!scene.intersect(primOrigin, primDirection, tMin, tMax, hit))

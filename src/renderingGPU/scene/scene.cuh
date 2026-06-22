@@ -97,10 +97,11 @@ struct CudaScene
 
     D_FORCEINLINE bool intersect(const float3 &origin, const float3 &direction, const float p_tMin, const float p_tMax, OptixHit &p_hitRecord) const
     {
-        float tMax = p_tMax;
-        bool hit = false;
+        return false;
+        //float tMax = p_tMax;
+        //bool hit = false;
 
-        return hit;
+        
     }
 
     D_FORCEINLINE bool intersectAny(const float3 &origin, const float3 &direction, const float p_tMin, const float p_tMax) const
@@ -213,7 +214,7 @@ struct CudaScene
         {
             const TriangleMesh &mesh = triangleMeshes[hit.objectIndex];
 
-            const float cosTheta = fmaxf(dot4f3(hit.normal, -dir), 0.0f);
+            const float cosTheta = fmaxf(dot(hit.normal, -dir), 0.0f);
 
             if (cosTheta <= 0.0f)
                 return 0.0f;
