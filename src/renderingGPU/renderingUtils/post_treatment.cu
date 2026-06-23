@@ -4,7 +4,7 @@
 #include <fstream>
 
 GLOBAL
-void extractBright(float3 *hdr, float3 *bright, int width, int height, float threshold)
+void extractBright(float3 *bright, float3 *normalize, float3 *out, int width, int height, float threshold, float invSampleCount)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -14,9 +14,12 @@ void extractBright(float3 *hdr, float3 *bright, int width, int height, float thr
 
     int idx = y * width + x;
 
-    float3 c = hdr[idx];
+
+    float3 c = bright[idx];
+    c = c * invSampleCount;
+    normalize[idx] = c;
     float maxChannel = fmaxf(c.x, fmaxf(c.y, c.z));
-    bright[idx] = (maxChannel > threshold) ? c : make_float3(0.f);
+    out[idx] = (maxChannel > threshold) ? c : make_float3(0.f);
 }
 
 GLOBAL
@@ -141,10 +144,10 @@ void upsampleAdd(float3 *__restrict__ lowRes, float3 *highRes, int lowWidth, int
         return;
 
     float gx = 0.5f * x - 0.25f;
-    float gy = 0.5f * y - 0.25f;
+    float gy = 0.5f * y - 0.5f;
 
-    int x0 = (x - 1) >> 1;
-    int y0 = (y - 1) >> 1;
+    int x0 = floorf(gx);
+    int y0 = floorf(gy);
     int x1 = min(x0 + 1, lowWidth - 1);
     int y1 = min(y0 + 1, lowHeight - 1);
 
@@ -229,8 +232,38 @@ void finalizeImage(float3 *hdr, cudaSurfaceObject_t surface, int width, int heig
 
     int idx = y * width + x;
 
-    float3 c = hdr[idx];
+    float3 &c = hdr[idx];
 
+    // Reinhard tonemap
+    c = (c * exposure) / (make_float3(1.f) + c * exposure);
+
+    // Gamma correction
+    c = make_float3(sqrtf(fmaxf(c.x, 0.f)), sqrtf(fmaxf(c.y, 0.f)), sqrtf(fmaxf(c.z, 0.f)));
+
+    uchar4 pixel = make_uchar4((unsigned char)(255.f * fminf(c.x, 1.f)), (unsigned char)(255.f * fminf(c.y, 1.f)),
+                               (unsigned char)(255.f * fminf(c.z, 1.f)), 255);
+
+    surf2Dwrite(pixel, surface, x * sizeof(uchar4), y);
+}
+
+GLOBAL
+void finalizeImageV2(float3 *hdr, float3 *bloom, float3 *outCompare, cudaSurfaceObject_t surface, int width, int height, float exposure, float bloomStrength)
+{
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x >= width || y >= height)
+        return;
+    
+    int idx = y * width + x;
+
+    float3 hdrBloom = bloom[idx] * bloomStrength + hdr[idx];
+    // apply bloom
+    outCompare[idx] = hdrBloom;
+
+    // finalize image
+    float3 &c = hdr[idx];
+    c = hdrBloom;
     // Reinhard tonemap
     c = (c * exposure) / (make_float3(1.f) + c * exposure);
 
