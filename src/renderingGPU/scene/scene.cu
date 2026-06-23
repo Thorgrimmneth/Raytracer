@@ -591,14 +591,18 @@ CudaScene implicitSpheresScene(float4 sunDir)
     return gpuScene;
 }
 
-CudaScene singleObject(float4 sunDir)
+CudaScene singleObject(float4 sunDir, int rngmanip)
 {
     CudaScene gpuScene;
     CudaSceneHelper helper;
     Light sun = createSun(sunDir, helper);
     helper.lightsGPU.push_back(sun);
-
-    /*for (int i = 0; i < 5; i++)
+    
+    for(int i = 0; i < rngmanip; i++)
+    {
+        float manipRNG = randomFloat();
+    }
+    for (int i = 0; i < 5; i++)
     {
         Material emissive = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), EMISSIVE,
                                                    0.f, 0.f, 1.f, randomFloat() * 6.f + 5.f);
@@ -621,21 +625,22 @@ CudaScene singleObject(float4 sunDir)
         Material lambert =
             Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), LAMBERT, 1.0f);
         helper.materialsGPU.push_back(lambert);
-    }*/
-    
+    }
+
     for (int i = 0; i < 10; i++)
     {
+        float roughness = randomFloat() * 0.5f;
         Material metal = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), METAL,
-                                                randomFloat() * 0.5f);
+                                                roughness * roughness, 1.f);
         helper.materialsGPU.push_back(metal);
     }
-    /*
+    
     for (int i = 0; i < 10; i++)
     {
         Material plastic = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), PLASTIC,
                                                   randomFloat() * 0.5f);
         helper.materialsGPU.push_back(plastic);
-    }*/
+    }
 
     // ===== MESH INSTANCING: Load geometry once, create multiple instances =====
     // Load the dragon mesh geometry once (shared data)
@@ -643,22 +648,22 @@ CudaScene singleObject(float4 sunDir)
     helper.meshGeometriesGPU.push_back(bunnyGeometry);
     MeshGeometry dragonGeometry = loadMeshGeometry("data/dragon/dragon.obj", make_float3(10.f));
     helper.meshGeometriesGPU.push_back(dragonGeometry);
-    int dragonGeometryIndex = 1; // Index of the loaded geometry
 
     // Create 50 instances with different transforms and materials
-    for (int i = 0; i < 50; i++)
+    for (int i = 0; i < 100; i++)
     {
         Quaternion rotation = quaternionFromAxisAngle(
             make_float3(randomFloat() * 2.f, randomFloat() * 2.f, randomFloat() * 2.f), randomFloat() * 360.f);
 
         float3 scale = make_float3(randomFloat() * 0.5f + 0.5f);
         float3 translation =
-            make_float3(randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f, -randomFloat() * 10.f + 5.f);
+            make_float3(randomFloat() * 10.f - 4.f, randomFloat() * 10.f - 6.f, -randomFloat() * 10.f + 4.f);
 
         int materialIndex = int(randomFloat() * helper.materialsGPU.size());
 
         // Create an instance (no GPU allocation here, just structure setup)
-        MeshInstance instance = createMeshInstance(int(randomFloat() * 2.f), materialIndex, scale, rotation, translation);
+        MeshInstance instance =
+            createMeshInstance(int(randomFloat() * helper.meshGeometriesGPU.size()), materialIndex, scale, rotation, translation);
         helper.meshInstancesGPU.push_back(instance);
     }
 
@@ -810,7 +815,6 @@ CudaScene singleObject(float4 sunDir)
     CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManager.d_params), &launchParamsManager.params,
                           sizeof(LaunchParams), cudaMemcpyHostToDevice));
 
-    
     gpuScene.uploadObjects(helper);
     gpuScene.uploadLights(helper);
     gpuScene.uploadMaterials(helper);

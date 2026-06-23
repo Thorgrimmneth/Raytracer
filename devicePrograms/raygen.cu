@@ -21,8 +21,6 @@ extern "C" __global__ void __raygen__intersect()
     if (qid >= params.activeCount)
         return;
 
-    int idx = params.activeQueue[qid];
-
     Payload payload;
 
     payload.hit = 0;
@@ -32,20 +30,20 @@ extern "C" __global__ void __raygen__intersect()
 
     packPointer(&payload, p0, p1);
 
-    optixTrace(params.traversable, params.origins[idx], params.directions[idx], 0.001f, 1e20f, 0.0f, OptixVisibilityMask(255),
+    optixTrace(params.traversable, params.origins[qid], params.directions[qid], 0.001f, 1e20f, 0.0f, OptixVisibilityMask(255),
                OPTIX_RAY_FLAG_NONE, 0, 1, 0, p0, p1);
 
-    params.hitMask[idx] = payload.hit;
+    params.hitMask[qid] = payload.hit;
 
     if (payload.hit)
     {
-        /*printf("Hit at index %d: position (%f, %f, %f), normal (%f, %f, %f), materialIndex %d\n", idx,
+        /*printf("Hit at index %d: position (%f, %f, %f), normal (%f, %f, %f), materialIndex %d\n", qid,
                payload.position.x, payload.position.y, payload.position.z,
                payload.normal.x, payload.normal.y, payload.normal.z,
                payload.materialIndex);*/
         // Store hit data in SoA format
-        params.hitPositions[idx] = payload.position;
-        params.hitNormals[idx] = payload.normal;
-        params.hitMaterialIndices[idx] = payload.materialIndex;
+        params.hitPositions[qid] = payload.position;
+        params.hitNormals[qid] = payload.normal;
+        params.hitMaterialIndices[qid] = payload.materialIndex;
     }
 }

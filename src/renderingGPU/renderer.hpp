@@ -2,6 +2,12 @@
 
 #include "../utils/defines.hpp"
 
+struct MaterialRanges
+{
+    int offset[7];
+    int count[7];
+};
+
 struct cudaGraphicsResource;
 
 class Renderer
@@ -25,7 +31,7 @@ class Renderer
     float3 *getFinalizedImage();
 
     // Initialisation
-    void init(int width, int height, float sunDirx, float sunDiry, float sunDirz);
+    void init(int width, int height, float sunDirx, float sunDiry, float sunDirz, int rngManip = 0);
 
     // Post-processing
     void applyBloom();

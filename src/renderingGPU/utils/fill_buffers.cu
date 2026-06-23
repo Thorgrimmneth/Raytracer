@@ -54,3 +54,14 @@ void initIntBuffer(int* buffer, int count, int value)
 
     buffer[idx] = value;
 }
+
+GLOBAL
+void initMaterialBuffer(MaterialType* buffer, int count, MaterialType value)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if(idx >= count)
+        return;
+
+    buffer[idx] = value;
+}

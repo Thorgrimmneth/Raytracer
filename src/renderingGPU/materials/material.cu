@@ -56,7 +56,7 @@ DEVICE float Material::computeD(const float3 &p_normal, const float3 &h, const f
     float NdotH = fmaxf(dot(p_normal, h), 0.f);
     float NdotH2 = NdotH * NdotH;
     float denom = (NdotH2 * (alphaSquared - 1.f) + 1.f);
-    denom = 1.f / GPUPIf * denom * denom;
+    denom = 1.f / (GPUPIf * denom * denom);
     return alphaSquared * denom;
 }
 

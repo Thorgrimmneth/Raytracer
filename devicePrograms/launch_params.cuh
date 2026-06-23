@@ -32,8 +32,6 @@ struct LaunchParams
     
     int* hitMask = nullptr;
 
-    int* activeQueue = nullptr;
-
     int activeCount = 0;
 
     OptixTraversableHandle traversable = 0;

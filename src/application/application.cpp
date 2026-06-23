@@ -1,4 +1,5 @@
 #include "application.hpp"
+#include <nvtx3/nvToolsExt.h>
 
 int Application::initParameters(int argc, char **argv)
 {
@@ -42,7 +43,7 @@ int Application::initParameters(int argc, char **argv)
         else if (arg == "--help")
         {
             std::cout << "Usage: ./mon_projet [options]\n";
-            std::cout << "  -spp <int>   samples per pixel\n";
+            std::cout << "  -rpp <int>   samples per pixel\n";
             std::cout << "  -w <int>     width\n";
             std::cout << "  -i <int>     number of images\n";
             std::cout << "  -skip <int>  start with the ith image\n";
@@ -77,9 +78,10 @@ int Application::launchApp(int argc, char **argv)
 
     image = Texture(width, height);
 
+    Chrono chronoGlobal;
+    chronoGlobal.start();
     Chrono chrono;
-    chrono.start();
-    float value = 1.f;
+    float value = 1000.f;
     // performance mode, no GUI. Used for profiling and creating final images
     if (mode == 0)
     {
@@ -109,8 +111,9 @@ int Application::launchApp(int argc, char **argv)
         image.saveJPG(RESULTS_PATH + imageName);
         std::cout << "saved : " + imageName << std::endl;
     }
-    else if (mode >= 2)
+    else if (mode == 2)
     {
+        chrono.start();
         sunDir = computeSunDir(t);
 
         Renderer renderer;
@@ -124,27 +127,69 @@ int Application::launchApp(int argc, char **argv)
         if (d_finalizedImage)
         {
             unsigned char *img_data = (unsigned char *)malloc(width * height * 3);
+            
             for (int i = 0; i < width * height; i++)
             {
                 img_data[i * 3] = static_cast<unsigned char>(d_finalizedImage[i].x * 255.0f);
                 img_data[i * 3 + 1] = static_cast<unsigned char>(d_finalizedImage[i].y * 255.0f);
                 img_data[i * 3 + 2] = static_cast<unsigned char>(d_finalizedImage[i].z * 255.0f);
             }
-            std::cout << "converged after " << renderer.getFrameNumber() << std::endl;
+            std::cout << "converged after " << renderer.getFrameNumber() << " with " << value << " error" << std::endl;
             image.createFromRaw(img_data, width, height);
             const std::string imageName = "performance.jpg";
             image.saveJPG(RESULTS_PATH + imageName);
             std::cout << "saved : " + imageName << std::endl;
+            chrono.stop();
             std::cout << "avg : " << renderer.getFrameNumber() / (chrono.elapsedTime()) << " spp/s" << std::endl;
             free(img_data);
             free(d_finalizedImage);
         }
-        
-        renderer.cleanUp();
+    }
+    else if(mode >=3)
+    {
+        for(int i = 0; i < nbImage; i++)
+        {
+            value = 1000.f;
+            chrono.start();
+            sunDir = computeSunDir(t);
+
+            Renderer renderer;
+            renderer.init(width, height, sunDir.x, sunDir.y, sunDir.z, i);
+            printf("Rendering image %d/%d\n", i + 1, nbImage);
+            for (int j = 0; j < nbRPP && value > threshold; j++)
+            {
+                value = renderer.render(false, convergence);
+                if(j % 1000 == 0)
+                {
+                    std::cout << "image " << i << " : " << j << " samples, error = " << value << std::endl;
+                }
+            }
+
+            // Get finalized image from GPU and save to texture
+            float3 *d_finalizedImage = renderer.getFinalizedImage();
+            if (d_finalizedImage)
+            {
+                chrono.stop();
+                printf("image %d : converged after %d samples with %f error in %fs (around %f spp/s)\n", i, renderer.getFrameNumber(), value, chrono.elapsedTime(), renderer.getFrameNumber() / chrono.elapsedTime());
+                unsigned char *img_data = (unsigned char *)malloc(width * height * 3);
+                for (int k = 0; k < width * height; k++)
+                {
+                    img_data[k * 3] = static_cast<unsigned char>(d_finalizedImage[k].x * 255.0f);
+                    img_data[k * 3 + 1] = static_cast<unsigned char>(d_finalizedImage[k].y * 255.0f);
+                    img_data[k * 3 + 2] = static_cast<unsigned char>(d_finalizedImage[k].z * 255.0f);
+                }
+                image.createFromRaw(img_data, width, height);
+                const std::string imageName = "performance_" + std::to_string(i) + ".jpg";
+                image.saveJPG(RESULTS_PATH + imageName);
+                std::cout << "saved : " + imageName << std::endl;
+                free(img_data);
+                free(d_finalizedImage);
+            }
+        }
     }
 
-    chrono.stop();
-    float time = chrono.elapsedTime();
+    chronoGlobal.stop();
+    float time = chronoGlobal.elapsedTime();
     int minutes = (int)time / 60.f;
     int seconds = (int)time % 60;
     std::cout << "Done in " << time << "s (" << minutes << "m and " << seconds << "s)" << std::endl;

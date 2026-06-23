@@ -42,13 +42,8 @@ void downsample(float3 *input, float3 *output, int width, int height)
     output[y * newWidth + x] = (input[idx00] + input[idx10] + input[idx01] + input[idx11]) * 0.25f;
 }
 
-template<int RADIUS>
-GLOBAL
-void blurHorizontal(
-    const float3* __restrict__ input,
-    float3* __restrict__ output,
-    int width,
-    int height)
+template <int RADIUS>
+GLOBAL void blurHorizontal(const float3 *__restrict__ input, float3 *__restrict__ output, int width, int height)
 {
     constexpr int BLOCK_X = 16;
     constexpr int BLOCK_Y = 16;
@@ -77,19 +72,11 @@ void blurHorizontal(
     if (x >= width || y >= height)
         return;
 
-    constexpr float weights[] =
-    {
-        0.227027f,
-        0.1945946f,
-        0.1216216f,
-        0.054054f,
-        0.016216f
-    };
+    constexpr float weights[] = {0.227027f, 0.1945946f, 0.1216216f, 0.054054f, 0.016216f};
 
-    float3 result =
-        tile[ty][tx + RADIUS] * weights[0];
+    float3 result = tile[ty][tx + RADIUS] * weights[0];
 
-    #pragma unroll
+#pragma unroll
     for (int i = 1; i <= RADIUS; ++i)
     {
         result += tile[ty][tx + RADIUS - i] * weights[i];
@@ -99,13 +86,8 @@ void blurHorizontal(
     output[y * width + x] = result;
 }
 
-template<int RADIUS>
-GLOBAL
-void blurVertical(
-    const float3* __restrict__ input,
-    float3* __restrict__ output,
-    int width,
-    int height)
+template <int RADIUS>
+GLOBAL void blurVertical(const float3 *__restrict__ input, float3 *__restrict__ output, int width, int height)
 {
     constexpr int BLOCK_X = 16;
     constexpr int BLOCK_Y = 16;
@@ -134,19 +116,11 @@ void blurVertical(
     if (x >= width || y >= height)
         return;
 
-    constexpr float weights[] =
-    {
-        0.227027f,
-        0.1945946f,
-        0.1216216f,
-        0.054054f,
-        0.016216f
-    };
+    constexpr float weights[] = {0.227027f, 0.1945946f, 0.1216216f, 0.054054f, 0.016216f};
 
-    float3 result =
-        tile[ty + RADIUS][tx] * weights[0];
+    float3 result = tile[ty + RADIUS][tx] * weights[0];
 
-    #pragma unroll
+#pragma unroll
     for (int i = 1; i <= RADIUS; ++i)
     {
         result += tile[ty + RADIUS - i][tx] * weights[i];
@@ -157,7 +131,8 @@ void blurVertical(
 }
 
 GLOBAL
-void upsampleAdd(float3 *lowRes, float3 *highRes, int lowWidth, int lowHeight, int highWidth, float strength)
+void upsampleAdd(float3 *__restrict__ lowRes, float3 *highRes, int lowWidth, int lowHeight, int highWidth,
+                 float strength)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -165,11 +140,11 @@ void upsampleAdd(float3 *lowRes, float3 *highRes, int lowWidth, int lowHeight, i
     if (x >= highWidth || y >= lowHeight * 2)
         return;
 
-    float gx = (x + 0.5f) * 0.5f - 0.5f;
-    float gy = (y + 0.5f) * 0.5f - 0.5f;
+    float gx = 0.5f * x - 0.25f;
+    float gy = 0.5f * y - 0.25f;
 
-    int x0 = floorf(gx);
-    int y0 = floorf(gy);
+    int x0 = (x - 1) >> 1;
+    int y0 = (y - 1) >> 1;
     int x1 = min(x0 + 1, lowWidth - 1);
     int y1 = min(y0 + 1, lowHeight - 1);
 
@@ -184,7 +159,9 @@ void upsampleAdd(float3 *lowRes, float3 *highRes, int lowWidth, int lowHeight, i
     float3 c01 = lowRes[y1 * lowWidth + x0];
     float3 c11 = lowRes[y1 * lowWidth + x1];
 
-    float3 c = lerp(lerp(c00, c10, tx), lerp(c01, c11, tx), ty);
+    float3 a = c00 + tx * (c10 - c00);
+    float3 b = c01 + tx * (c11 - c01);
+    float3 c = a + ty * (b - a);
 
     highRes[y * highWidth + x] += c * strength;
 }
