@@ -8,87 +8,131 @@ __global__ void shadeMissKernel(float3 *origins, float3 *directions, float3 *thr
     if (qid >= missCount)
         return;
 
-    float3 origin = origins[qid];
-    float3 direction = directions[qid];
+    const float3 direction = directions[qid];
 
-    float horizonFade = smoothstep(-0.05f, 0.02f, direction.y);
-
-    if (horizonFade <= 0.0f)
+    if (direction.y <= 0.0f)
         return;
 
-    float segmentLength = sizeAtmosphere / skyColorSamples;
-    float tCurrent = 0.0f;
+    const float3 origin = origins[qid];
 
-    float3 sumR = make_float3(0.f);
-    float3 sumM = make_float3(0.f);
+    const float horizonFade = smoothstep(-0.05f, 0.02f, direction.y);
+
+    const float segmentLength = sizeAtmosphere / skyColorSamples;
+
+    //------------------------------------------------------------------
+    // Phases
+    //------------------------------------------------------------------
+
+    const float mu = dot(direction, sunDirection);
+    const float mu2Term = 1.0f + mu * mu;
+
+    const float phaseR = 0.0596831f * mu2Term;
+
+    const float temp = 1.5776f - 1.52f * mu;
+
+    const float phaseM = 0.0195609427f * mu2Term * rsqrtf(temp) / temp;
+
+    //------------------------------------------------------------------
+    // Soleil : somme géométrique fermée
+    //------------------------------------------------------------------
+
+    const float sunSegmentLength = 15000.0f;
+
+    const float qR = __expf(-hr * sunDirection.y * sunSegmentLength);
+
+    const float qM = __expf(-hm * sunDirection.y * sunSegmentLength);
+
+    const float invOneMinusQR = 1.0f / (1.0f - qR);
+
+    const float invOneMinusQM = 1.0f / (1.0f - qM);
+
+    float qR2 = qR * qR;
+    float qR4 = qR2 * qR2;
+
+    float qM2 = qM * qM;
+    float qM4 = qM2 * qM2;
+
+    const float geoFactorR = sunSegmentLength * (1.0f - qR4) * invOneMinusQR;
+
+    const float geoFactorM = sunSegmentLength * (1.0f - qM4) * invOneMinusQM;
+
+    //------------------------------------------------------------------
+    // Intégration principale
+    //------------------------------------------------------------------
+
+    float3 sumR = make_float3(0.0f);
+    float3 sumM = make_float3(0.0f);
 
     float opticalDepthR = 0.0f;
     float opticalDepthM = 0.0f;
 
-    float mu = dot(direction, sunDirection);
+    float3 samplePosition = origin + direction * (0.5f * segmentLength);
 
-    float mu2Term = 1.0f + mu * mu;
+    float height = fmaxf(samplePosition.y, 0.0f);
 
-    float phaseR = 0.0596831f * mu2Term;
+    float hrLocal = __expf(-height * hr);
 
-    float temp = 1.5776f - 1.52f * mu;
+    float hmLocal = __expf(-height * hm);
 
-    float phaseM = 0.0195609427f * mu2Term * rsqrtf(temp) / temp;
+    const float rR = __expf(-hr * direction.y * segmentLength);
 
-    int sunSamples = 4;
-    float sunSegmentLength = 15000.f;
-    float3 sunDirSegLength = sunDirection * sunSegmentLength;
-    float3 samplePosition = origin + direction * (segmentLength * 0.5f);
+    const float rM = __expf(-hm * direction.y * segmentLength);
+
     for (int i = 0; i < skyColorSamples; ++i)
     {
-        samplePosition += direction * segmentLength;
+        opticalDepthR = fmaf(hrLocal, segmentLength, opticalDepthR);
 
-        float height = fmaxf(samplePosition.y, 0.0f);
+        opticalDepthM = fmaf(hmLocal, segmentLength, opticalDepthM);
 
-        float hrLocal = __expf(-height * hr);
-        float hmLocal = __expf(-height * hm);
+        //--------------------------------------------------------------
+        // Profondeur optique vers le soleil
+        //--------------------------------------------------------------
 
-        opticalDepthR += hrLocal * segmentLength;
-        opticalDepthM += hmLocal * segmentLength;
+        const float firstR = hrLocal * qR;
 
-        float3 sunSamplePosition = samplePosition;
+        const float firstM = hmLocal * qM;
 
-        float opticalDepthLightR = 0.f;
-        float opticalDepthLightM = 0.f;
+        const float opticalDepthLightR = firstR * geoFactorR;
 
-        for (int j = 0; j < sunSamples; ++j)
-        {
-            sunSamplePosition += sunDirSegLength;
+        const float opticalDepthLightM = firstM * geoFactorM;
 
-            float heightLight = fmaxf(sunSamplePosition.y, 0.f);
+        //--------------------------------------------------------------
+        // Atténuation
+        //--------------------------------------------------------------
 
-            float expR = __expf(-heightLight * hr);
-            float expM = __expf(-heightLight * hm);
+        const float3 tau =
+            -(betaR * (opticalDepthR + opticalDepthLightR) + betaM * (opticalDepthM + opticalDepthLightM));
 
-            opticalDepthLightR = fmaf(expR, sunSegmentLength, opticalDepthLightR);
+        const float3 attenuation = make_float3(__expf(tau.x), __expf(tau.y), __expf(tau.z));
 
-            opticalDepthLightM = fmaf(expM, sunSegmentLength, opticalDepthLightM);
-        }
+        sumR = sumR + attenuation * (hrLocal * segmentLength);
+        sumM = sumM + attenuation * (hmLocal * segmentLength);
 
-        float3 tau = -(betaR * (opticalDepthR + opticalDepthLightR) + betaM * (opticalDepthM + opticalDepthLightM));
+        //--------------------------------------------------------------
+        // Avance au prochain échantillon
+        //--------------------------------------------------------------
 
-        float3 attenuation = make_float3(__expf(tau.x), __expf(tau.y), __expf(tau.z));
-
-        sumR += attenuation * hrLocal * segmentLength;
-        sumM += attenuation * hmLocal * segmentLength;
-
-        tCurrent += segmentLength;
+        hrLocal = hrLocal * rR;
+        hmLocal = hmLocal * rM;
     }
+
+    //------------------------------------------------------------------
+    // Couleur du ciel
+    //------------------------------------------------------------------
 
     float3 sky = sumR * betaR * phaseR + sumM * betaM * phaseM * 0.3f;
 
-    float sunAngularRadius = 2.1f * GPUPIf / 180.f;
+    //------------------------------------------------------------------
+    // Disque solaire
+    //------------------------------------------------------------------
 
-    float cosTheta = dot(direction, sunDirection);
+    const float cosTheta = dot(direction, sunDirection);
 
-    float sunDisk = smoothstep(cos(sunAngularRadius), cos(sunAngularRadius * 0.5f), cosTheta);
-    float t = clamp((sunDirection.y + 0.4f) / 1.4f, 0.0f, 1.0f);
-    float sunset = (1.f - t) * (1.f - t);
+    const float sunDisk = smoothstep(cosSunAngularRadius, cosSunAngularRadiusHalf, cosTheta);
+
+    const float t = clamp((sunDirection.y + 0.4f) / 1.4f, 0.0f, 1.0f);
+
+    const float sunset = (1.0f - t) * (1.0f - t);
 
     float3 sunColor = lerp(make_float3(30.f, 27.f, 24.f), make_float3(60.f, 25.f, 10.f), sunset);
 
@@ -97,16 +141,21 @@ __global__ void shadeMissKernel(float3 *origins, float3 *directions, float3 *thr
         sunColor = clamp(sunColor, make_float3(0.f), make_float3(1.f));
     }
 
-    sky += sunColor * sunDisk;
+    sky = sky + sunColor * sunDisk;
 
-    float mult = 1.0f + 19.0f * t * t * t;
+    //------------------------------------------------------------------
+    // Intensité globale
+    //------------------------------------------------------------------
+
+    const float mult = 1.0f + 19.0f * t * t * t;
 
     sky = sky * mult * horizonFade;
 
-    float3 contribution = throughput[qid] * sky;
-    int pixel = pixelIndices[qid];
+    //------------------------------------------------------------------
+    // Accumulation
+    //------------------------------------------------------------------
 
-    accumBuffer[pixel] += contribution;
+    accumBuffer[pixelIndices[qid]] += throughput[qid] * sky;
 }
 
 __global__ void shadeLambertKernel(CudaScene scene, float3 *directions, float3 *throughputs, RNG *p_rng,
@@ -235,9 +284,8 @@ __global__ void shadeLambertKernel(CudaScene scene, float3 *directions, float3 *
     // ------------------------------------------------------------
 }
 
-__global__ void shadeMetalKernel(CudaScene scene, float3 *origins, float3 *directions,
-                                 float3 *throughputs, RNG *rngs, float3 *hitPositions,
-                                 float3 *hitNormals, int *hitMaterialIndices, int *pixelIndices,
+__global__ void shadeMetalKernel(CudaScene scene, float3 *origins, float3 *directions, float3 *throughputs, RNG *rngs,
+                                 float3 *hitPositions, float3 *hitNormals, int *hitMaterialIndices, int *pixelIndices,
                                  float3 *accumBuffer, float3 *nextOrigins, float3 *nextDirections,
                                  float3 *nextThroughput, int *nextPixelIndices, bool *nextLastBounceWasDelta,
                                  float *nextLastBsdfPdf, bool *nextIsInside, RNG *nextRng, int *nextActiveCount,
@@ -289,7 +337,8 @@ __global__ void shadeMetalKernel(CudaScene scene, float3 *origins, float3 *direc
         if (ls.pdf > 0.f)
         {
 
-            float3 shadowTint = scene.traceShadowRay(pos + normal * 1e-3f, ls.direction, 1e-3f, ls.distance - 1e-3f);
+            float3 shadowTint = scene.traceShadowRay(pos + normal * 1e-3f, ls.direction, 1e-3f, ls.distance -
+    1e-3f);
 
             if (length(shadowTint) > 1e-6f)
             {
@@ -360,9 +409,9 @@ __global__ void shadeMetalKernel(CudaScene scene, float3 *origins, float3 *direc
 }
 
 __global__ void shadePlasticNEEKernel(CudaScene scene, float3 *directions, float3 *throughputs, RNG *rngs,
-                                      float3 *hitPositions, float3 *hitNormals,
-                                      int *hitMaterialIndices, int *pixelIndices, float3 *accumBuffer,
-                                      int nbLights, float *lightWeights, int activeCount)
+                                      float3 *hitPositions, float3 *hitNormals, int *hitMaterialIndices,
+                                      int *pixelIndices, float3 *accumBuffer, int nbLights, float *lightWeights,
+                                      int activeCount)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -440,11 +489,11 @@ __global__ void shadePlasticNEEKernel(CudaScene scene, float3 *directions, float
 }
 
 __global__ void shadePlasticKernel(Material *materials, float3 *directions, float3 *throughputs, RNG *rngs,
-                                   float3 *hitPositions, float3 *hitNormals, int *hitMaterialIndices,
-                                   int *pixelIndices, float3 *accumBuffer, float3 *nextOrigins,
-                                   float3 *nextDirections, float3 *nextThroughput, int *nextPixelIndices,
-                                   bool *nextLastBounceWasDelta, float *nextLastBsdfPdf, bool *nextIsInside,
-                                   RNG *nextRng, int *nextActiveCount, int activeCount, uint depth)
+                                   float3 *hitPositions, float3 *hitNormals, int *hitMaterialIndices, int *pixelIndices,
+                                   float3 *accumBuffer, float3 *nextOrigins, float3 *nextDirections,
+                                   float3 *nextThroughput, int *nextPixelIndices, bool *nextLastBounceWasDelta,
+                                   float *nextLastBsdfPdf, bool *nextIsInside, RNG *nextRng, int *nextActiveCount,
+                                   int activeCount, uint depth)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
     if (qid >= activeCount)
@@ -585,11 +634,11 @@ __global__ void shadePlasticKernel(Material *materials, float3 *directions, floa
 }
 
 __global__ void shadeMirrorKernel(CudaScene scene, float3 *directions, float3 *throughputs, RNG *rngs,
-                                  float3 *hitPositions, float3 *hitNormals, int *hitMaterialIndices,
-                                  int *pixelIndices, float3 *accumBuffer, float3 *nextOrigins,
-                                  float3 *nextDirections, float3 *nextThroughput, int *nextPixelIndices,
-                                  bool *nextLastBounceWasDelta, float *nextLastBsdfPdf, bool *nextIsInside,
-                                  RNG *nextRng, int *nextActiveCount, int activeCount, uint depth)
+                                  float3 *hitPositions, float3 *hitNormals, int *hitMaterialIndices, int *pixelIndices,
+                                  float3 *accumBuffer, float3 *nextOrigins, float3 *nextDirections,
+                                  float3 *nextThroughput, int *nextPixelIndices, bool *nextLastBounceWasDelta,
+                                  float *nextLastBsdfPdf, bool *nextIsInside, RNG *nextRng, int *nextActiveCount,
+                                  int activeCount, uint depth)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -661,8 +710,8 @@ __global__ void shadeMirrorKernel(CudaScene scene, float3 *directions, float3 *t
 }
 
 __global__ void shadeTransparentKernel(CudaScene scene, float3 *directions, float3 *throughputs, RNG *rngs,
-                                     bool *isInsides, float3 *hitPositions, float3 *hitNormals,
-                                        int *hitMaterialIndices, int *pixelIndices, float3 *accumBuffer,
+                                       bool *isInsides, float3 *hitPositions, float3 *hitNormals,
+                                       int *hitMaterialIndices, int *pixelIndices, float3 *accumBuffer,
                                        float3 *nextOrigins, float3 *nextDirections, float3 *nextThroughput,
                                        int *nextPixelIndices, bool *nextLastBounceWasDelta, float *nextLastBsdfPdf,
                                        bool *nextIsInside, RNG *nextRng, int *nextActiveCount, int activeCount,
@@ -733,10 +782,9 @@ __global__ void shadeTransparentKernel(CudaScene scene, float3 *directions, floa
     nextRng[dst] = rngs[qid];
 }
 
-__global__ void shadeEmissiveKernel(CudaScene scene, float3 *origins, float3 *directions,
-                                    float3 *throughputs, bool *lastBounceWasDelta, float *lastBsdfPdf,
-                                    int *hitMaterialIndices, int *pixelIndices, float3 *accumBuffer,
-                                    int activeCount)
+__global__ void shadeEmissiveKernel(CudaScene scene, float3 *origins, float3 *directions, float3 *throughputs,
+                                    bool *lastBounceWasDelta, float *lastBsdfPdf, int *hitMaterialIndices,
+                                    int *pixelIndices, float3 *accumBuffer, int activeCount)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
 

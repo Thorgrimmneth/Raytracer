@@ -10,3 +10,5 @@ extern __constant__ float3 betaR;
 extern __constant__ float3 betaM;
 extern __constant__ float exposure;
 extern __constant__ float sizeAtmosphere;
+extern __constant__ float cosSunAngularRadius;
+extern __constant__ float cosSunAngularRadiusHalf;

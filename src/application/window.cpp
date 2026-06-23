@@ -302,8 +302,6 @@ unsigned char *Window::cumulativeRendering(Vec3f sunDir, int width, int height, 
     glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    cudaGraphicsUnregisterResource(cudaTextureResource);
-
     glDeleteTextures(1, &texture);
 
     glDeleteBuffers(1, &vbo);

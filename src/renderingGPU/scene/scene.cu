@@ -650,7 +650,7 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
     helper.meshGeometriesGPU.push_back(dragonGeometry);
 
     // Create 50 instances with different transforms and materials
-    for (int i = 0; i < 100; i++)
+    for (int i = 0; i < 50; i++)
     {
         Quaternion rotation = quaternionFromAxisAngle(
             make_float3(randomFloat() * 2.f, randomFloat() * 2.f, randomFloat() * 2.f), randomFloat() * 360.f);
@@ -672,7 +672,7 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
     Material ground = Material::makeMaterial(make_float3(0.5f), LAMBERT, 1.0f);
     helper.materialsGPU.push_back(ground);
     p.materialIndex = helper.materialsGPU.size() - 1;
-    helper.triangleMeshesGPU.push_back(PlaneToMesh(p, 1000.f));
+    helper.triangleMeshesGPU.push_back(PlaneToMesh(p, 20000.f));
 
     OptixContext context;
     OptixProgramGroupManager programGroupManager;

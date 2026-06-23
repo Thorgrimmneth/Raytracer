@@ -34,6 +34,8 @@ __constant__ float3 betaM;
 __constant__ float exposure;
 __constant__ Camera camera;
 __constant__ float sizeAtmosphere;
+__constant__ float cosSunAngularRadius;
+__constant__ float cosSunAngularRadiusHalf;
 
 enum class RenderMode
 {
@@ -214,6 +216,9 @@ HOST void initConstant(int width, int height, Camera c_camera, float4 sunDir)
     float3 c_betaM = make_float3(21e-6f);
     float c_exposure = 1.f;
     float c_sizeAtmosphere = 60000.f;
+    float sunAngularRadius = 2.1f * GPUPIf / 180.f;
+    float c_sunAngularRadius = cosf(sunAngularRadius);
+    float c_sunAngularRadiusHalf = cosf(sunAngularRadius * 0.5f);
     cudaMemcpyToSymbol(nbBounces, &c_nbBounces, sizeof(int));
     cudaMemcpyToSymbol(earthRadius, &c_earthRadius, sizeof(float));
     cudaMemcpyToSymbol(sunDirection, &c_sunDirection, sizeof(float3));
@@ -225,6 +230,8 @@ HOST void initConstant(int width, int height, Camera c_camera, float4 sunDir)
     cudaMemcpyToSymbol(exposure, &c_exposure, sizeof(float));
     cudaMemcpyToSymbol(camera, &c_camera, sizeof(Camera));
     cudaMemcpyToSymbol(sizeAtmosphere, &c_sizeAtmosphere, sizeof(float));
+    cudaMemcpyToSymbol(cosSunAngularRadius, &c_sunAngularRadius, sizeof(float));
+    cudaMemcpyToSymbol(cosSunAngularRadiusHalf, &c_sunAngularRadiusHalf, sizeof(float));
 }
 
 void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, float sunDirz, int rngManip)
@@ -306,7 +313,6 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     cudaMemset(impl->d_normalizedBuffer, 0, impl->hdrBufferSize);
     cudaMemset(impl->d_hdrBloomBuffer, 0, impl->hdrBufferSize);
     cudaMemset(impl->d_bloomBuffer, 0, impl->hdrBufferSize);
-    cudaMemset(impl->d_hdrBloomBuffer, 0, impl->hdrBufferSize);
     cudaMemset(impl->d_convergenceBuffer, 0, impl->hdrBufferSize);
 
     // =========================
@@ -407,7 +413,7 @@ void renderKernel(CudaScene gpuScene, float3 *d_accumBuffer, int width, int heig
 
 // WAVEFRONT INIT
 GLOBAL
-void generatePrimaryRaysKernel(float3 *directions, RNG *p_rng, int *p_pixelIndices, int *activeCount, int width,
+void generatePrimaryRaysKernel(float3 *directions, RNG *p_rng, int *p_pixelIndices, int width,
                                int height, int sampleCount, float invWidth, float invHeight)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -427,9 +433,6 @@ void generatePrimaryRaysKernel(float3 *directions, RNG *p_rng, int *p_pixelIndic
     p_rng[pixelIndex] = rng;
     float3 rayTarget = camera.topLeft + sx * camera.viewPortU - sy * camera.viewPortV;
     directions[pixelIndex] = normalize(rayTarget - camera.cameraPos);
-
-    if (pixelIndex == 0)
-        *activeCount = width * height;
 }
 
 /*
@@ -453,8 +456,6 @@ void accumulateWavefrontKernel(int *pixelIndices, float3 *radiance, float3 *accu
 
 void Renderer::applyBloom()
 {
-    cudaMemset(impl->d_bloomBuffer, 0, impl->hdrBufferSize);
-
     // =========================
     // Extracts bright pixels, also normalizes
     // =========================
@@ -638,11 +639,11 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
     // -------------------------------------------------------------------------
     // 1. Génération des rayons primaires + activeQueue
     // -------------------------------------------------------------------------
-    cudaMemset(impl->d_activeCount, 0, sizeof(int));
+    cudaMemset(impl->d_activeCount, impl->width * impl->height, sizeof(int));
     float invWidth = 1.f / (float)(impl->width - 1);
     float invHeight = 1.f / (float)(impl->height - 1);
     generatePrimaryRaysKernel<<<grid2D, block2D>>>(impl->d_directions, impl->d_rng, impl->d_pixelIndices,
-                                                   impl->d_activeCount, impl->width, impl->height, impl->sampleCount,
+                                                   impl->width, impl->height, impl->sampleCount,
                                                    invWidth, invHeight);
 
     err = cudaGetLastError();
