@@ -21,7 +21,7 @@ void OptixModuleManager::create(OptixDeviceContext context, const std::string &p
 
     pipelineCompileOptions.usesMotionBlur = false;
 
-    pipelineCompileOptions.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_ANY;
+    pipelineCompileOptions.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING;
 
     pipelineCompileOptions.numPayloadValues = 2;
 

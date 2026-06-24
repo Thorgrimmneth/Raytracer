@@ -2,12 +2,6 @@
 
 #include "../utils/defines.hpp"
 
-struct MaterialRanges
-{
-    int offset[7];
-    int count[7];
-};
-
 struct cudaGraphicsResource;
 
 class Renderer

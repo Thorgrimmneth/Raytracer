@@ -192,16 +192,13 @@ __global__ void shadeLambertKernel(CudaScene scene, float3 *directions, float3 *
     bsdf.direction = x * T + y * B + z * normal;
     bsdf.pdf = fmaxf(dot(normal, bsdf.direction), 0.f) * GPUInvPIf;
     bsdf.brdf = mtl.color() * GPUInvPIf;
-    if (bsdf.pdf <= 1e-4f)
-    {
-        return;
-    }
+    bool alive = (bsdf.pdf > 1e-4f);
     // ------------------------------------------------------------
     // DIRECT LIGHTING / NEE
     // Seulement pour les matériaux non-delta.
     // ------------------------------------------------------------
     /*int nbLights = scene.nbLights;
-    if (nbLights > 0)
+    if (alive && nbLights > 0)
     {
         int lightIndex = selectLightByImportance(nbLights, scene.lightCumulativeWeights, rng);
 
@@ -239,29 +236,53 @@ __global__ void shadeLambertKernel(CudaScene scene, float3 *directions, float3 *
             }
         }
     }*/
-
-    float cosTheta = fmaxf(dot(normal, bsdf.direction), 0.0f);
-
-    throughput *= bsdf.brdf * cosTheta / bsdf.pdf;
-
-    if (depth > 2)
+    if (alive)
     {
-        float p = fmaxf(throughput.x, fmaxf(throughput.y, throughput.z));
+        float cosTheta = fmaxf(dot(normal, bsdf.direction), 0.0f);
 
-        p = clamp(p, 0.1f, 1.f);
+        throughput *= bsdf.brdf * cosTheta / bsdf.pdf;
 
-        if (rng.nextFloat() > p)
+        if (depth > 2)
         {
-            return; // path mort
+            float p = fmaxf(throughput.x, fmaxf(throughput.y, throughput.z));
+
+            p = clamp(p, 0.1f, 1.f);
+
+            if (rng.nextFloat() > p)
+            {
+                alive = false;
+            }
+            else
+            {
+                throughput /= p;
+            }
         }
-
-        throughput /= p;
     }
-
     // ------------------------------------------------------------
     // NEXT origin, direction
     // ------------------------------------------------------------
-    int dst = atomicAdd(nextActiveCount, 1);
+
+    unsigned mask = __ballot_sync(0xffffffff, alive);
+
+    int lane = threadIdx.x & 31;
+
+    int localRank = __popc(mask & ((1u << lane) - 1));
+
+    int warpCount = __popc(mask);
+
+    int warpBase = 0;
+
+    if (lane == 0)
+    {
+        warpBase = atomicAdd(nextActiveCount, warpCount);
+    }
+
+    warpBase = __shfl_sync(0xffffffff, warpBase, 0);
+
+    if (!alive)
+        return;
+
+    int dst = warpBase + localRank;
 
     nextOrigins[dst] = pos + bsdf.direction * 1e-3f;
 
@@ -313,10 +334,7 @@ __global__ void shadeMetalKernel(CudaScene scene, float3 *origins, float3 *direc
 
     float cosTheta = fmaxf(dot(normal, bsdf.direction), 0.0f);
 
-    if (bsdf.pdf <= 1e-4f)
-    {
-        return;
-    }
+    bool alive = (bsdf.pdf > 1e-4f);
 
     // ------------------------------------------------------------
     // DIRECT LIGHTING / NEE
@@ -324,7 +342,7 @@ __global__ void shadeMetalKernel(CudaScene scene, float3 *origins, float3 *direc
     // ------------------------------------------------------------
 
     /*int nbLights = scene.nbLights;
-    if (nbLights > 0)
+    if (alive && nbLights > 0)
     {
         int lightIndex = selectLightByImportance(nbLights, scene.lightCumulativeWeights, rng);
 
@@ -365,32 +383,56 @@ __global__ void shadeMetalKernel(CudaScene scene, float3 *origins, float3 *direc
     // ------------------------------------------------------------
     // UPDATE THROUGHPUT
     // ------------------------------------------------------------
-
-    throughput *= bsdf.brdf * cosTheta / bsdf.pdf;
-
-    // ------------------------------------------------------------
-    // RUSSIAN ROULETTE
-    // ------------------------------------------------------------
-
-    if (depth > 2)
+    if (alive)
     {
-        float p = fmaxf(throughput.x, fmaxf(throughput.y, throughput.z));
+        throughput *= bsdf.brdf * cosTheta / bsdf.pdf;
 
-        p = clamp(p, 0.1f, 1.f);
+        // ------------------------------------------------------------
+        // RUSSIAN ROULETTE
+        // ------------------------------------------------------------
 
-        if (rng.nextFloat() > p)
+        if (depth > 2)
         {
-            return;
-        }
+            float p = fmaxf(throughput.x, fmaxf(throughput.y, throughput.z));
 
-        throughput /= p;
+            p = clamp(p, 0.1f, 1.f);
+
+            if (rng.nextFloat() > p)
+            {
+                alive = false;
+            }
+            else
+            {
+                throughput /= p;
+            }
+        }
     }
 
     // ------------------------------------------------------------
     // NEXT origin, direction
     // ------------------------------------------------------------
 
-    int dst = atomicAdd(nextActiveCount, 1);
+    unsigned mask = __ballot_sync(0xffffffff, alive);
+
+    int lane = threadIdx.x & 31;
+
+    int localRank = __popc(mask & ((1u << lane) - 1));
+
+    int warpCount = __popc(mask);
+
+    int warpBase = 0;
+
+    if (lane == 0)
+    {
+        warpBase = atomicAdd(nextActiveCount, warpCount);
+    }
+
+    warpBase = __shfl_sync(0xffffffff, warpBase, 0);
+
+    if (!alive)
+        return;
+
+    int dst = warpBase + localRank;
 
     nextOrigins[dst] = pos + bsdf.direction * 1e-3f;
     nextDirections[dst] = bsdf.direction;
@@ -500,7 +542,7 @@ __global__ void shadePlasticKernel(Material *materials, float3 *directions, floa
         return;
 
     int matIdx = hitMaterialIndices[qid];
-    RNG rng_local = rngs[qid];
+    RNG rng = rngs[qid];
 
     // Extraire composantes (le compilateur optimise ça en registres)
     float3 normal = hitNormals[qid];
@@ -521,8 +563,8 @@ __global__ void shadePlasticKernel(Material *materials, float3 *directions, floa
     float3 F = make_float3(specW);
 
     // === SAMPLING ===
-    float e1 = rng_local.nextFloat();
-    float e2 = rng_local.nextFloat();
+    float e1 = rng.nextFloat();
+    float e2 = rng.nextFloat();
 
     // Tangent frame (optimisé avec branchement minimal)
     float3 T, B;
@@ -533,7 +575,7 @@ __global__ void shadePlasticKernel(Material *materials, float3 *directions, floa
     float pdf;
     float cosThetaNew;
 
-    if (rng_local.nextFloat() < specW)
+    if (rng.nextFloat() < specW)
     {
         // SPECULAR (GGX)
         // Éviter d'allouer V en registre - calculer directement
@@ -599,24 +641,51 @@ __global__ void shadePlasticKernel(Material *materials, float3 *directions, floa
     }
 
     // === EARLY EXIT ===
-    if (pdf <= 1e-4f)
-        return;
+    bool alive = (pdf > 1e-4f);
 
     // === UPDATE THROUGHPUT ===
-    float cosTheta = fmaxf(cosThetaNew, 0.f);
-    thru *= brdf * cosTheta / pdf;
-
-    // === RUSSIAN ROULETTE ===
-    if (depth > 2)
+    if (alive)
     {
-        float p = fmaxf(thru.x, fmaxf(thru.y, thru.z));
-        p = clamp(p, 0.1f, 1.f);
-        if (rng_local.nextFloat() > p)
-            return;
-        thru /= p;
+        float cosTheta = fmaxf(cosThetaNew, 0.f);
+        thru *= brdf * cosTheta / pdf;
+
+        // === RUSSIAN ROULETTE ===
+        if (depth > 2)
+        {
+            float p = fmaxf(thru.x, fmaxf(thru.y, thru.z));
+            p = clamp(p, 0.1f, 1.f);
+            if (rng.nextFloat() > p)
+            {
+                alive = false;
+            }
+            else
+            {
+                thru /= p;
+            }
+        }
     }
 
-    int dst = atomicAdd(nextActiveCount, 1);
+    unsigned mask = __ballot_sync(0xffffffff, alive);
+
+    int lane = threadIdx.x & 31;
+
+    int localRank = __popc(mask & ((1u << lane) - 1));
+
+    int warpCount = __popc(mask);
+
+    int warpBase = 0;
+
+    if (lane == 0)
+    {
+        warpBase = atomicAdd(nextActiveCount, warpCount);
+    }
+
+    warpBase = __shfl_sync(0xffffffff, warpBase, 0);
+
+    if (!alive)
+        return;
+
+    int dst = warpBase + localRank;
 
     nextOrigins[dst] = hitPositions[qid] + newDir * 1e-3f;
     nextDirections[dst] = newDir;
@@ -628,7 +697,7 @@ __global__ void shadePlasticKernel(Material *materials, float3 *directions, floa
     nextLastBsdfPdf[dst] = pdf;
     nextIsInside[dst] = false;
 
-    nextRng[dst] = rng_local;
+    nextRng[dst] = rng;
 
     // === QUEUE DISPATCH ===
 }
@@ -657,10 +726,7 @@ __global__ void shadeMirrorKernel(CudaScene scene, float3 *directions, float3 *t
     float3 normal = hitNormals[qid];
     BSDFVal bsdf = mtl.getMirrorBSDF(direction, normal);
 
-    if (bsdf.pdf <= 1e-4f)
-    {
-        return;
-    }
+    bool alive = (bsdf.pdf > 1e-4f);
 
     // ------------------------------------------------------------
     // UPDATE THROUGHPUT
@@ -681,16 +747,38 @@ __global__ void shadeMirrorKernel(CudaScene scene, float3 *directions, float3 *t
 
         if (rng.nextFloat() > p)
         {
-            return;
+            alive = false;
         }
-
-        throughput /= p;
+        else
+        {
+            throughput /= p;
+        }
     }
 
     // ------------------------------------------------------------
     // NEXT origin, direction
     // ------------------------------------------------------------
-    int dst = atomicAdd(nextActiveCount, 1);
+    unsigned mask = __ballot_sync(0xffffffff, alive);
+
+    int lane = threadIdx.x & 31;
+
+    int localRank = __popc(mask & ((1u << lane) - 1));
+
+    int warpCount = __popc(mask);
+
+    int warpBase = 0;
+
+    if (lane == 0)
+    {
+        warpBase = atomicAdd(nextActiveCount, warpCount);
+    }
+
+    warpBase = __shfl_sync(0xffffffff, warpBase, 0);
+
+    if (!alive)
+        return;
+
+    int dst = warpBase + localRank;
 
     nextOrigins[dst] = pos + bsdf.direction * 1e-3f;
     nextDirections[dst] = bsdf.direction;
@@ -734,10 +822,7 @@ __global__ void shadeTransparentKernel(CudaScene scene, float3 *directions, floa
 
     BSDFVal bsdf = mtl.getTransparentBSDF(directions[qid], normal, rngs[qid], isInside);
 
-    if (bsdf.pdf <= 1e-4f)
-    {
-        return;
-    }
+    bool alive = (bsdf.pdf > 1e-4f);
 
     // ------------------------------------------------------------
     // UPDATE THROUGHPUT
@@ -758,16 +843,38 @@ __global__ void shadeTransparentKernel(CudaScene scene, float3 *directions, floa
         RNG &rng = rngs[qid];
         if (rng.nextFloat() > p)
         {
-            return;
+            alive = false;
         }
-
-        throughput /= p;
+        else
+        {
+            throughput /= p;
+        }
     }
 
     // ------------------------------------------------------------
     // NEXT origin, direction
     // ------------------------------------------------------------
-    int dst = atomicAdd(nextActiveCount, 1);
+    unsigned mask = __ballot_sync(0xffffffff, alive);
+
+    int lane = threadIdx.x & 31;
+
+    int localRank = __popc(mask & ((1u << lane) - 1));
+
+    int warpCount = __popc(mask);
+
+    int warpBase = 0;
+
+    if (lane == 0)
+    {
+        warpBase = atomicAdd(nextActiveCount, warpCount);
+    }
+
+    warpBase = __shfl_sync(0xffffffff, warpBase, 0);
+
+    if (!alive)
+        return;
+
+    int dst = warpBase + localRank;
 
     nextOrigins[dst] = pos + bsdf.direction * 1e-3f;
     nextDirections[dst] = bsdf.direction;
