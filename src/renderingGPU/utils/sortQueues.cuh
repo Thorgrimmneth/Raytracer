@@ -8,7 +8,7 @@ struct MaterialRanges
 };
 
 GLOBAL
-void classifyPairs(Material *materials, int activeCount, MaterialType *keys, int *values, const int *hitMask,
+void classifyPairs(Material *materials, int activeCount, int *keys, int *values, const int *hitMask,
                    const int *hitMaterialIndices);
 
 GLOBAL
@@ -20,6 +20,6 @@ void reorderPaths(const int *permutation, const float3 *origins, const float3 *d
                   int *sortedHitMaterialIndices, int *sortedPixelIndices, bool *sortedLastBounceWasDelta,
                   float *sortedLastBsdfPdf, bool *sortedIsInside, RNG *sortedRNG, int count);
 
-__global__ void computeMaterialRanges(const MaterialType *keys, int activeCount, MaterialRanges *ranges);
+__global__ void computeMaterialRanges(const int *keys, int activeCount, MaterialRanges *ranges);
 
 __global__ void buildOctantKeys(const float3 *directions, int count, unsigned int *keys, int *values);

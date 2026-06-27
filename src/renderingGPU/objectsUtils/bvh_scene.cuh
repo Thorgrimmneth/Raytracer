@@ -4,7 +4,7 @@
 #include <limits>
 #include <vector>
 
-#include "../utils/simplified_def.cuh"
+#include "../utils/simplifiedDef.cuh"
 
 #include "aabb.cuh"
 

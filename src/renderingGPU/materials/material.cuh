@@ -2,7 +2,7 @@
 
 #include "../../utils/defines.hpp"
 #include "../utils/defines.cuh"
-#include "../utils/simplified_def.cuh"
+#include "../utils/simplifiedDef.cuh"
 #include "../utils/rng.cuh"
 
 #include "../lights/lightsample.cuh"
@@ -10,7 +10,7 @@
 
 #include "../../../devicePrograms/launch_params.cuh"
 
-enum MaterialType
+enum MaterialType : int
 {
     MISS = 0,
     LAMBERT,

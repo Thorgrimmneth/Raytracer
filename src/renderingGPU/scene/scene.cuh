@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../utils/simplified_def.cuh"
+#include "../utils/simplifiedDef.cuh"
 #include "mesh_loader.cuh"
 
 #include <vector>
@@ -18,7 +18,7 @@
 
 #include "../raytracingUtils/ray.cuh"
 
-
+#include "../utils/computeTransform.cuh"
 #include "../../../devicePrograms/optix_launch_params_manager.h"
 #include "../optix/optix_context.h"
 #include "../optix/optix_gas.h"

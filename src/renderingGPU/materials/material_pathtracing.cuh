@@ -1,5 +1,5 @@
 #include <curand_kernel.h>
-#include "../utils/simplified_def.cuh"
+#include "../utils/simplifiedDef.cuh"
 
 enum MaterialPTType
 {

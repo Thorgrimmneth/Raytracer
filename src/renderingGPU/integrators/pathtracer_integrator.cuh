@@ -4,7 +4,7 @@
 
 #include "../utils/constant.cuh"
 #include "../utils/defines.cuh"
-#include "../utils/simplified_def.cuh"
+#include "../utils/simplifiedDef.cuh"
 #include "../utils/rng.cuh"
 
 #include "../raytracingUtils/ray.cuh"

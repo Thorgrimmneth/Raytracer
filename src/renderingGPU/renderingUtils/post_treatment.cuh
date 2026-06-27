@@ -2,7 +2,7 @@
 
 #include <curand_kernel.h>
 
-#include "../utils/simplified_def.cuh"
+#include "../utils/simplifiedDef.cuh"
 #include "../utils/op.cuh"
 
 

@@ -5,7 +5,7 @@
 #include "../utils/defines.cuh"
 #include "../utils/op.cuh"
 #include "../utils/rng.cuh"
-#include "../utils/simplified_def.cuh"
+#include "../utils/simplifiedDef.cuh"
 
 #include "lightsample.cuh"
 

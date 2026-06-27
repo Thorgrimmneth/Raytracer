@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "../utils/simplified_def.cuh"
+#include "../utils/simplifiedDef.cuh"
 
 void OptixPipelineManager::create(
     OptixDeviceContext context,

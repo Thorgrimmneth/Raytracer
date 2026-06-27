@@ -1,7 +1,7 @@
 #include "sortQueues.cuh"
 
 GLOBAL
-void classifyPairs(Material *materials, int activeCount, MaterialType *keys, int *values, const int *hitMask,
+void classifyPairs(Material *materials, int activeCount, int *keys, int *values, const int *hitMask,
                    const int *hitMaterialIndices)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -11,7 +11,7 @@ void classifyPairs(Material *materials, int activeCount, MaterialType *keys, int
 
     if (!hitMask[qid])
     {
-        keys[qid] = MISS;
+        keys[qid] = (int)MISS;
         values[qid] = qid;
         return;
     }
@@ -19,7 +19,7 @@ void classifyPairs(Material *materials, int activeCount, MaterialType *keys, int
     int materialIndex = hitMaterialIndices[qid];
     const Material &mtl = materials[materialIndex];
 
-    keys[qid] = mtl.type();
+    keys[qid] = (int)mtl.baseColor.w;
     values[qid] = qid;
 }
 
@@ -55,7 +55,7 @@ void reorderPaths(const int *permutation, const float3 *origins, const float3 *d
     sortedRNG[tid] = rng[src];
 }
 
-__global__ void computeMaterialRanges(const MaterialType *keys, int activeCount, MaterialRanges *ranges)
+__global__ void computeMaterialRanges(const int *keys, int activeCount, MaterialRanges *ranges)
 {
     int mat = threadIdx.x;
 
@@ -70,7 +70,7 @@ __global__ void computeMaterialRanges(const MaterialType *keys, int activeCount,
     {
         int mid = (left + right) >> 1;
 
-        if ((int)keys[mid] < mat)
+        if (keys[mid] < mat)
             left = mid + 1;
         else
             right = mid;
@@ -86,7 +86,7 @@ __global__ void computeMaterialRanges(const MaterialType *keys, int activeCount,
     {
         int mid = (left + right) >> 1;
 
-        if ((int)keys[mid] <= mat)
+        if (keys[mid] <= mat)
             left = mid + 1;
         else
             right = mid;

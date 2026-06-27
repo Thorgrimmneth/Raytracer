@@ -4,7 +4,7 @@
 
 #include <optix.h>
 
-#include "../utils/simplified_def.cuh"
+#include "../utils/simplifiedDef.cuh"
 #include "../utils/readPTX.h"
 
 void OptixModuleManager::create(OptixDeviceContext context, const std::string &ptx)

@@ -8,8 +8,8 @@
 
 #include "../utils/defines.hpp"
 #include "utils/constant.cuh"
-#include "utils/fill_buffers.cuh"
-#include "utils/simplified_def.cuh"
+#include "utils/fillBuffers.cuh"
+#include "utils/simplifiedDef.cuh"
 
 #include "renderingUtils/post_treatment.cuh"
 #include "renderingUtils/shading_kernels.cuh"
@@ -88,7 +88,7 @@ class Renderer::Impl
     float3 *d_hitPositions = nullptr;
     float3 *d_hitNormals = nullptr;
     int *d_hitMaterialIndices = nullptr;
-    MaterialType *d_keys = nullptr;
+    int *d_keys = nullptr;
     int *d_values = nullptr;
 
     float3 *d_sortedOrigins = nullptr;
@@ -270,7 +270,7 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     cudaMalloc(&impl->d_value, sizeof(float));
     cudaMalloc(&impl->d_ranges, sizeof(MaterialRanges));
     size_t pixelCount = impl->width * impl->height;
-    cudaMalloc(&impl->d_keys, pixelCount * sizeof(MaterialType));
+    cudaMalloc(&impl->d_keys, pixelCount * sizeof(int));
     cudaMalloc(&impl->d_values, pixelCount * sizeof(int));
     cudaMalloc(&impl->d_sortedOrigins, pixelCount * sizeof(float3));
     cudaMalloc(&impl->d_sortedDirections, pixelCount * sizeof(float3));
@@ -568,7 +568,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
 
     initFloatBuffer<<<blocks, threads>>>(impl->d_lastBsdfPdf, pixelCount, 1.f);
 
-    initMaterialBuffer<<<blocks, threads>>>(impl->d_keys, pixelCount, MISS);
+    initIntBuffer<<<blocks, threads>>>(impl->d_keys, pixelCount, (int)MISS);
     initIntBuffer<<<blocks, threads>>>(impl->d_values, pixelCount, 0);
     int h_activeCount = pixelCount;
 
@@ -601,7 +601,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
                                 0, // stream
                                 impl->gpuScene.optixData.d_launchParams, sizeof(LaunchParams),
                                 &impl->gpuScene.optixData.sbt, h_activeCount, 1, 1));
-
+        
         classifyPairs<<<gridForCount(h_activeCount), block1D>>>(impl->gpuScene.materials, h_activeCount, impl->d_keys,
                                                                 impl->d_values, impl->d_hitMask,
                                                                 impl->d_hitMaterialIndices);

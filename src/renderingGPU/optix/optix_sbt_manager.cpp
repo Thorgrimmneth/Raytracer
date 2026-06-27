@@ -2,7 +2,7 @@
 
 #include <cuda_runtime.h>
 
-#include "../utils/simplified_def.cuh"
+#include "../utils/simplifiedDef.cuh"
 
 void OptixSBTManager::create(const OptixProgramGroupManager &pgm, const std::vector<MeshGeometry> &meshes)
 {

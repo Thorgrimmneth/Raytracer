@@ -2,7 +2,7 @@
 
 #include "op.cuh"
 #include "defines.cuh"
-#include "simplified_def.cuh"
+#include "simplifiedDef.cuh"
 
 struct Quaternion
 {
