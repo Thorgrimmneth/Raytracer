@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../utils/defines.hpp"
-
+#include "utils/shadingData.cuh"
 struct cudaGraphicsResource;
 
 class Renderer

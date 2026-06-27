@@ -18,11 +18,6 @@ HOST void CudaScene::uploadObjects(CudaSceneHelper &helper)
     }
 
     // =========================
-    // Build BVH
-    // =========================
-    bvhScene = BVHScene::buildBVHScene(&helper.primitivesGPU, &helper.spheresGPU, &helper.implicitSpheresGPU);
-
-    // =========================
     // Upload spheres
     // =========================
     nbSpheres = helper.spheresGPU.size();
@@ -91,11 +86,6 @@ HOST void CudaScene::uploadObjects(CudaSceneHelper &helper)
     {
         implicitSpheres = nullptr;
     }
-
-    bvhScene.d_primitives = primitives;
-    bvhScene.d_spheres = spheres;
-    bvhScene.d_planes = planes;
-    bvhScene.d_implicitSpheres = implicitSpheres;
 }
 
 HOST void CudaScene::uploadLights(CudaSceneHelper &helper)
@@ -165,45 +155,6 @@ HOST void CudaScene::uploadMaterials(CudaSceneHelper &helper)
     {
         materials = nullptr;
     }
-}
-
-void CudaScene::sceneSize(CudaSceneHelper &helper)
-{
-    printf("Size of one BVH node: %zu bytes\n", sizeof(BVHSceneNode));
-    printf("Size of AABB: %zu bytes\n", sizeof(AABB));
-    printf("Size of BaseObject: %zu bytes\n", sizeof(BaseObject));
-    printf("Size of Sphere: %zu bytes\n", sizeof(Sphere));
-    printf("Size of Plane: %zu bytes\n", sizeof(Plane));
-    printf("Size of Material: %zu bytes\n", sizeof(Material));
-    printf("Size of Light: %zu bytes\n", sizeof(Light));
-    printf("Size of ImplicitSphere: %zu bytes\n", sizeof(ImplicitSphere));
-    printf("\n");
-    size_t totalSize = 0;
-    totalSize += nbSpheres * sizeof(Sphere);
-    printf("Size of spheres: %zu bytes. %2.2f gain compared to v1\n", nbSpheres * sizeof(Sphere),
-           (1.f - (nbSpheres * sizeof(Sphere) / 38240.f)) * 100.f);
-    totalSize += nbPlanes * sizeof(Plane);
-    printf("Size of planes: %zu bytes. %2.2f gain compared to v1\n", nbPlanes * sizeof(Plane),
-           (1.f - (nbPlanes * sizeof(Plane) / 20.f)) * 100.f);
-    totalSize += nbMaterials * sizeof(Material);
-    printf("Size of materials: %zu bytes. %2.2f gain compared to v1\n", nbMaterials * sizeof(Material),
-           (1.f - (nbMaterials * sizeof(Material) / 15360.f)) * 100.f);
-    totalSize += nbLights * sizeof(Light);
-    printf("Size of lights: %zu bytes. %2.2f gain compared to v1\n", nbLights * sizeof(Light),
-           (1.f - (nbLights * sizeof(Light) / 192.f)) * 100.f);
-    totalSize += helper.primitivesGPU.size() * sizeof(BaseObject);
-    printf("Size of primitives: %zu bytes. %2.2f gain compared to v1\n",
-           helper.primitivesGPU.size() * sizeof(BaseObject),
-           (1.f - (helper.primitivesGPU.size() * sizeof(BaseObject) / 22992.f)) * 100.f);
-    totalSize += bvhScene.getDeviceSize();
-    printf("Size of implicit spheres: %zu bytes. %2.2f gain compared to v1\n",
-           nbImplicitSpheres * sizeof(ImplicitSphere),
-           (1.f - (nbImplicitSpheres * sizeof(ImplicitSphere) / 400.f)) * 100.f);
-    totalSize += nbImplicitSpheres * sizeof(ImplicitSphere);
-    printf("BVH size: %zu bytes. %2.2f gain compared to v1\n", bvhScene.getDeviceSize(),
-           (1.f - (bvhScene.getDeviceSize() / 68928.f)) * 100.f);
-    printf("Total size of GPU data: %zu bytes. %2.2f gain compared to v1\n", totalSize,
-           (1.f - (totalSize / 145732.f)) * 100.f);
 }
 
 void sortMaterials(CudaSceneHelper &helper)
@@ -398,7 +349,6 @@ CudaScene spheresScene(float4 sunDir)
     gpuScene.uploadLights(helper);
     gpuScene.uploadMaterials(helper);
 
-    gpuScene.sceneSize(helper);
     return gpuScene;
 }
 
@@ -560,7 +510,6 @@ CudaScene implicitSpheresScene(float4 sunDir)
     gpuScene.uploadLights(helper);
     gpuScene.uploadMaterials(helper);
 
-    gpuScene.sceneSize(helper);
     return gpuScene;
 }
 
@@ -721,6 +670,5 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
         pipelineManager.pipeline, sbtManager.sbt, launchParamsManager.d_params, launchParamsManager.params, ias.handle,
         ias.getBuffer(),          gasList};
     programGroupManager.destroy();
-    // gpuScene.sceneSize(helper);
     return gpuScene;
 }

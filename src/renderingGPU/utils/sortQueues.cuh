@@ -1,10 +1,11 @@
 #pragma once
 #include "../materials/material.cuh"
+#include "shadingData.cuh"
 
 struct MaterialRanges
 {
-    int offset[7];
-    int count[7];
+    int offset[MATERIAL_TYPE_COUNT];
+    int count[MATERIAL_TYPE_COUNT];
 };
 
 GLOBAL
@@ -12,13 +13,8 @@ void classifyPairs(Material *materials, int activeCount, int *keys, int *values,
                    const int *hitMaterialIndices);
 
 GLOBAL
-void reorderPaths(const int *permutation, const float3 *origins, const float3 *directions, const float3 *throughput,
-                  const float3 *hitPositions, const float3 *hitNormals, const int *hitMaterialIndices,
-                  const int *pixelIndices, const bool *lastBounceWasDelta, const float *lastBsdfPdf,
-                  const bool *isInside, const RNG *rng, float3 *sortedOrigins, float3 *sortedDirections,
-                  float3 *sortedThroughput, float3 *sortedHitPositions, float3 *sortedHitNormals,
-                  int *sortedHitMaterialIndices, int *sortedPixelIndices, bool *sortedLastBounceWasDelta,
-                  float *sortedLastBsdfPdf, bool *sortedIsInside, RNG *sortedRNG, int count);
+void reorderPaths(const int *permutation, RayQueue current, SortedRayQueue sorted, const float3 *hitPositions,
+                  const float3 *hitNormals, const int *hitMaterialIndices, int count);
 
 __global__ void computeMaterialRanges(const int *keys, int activeCount, MaterialRanges *ranges);
 

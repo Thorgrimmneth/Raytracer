@@ -20,6 +20,7 @@ enum MaterialType : int
     EMISSIVE,
     MIRROR,
     
+    MATERIAL_TYPE_COUNT
 };
 
 struct BSDFVal

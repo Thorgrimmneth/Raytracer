@@ -18,18 +18,18 @@
 
 #include "../raytracingUtils/ray.cuh"
 
-#include "../utils/computeTransform.cuh"
+#include "../../../devicePrograms/launch_params.cuh"
 #include "../../../devicePrograms/optix_launch_params_manager.h"
 #include "../optix/optix_context.h"
 #include "../optix/optix_gas.h"
+#include "../optix/optix_ias.h"
 #include "../optix/optix_module_manager.h"
 #include "../optix/optix_pipeline_manager.h"
 #include "../optix/optix_program_group_manager.h"
 #include "../optix/optix_sbt_manager.h"
-#include "../optix/optix_ias.h"
-#include "../../../devicePrograms/launch_params.cuh"
-#include "scene_helper.cuh"
+#include "../utils/computeTransform.cuh"
 #include "init_optix.cuh"
+#include "scene_helper.cuh"
 #include "sun_helper.h"
 
 struct Light;
@@ -50,7 +50,8 @@ struct OptixSceneData
     OptixSceneData() = default;
     OptixSceneData(OptixPipeline p, OptixShaderBindingTable s, CUdeviceptr lp, LaunchParams lpStruct,
                    OptixTraversableHandle gasH, CUdeviceptr gasBuf, std::vector<OptixGAS> gas)
-        : pipeline(p), sbt(s), d_launchParams(lp), launchParams(lpStruct), iasHandle(gasH), d_iasBuffer(gasBuf), gasList(gas)
+        : pipeline(p), sbt(s), d_launchParams(lp), launchParams(lpStruct), iasHandle(gasH), d_iasBuffer(gasBuf),
+          gasList(gas)
     {
     }
 
@@ -67,11 +68,10 @@ struct OptixSceneData
 
 struct CudaScene
 {
-    BVHScene bvhScene;
     Sphere *spheres;
     Plane *planes;
-    MeshGeometry *meshGeometries;          // Shared geometry data (loaded once per file)
-    MeshInstance *meshInstances;            // Per-instance data (transform, material)
+    MeshGeometry *meshGeometries; // Shared geometry data (loaded once per file)
+    MeshInstance *meshInstances;  // Per-instance data (transform, material)
     ImplicitSphere *implicitSpheres;
     Material *materials;
     BaseObject *primitives;
@@ -84,13 +84,67 @@ struct CudaScene
     int nbSpheres;
     int nbPlanes;
     int nbMeshes;
-    int nbMeshGeometries;                   // Number of unique mesh geometries
-    int nbMeshInstances;                    // Number of mesh instances
+    int nbMeshGeometries; // Number of unique mesh geometries
+    int nbMeshInstances;  // Number of mesh instances
     int nbMaterials;
     int nbLights;
     int nbImplicitSpheres;
-    
-    void sceneSize(CudaSceneHelper &helper);
+
+    inline HOST void destroy()
+    {
+        // Libération des géométries
+        if (meshGeometries)
+        {
+            for (int i = 0; i < nbMeshGeometries; ++i)
+            {
+                CUDA_CHECK(cudaFree(meshGeometries[i].vertices));
+                CUDA_CHECK(cudaFree(meshGeometries[i].normals));
+                CUDA_CHECK(cudaFree(meshGeometries[i].uvs));
+                CUDA_CHECK(cudaFree(meshGeometries[i].triangles));
+                CUDA_CHECK(cudaFree(meshGeometries[i].triangleAreaCdf));
+            }
+
+            CUDA_CHECK(cudaFree(meshGeometries));
+        }
+
+        CUDA_CHECK(cudaFree(meshInstances));
+
+        CUDA_CHECK(cudaFree(spheres));
+        CUDA_CHECK(cudaFree(planes));
+        CUDA_CHECK(cudaFree(implicitSpheres));
+
+        CUDA_CHECK(cudaFree(materials));
+
+        CUDA_CHECK(cudaFree(primitives));
+
+        CUDA_CHECK(cudaFree(lights));
+        CUDA_CHECK(cudaFree(lightProbabilities));
+        CUDA_CHECK(cudaFree(lightCumulativeWeights));
+
+        // Détruit IAS, GAS, pipeline, launch params...
+        optixData.destroy();
+
+        // Remise à zéro
+        meshGeometries = nullptr;
+        meshInstances = nullptr;
+        spheres = nullptr;
+        planes = nullptr;
+        implicitSpheres = nullptr;
+        materials = nullptr;
+        primitives = nullptr;
+        lights = nullptr;
+        lightProbabilities = nullptr;
+        lightCumulativeWeights = nullptr;
+
+        nbMeshGeometries = 0;
+        nbMeshInstances = 0;
+        nbMeshes = 0;
+        nbSpheres = 0;
+        nbPlanes = 0;
+        nbImplicitSpheres = 0;
+        nbMaterials = 0;
+        nbLights = 0;
+    }
 
     HOST void uploadObjects(CudaSceneHelper &helper);
 
@@ -98,29 +152,30 @@ struct CudaScene
 
     HOST void uploadMaterials(CudaSceneHelper &helper);
 
-    D_FORCEINLINE bool intersect(const float3 &origin, const float3 &direction, const float p_tMin, const float p_tMax, OptixHit &p_hitRecord) const
+    D_FORCEINLINE bool intersect(const float3 &origin, const float3 &direction, const float p_tMin, const float p_tMax,
+                                 OptixHit &p_hitRecord) const
     {
         return false;
-        //float tMax = p_tMax;
-        //bool hit = false;
-
-        
+        // float tMax = p_tMax;
+        // bool hit = false;
     }
 
-    D_FORCEINLINE bool intersectAny(const float3 &origin, const float3 &direction, const float p_tMin, const float p_tMax) const
+    D_FORCEINLINE bool intersectAny(const float3 &origin, const float3 &direction, const float p_tMin,
+                                    const float p_tMax) const
     {
         return false;
     }
 
-    D_FORCEINLINE float3 traceShadowRay(const float3 &origin, const float3 &direction, const float p_tMin, const float p_tMax) const
+    D_FORCEINLINE float3 traceShadowRay(const float3 &origin, const float3 &direction, const float p_tMin,
+                                        const float p_tMax) const
     {
-        
+
         float3 shadowColor = make_float3(1.f);
         return shadowColor;
         /*float remainingDistance = p_tMax;
         float3 originT = origin;
         float3 directionT = direction;
-        
+
         // Trace through up to 2 transparent surfaces
         for (int bounce = 0; bounce < 2; ++bounce)
         {

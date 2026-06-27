@@ -24,13 +24,8 @@ void classifyPairs(Material *materials, int activeCount, int *keys, int *values,
 }
 
 GLOBAL
-void reorderPaths(const int *permutation, const float3 *origins, const float3 *directions, const float3 *throughput,
-                  const float3 *hitPositions, const float3 *hitNormals, const int *hitMaterialIndices,
-                  const int *pixelIndices, const bool *lastBounceWasDelta, const float *lastBsdfPdf,
-                  const bool *isInside, const RNG *rng, float3 *sortedOrigins, float3 *sortedDirections,
-                  float3 *sortedThroughput, float3 *sortedHitPositions, float3 *sortedHitNormals,
-                  int *sortedHitMaterialIndices, int *sortedPixelIndices, bool *sortedLastBounceWasDelta,
-                  float *sortedLastBsdfPdf, bool *sortedIsInside, RNG *sortedRNG, int count)
+void reorderPaths(const int *permutation, RayQueue current, SortedRayQueue sorted, const float3 *hitPositions,
+                  const float3 *hitNormals, const int *hitMaterialIndices, int count)
 {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -39,20 +34,20 @@ void reorderPaths(const int *permutation, const float3 *origins, const float3 *d
 
     int src = permutation[tid];
 
-    sortedOrigins[tid] = origins[src];
-    sortedDirections[tid] = directions[src];
-    sortedThroughput[tid] = throughput[src];
+    sorted.origins[tid] = current.origins[src];
+    sorted.directions[tid] = current.directions[src];
+    sorted.throughputs[tid] = current.throughputs[src];
 
-    sortedHitPositions[tid] = hitPositions[src];
-    sortedHitNormals[tid] = hitNormals[src];
+    sorted.hitPositions[tid] = hitPositions[src];
+    sorted.hitNormals[tid] = hitNormals[src];
+    sorted.hitMaterialIndices[tid] = hitMaterialIndices[src];
 
-    sortedHitMaterialIndices[tid] = hitMaterialIndices[src];
-    sortedPixelIndices[tid] = pixelIndices[src];
+    sorted.pixelIndices[tid] = current.pixelIndices[src];
 
-    sortedLastBounceWasDelta[tid] = lastBounceWasDelta[src];
-    sortedLastBsdfPdf[tid] = lastBsdfPdf[src];
-    sortedIsInside[tid] = isInside[src];
-    sortedRNG[tid] = rng[src];
+    sorted.lastBounceWasDelta[tid] = current.lastBounceWasDelta[src];
+    sorted.lastBsdfPdf[tid] = current.lastBsdfPdf[src];
+    sorted.isInside[tid] = current.isInside[src];
+    sorted.rng[tid] = current.rng[src];
 }
 
 __global__ void computeMaterialRanges(const int *keys, int activeCount, MaterialRanges *ranges)

@@ -13,8 +13,9 @@
 
 #include "renderingUtils/post_treatment.cuh"
 #include "renderingUtils/shading_kernels.cuh"
+#include "utils/shadingData.cuh"
+#include "utils/shadingLaunch.cuh"
 #include "utils/sortQueues.cuh"
-
 #include <cstdio>
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
@@ -43,85 +44,53 @@ enum class RenderMode
 
 class Renderer::Impl
 {
-
   public:
     RenderMode renderMode = RenderMode::Wavefront;
+
     int width = 1920;
     int height = 1080;
+
     Camera h_camera;
+
     float threshold = 1.0f;
     float bloomStrength = 0.25f;
     float exposure = 1.0f;
 
     int sampleCount = 0;
     int maxBounces = 5;
+
     size_t hdrBufferSize = 0;
 
     float value = 1.f;
-
     float *d_value = nullptr;
+
     CudaScene gpuScene;
-
-    float3 *d_throughput = nullptr;
-
-    int *d_pixelIndices = nullptr;
-    RNG *d_rng;
 
     uint depth = 0;
 
-    bool *d_isInside = nullptr;
-    bool *d_lastBounceWasDelta = nullptr;
-    float *d_lastBsdfPdf = nullptr;
-
-    float3 *d_accumBuffer = nullptr;
+    // Buffers utilisés par le renderer mais pas directement par les shaders
     float3 *d_normalizedBuffer = nullptr;
     float3 *d_hdrBloomBuffer = nullptr;
     float3 *d_bloomBuffer = nullptr;
-
     float3 *d_tempBuffer = nullptr;
-
     float3 *d_convergenceBuffer = nullptr;
+    float3 *d_accumBuffer = nullptr;
 
-    float3 *d_origins = nullptr;
-    float3 *d_directions = nullptr;
+    RayQueue currentQueue;
+    RayQueue nextQueue;
+    SortedRayQueue sortedQueue;
+    HitBuffers hitBuffers;
 
-    float3 *d_hitPositions = nullptr;
-    float3 *d_hitNormals = nullptr;
-    int *d_hitMaterialIndices = nullptr;
+    // Buffers intermédiaires pour le ray sorting
     int *d_keys = nullptr;
     int *d_values = nullptr;
-
-    float3 *d_sortedOrigins = nullptr;
-    float3 *d_sortedDirections = nullptr;
-    float3 *d_sortedThroughput = nullptr;
-    float3 *d_sortedHitPositions = nullptr;
-    float3 *d_sortedHitNormals = nullptr;
-    float *d_sortedLastBsdfPdf = nullptr;
-    bool *d_sortedIsInside = nullptr;
-    int *d_sortedHitMaterialIndices = nullptr;
-    bool *d_sortedLastBounceWasDelta = nullptr;
-    int *d_sortedPixelIndices = nullptr;
-    RNG *d_sortedRNG = nullptr;
     MaterialRanges *d_ranges = nullptr;
-    float3 *d_nextOrigins = nullptr;
-    float3 *d_nextDirections = nullptr;
-    float3 *d_nextThroughput = nullptr;
-    int *d_nextPixelIndices = nullptr;
-    bool *d_nextLastBounceWasDelta = nullptr;
-    float *d_nextLastBsdfPdf = nullptr;
-    bool *d_nextIsInside = nullptr;
-    RNG *d_nextRNG = nullptr;
     unsigned int *d_octantKeys = nullptr;
-    int *d_hitMask = nullptr;
-
-    int *d_activeCount = nullptr;
-    int *d_nextActiveCount = nullptr;
 
     dim3 blockSize = dim3(16, 16);
+    dim3 gridSize;
 
     cudaStream_t stream = nullptr;
-
-    dim3 gridSize;
 
     int w1 = 0;
     int h1 = 0;
@@ -130,7 +99,6 @@ class Renderer::Impl
     int h2 = 0;
 
     float3 *d_lvl1 = nullptr;
-
     float3 *d_lvl2 = nullptr;
 
     cudaGraphicsResource *cudaTextureResource = nullptr;
@@ -145,7 +113,6 @@ Renderer::~Renderer()
 }
 
 // Helper
-inline dim3 gridForCount(int count, int blockSize = 256) { return dim3((count + blockSize - 1) / blockSize); }
 
 void Renderer::setInteropResource(cudaGraphicsResource *resource) { impl->cudaTextureResource = resource; }
 
@@ -252,67 +219,29 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     // GPU buffers
     // =========================
 
-    cudaMalloc(&impl->d_throughput, impl->width * impl->height * sizeof(float3));
-    cudaMalloc(&impl->d_rng, impl->width * impl->height * sizeof(RNG));
-    cudaMalloc(&impl->d_isInside, impl->width * impl->height * sizeof(bool));
-    cudaMalloc(&impl->d_lastBounceWasDelta, impl->width * impl->height * sizeof(bool));
-    cudaMalloc(&impl->d_lastBsdfPdf, impl->width * impl->height * sizeof(float));
-
-    cudaMalloc(&impl->d_accumBuffer, impl->hdrBufferSize);
-
     cudaMalloc(&impl->d_normalizedBuffer, impl->hdrBufferSize);
 
     cudaMalloc(&impl->d_bloomBuffer, impl->hdrBufferSize);
     cudaMalloc(&impl->d_hdrBloomBuffer, impl->hdrBufferSize);
     cudaMalloc(&impl->d_tempBuffer, impl->hdrBufferSize);
-
+    cudaMalloc(&impl->d_accumBuffer, impl->hdrBufferSize);
     cudaMalloc(&impl->d_convergenceBuffer, impl->hdrBufferSize);
     cudaMalloc(&impl->d_value, sizeof(float));
     cudaMalloc(&impl->d_ranges, sizeof(MaterialRanges));
+
     size_t pixelCount = impl->width * impl->height;
+
     cudaMalloc(&impl->d_keys, pixelCount * sizeof(int));
     cudaMalloc(&impl->d_values, pixelCount * sizeof(int));
-    cudaMalloc(&impl->d_sortedOrigins, pixelCount * sizeof(float3));
-    cudaMalloc(&impl->d_sortedDirections, pixelCount * sizeof(float3));
-    cudaMalloc(&impl->d_sortedThroughput, pixelCount * sizeof(float3));
-    cudaMalloc(&impl->d_sortedHitPositions, pixelCount * sizeof(float3));
-    cudaMalloc(&impl->d_sortedHitNormals, pixelCount * sizeof(float3));
-    cudaMalloc(&impl->d_sortedHitMaterialIndices, pixelCount * sizeof(int));
-    cudaMalloc(&impl->d_sortedLastBounceWasDelta, pixelCount * sizeof(bool));
-    cudaMalloc(&impl->d_sortedLastBsdfPdf, pixelCount * sizeof(float));
-    cudaMalloc(&impl->d_sortedIsInside, pixelCount * sizeof(bool));
-    cudaMalloc(&impl->d_pixelIndices, pixelCount * sizeof(int));
-    cudaMalloc(&impl->d_sortedPixelIndices, pixelCount * sizeof(int));
-    cudaMalloc(&impl->d_sortedRNG, pixelCount * sizeof(RNG));
 
     cudaMalloc(&impl->d_octantKeys, pixelCount * sizeof(unsigned int));
-    cudaMalloc(&impl->d_origins, impl->width * impl->height * sizeof(float3));
-    cudaMalloc(&impl->d_directions, pixelCount * sizeof(float3));
-    cudaMalloc(&impl->d_hitPositions, pixelCount * sizeof(float3));
-    cudaMalloc(&impl->d_hitNormals, pixelCount * sizeof(float3));
-    cudaMalloc(&impl->d_hitMaterialIndices, pixelCount * sizeof(int));
-    cudaMalloc(&impl->d_hitMask, pixelCount * sizeof(int));
-    cudaMalloc(&impl->d_activeCount, sizeof(int));
-    cudaMalloc(&impl->d_nextActiveCount, sizeof(int));
 
-    cudaMalloc(&impl->d_nextOrigins, pixelCount * sizeof(float3));
-    cudaMalloc(&impl->d_nextDirections, pixelCount * sizeof(float3));
-    cudaMalloc(&impl->d_nextThroughput, pixelCount * sizeof(float3));
-    cudaMalloc(&impl->d_nextPixelIndices, pixelCount * sizeof(int));
-    cudaMalloc(&impl->d_nextLastBounceWasDelta, pixelCount * sizeof(bool));
-    cudaMalloc(&impl->d_nextLastBsdfPdf, pixelCount * sizeof(float));
-    cudaMalloc(&impl->d_nextIsInside, pixelCount * sizeof(bool));
-    cudaMalloc(&impl->d_nextRNG, pixelCount * sizeof(RNG));
-    // =========================
-    // Clear buffers
-    // =========================
+    impl->currentQueue.init(pixelCount);
+    impl->nextQueue.init(pixelCount);
+    impl->sortedQueue.init(pixelCount);
+    impl->hitBuffers.init(pixelCount);
 
-    cudaMemset(impl->d_accumBuffer, 0, impl->hdrBufferSize);
-
-    cudaMemset(impl->d_normalizedBuffer, 0, impl->hdrBufferSize);
-    cudaMemset(impl->d_hdrBloomBuffer, 0, impl->hdrBufferSize);
-    cudaMemset(impl->d_bloomBuffer, 0, impl->hdrBufferSize);
-    cudaMemset(impl->d_convergenceBuffer, 0, impl->hdrBufferSize);
+    cudaMemcpy(impl->currentQueue.activeCount, &pixelCount, sizeof(int), cudaMemcpyHostToDevice);
 
     // =========================
     // CUDA Stream for async operations
@@ -434,25 +363,6 @@ void generatePrimaryRaysKernel(float3 *directions, RNG *p_rng, int *p_pixelIndic
     directions[pixelIndex] = normalize(rayTarget - camera.cameraPos);
 }
 
-/*
-// WAVEFRONT ACCUMULATION
-GLOBAL
-void accumulateWavefrontKernel(int *pixelIndices, float3 *radiance, float3 *accumBuffer, int width, int height)
-{
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int stateCount = width * height;
-
-    if (idx >= stateCount)
-        return;
-
-    int pixelIndex = pixelIndices[idx];
-
-    if (pixelIndex < 0 || pixelIndex >= width * height)
-        return;
-
-    accumBuffer[pixelIndex] += radiance[idx];
-}*/
-
 void Renderer::applyBloom()
 {
     // =========================
@@ -542,11 +452,11 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
     // -------------------------------------------------------------------------
     // 1. Génération des rayons primaires + activeQueue
     // -------------------------------------------------------------------------
-    cudaMemset(impl->d_activeCount, impl->width * impl->height, sizeof(int));
     float invWidth = 1.f / (float)(impl->width - 1);
     float invHeight = 1.f / (float)(impl->height - 1);
-    generatePrimaryRaysKernel<<<grid2D, block2D>>>(impl->d_directions, impl->d_rng, impl->d_pixelIndices, impl->width,
-                                                   impl->height, impl->sampleCount, invWidth, invHeight);
+    generatePrimaryRaysKernel<<<grid2D, block2D>>>(impl->currentQueue.directions, impl->currentQueue.rng,
+                                                   impl->currentQueue.pixelIndices, impl->width, impl->height,
+                                                   impl->sampleCount, invWidth, invHeight);
 
     err = cudaGetLastError();
     if (err != cudaSuccess)
@@ -558,15 +468,15 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
     int threads = 256;
     int blocks = (pixelCount + threads - 1) / threads;
 
-    initFloat3Buffer<<<blocks, threads>>>(impl->d_origins, pixelCount, impl->h_camera.cameraPos);
+    initFloat3Buffer<<<blocks, threads>>>(impl->currentQueue.origins, pixelCount, impl->h_camera.cameraPos);
 
-    initFloat3Buffer<<<blocks, threads>>>(impl->d_throughput, pixelCount, make_float3(1.f));
+    initFloat3Buffer<<<blocks, threads>>>(impl->currentQueue.throughputs, pixelCount, make_float3(1.f));
 
-    initBoolBuffer<<<blocks, threads>>>(impl->d_isInside, pixelCount, false);
+    initBoolBuffer<<<blocks, threads>>>(impl->currentQueue.isInside, pixelCount, false);
 
-    initBoolBuffer<<<blocks, threads>>>(impl->d_lastBounceWasDelta, pixelCount, false);
+    initBoolBuffer<<<blocks, threads>>>(impl->currentQueue.lastBounceWasDelta, pixelCount, false);
 
-    initFloatBuffer<<<blocks, threads>>>(impl->d_lastBsdfPdf, pixelCount, 1.f);
+    initFloatBuffer<<<blocks, threads>>>(impl->currentQueue.lastBsdfPdf, pixelCount, 1.f);
 
     initIntBuffer<<<blocks, threads>>>(impl->d_keys, pixelCount, (int)MISS);
     initIntBuffer<<<blocks, threads>>>(impl->d_values, pixelCount, 0);
@@ -582,30 +492,29 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         if (h_activeCount == 0)
             break;
 
-        cudaMemset(impl->d_nextActiveCount, 0, sizeof(int));
+        cudaMemset(impl->nextQueue.activeCount, 0, sizeof(int));
         // ---------------------------------------------------------------------
         // 2.1 Intersection uniquement des rayons actifs
         // ---------------------------------------------------------------------
-        impl->gpuScene.optixData.launchParams.origins = impl->d_origins;
-        impl->gpuScene.optixData.launchParams.directions = impl->d_directions;
-        impl->gpuScene.optixData.launchParams.hitPositions = impl->d_hitPositions;
-        impl->gpuScene.optixData.launchParams.hitNormals = impl->d_hitNormals;
-        impl->gpuScene.optixData.launchParams.hitMaterialIndices = impl->d_hitMaterialIndices;
-        impl->gpuScene.optixData.launchParams.hitMask = impl->d_hitMask;
+        impl->gpuScene.optixData.launchParams.origins = impl->currentQueue.origins;
+        impl->gpuScene.optixData.launchParams.directions = impl->currentQueue.directions;
+        impl->gpuScene.optixData.launchParams.hitPositions = impl->hitBuffers.positions;
+        impl->gpuScene.optixData.launchParams.hitNormals = impl->hitBuffers.normals;
+        impl->gpuScene.optixData.launchParams.hitMaterialIndices = impl->hitBuffers.materialIndices;
+        impl->gpuScene.optixData.launchParams.hitMask = impl->hitBuffers.mask;
         impl->gpuScene.optixData.launchParams.activeCount = h_activeCount;
 
         cudaMemcpy(reinterpret_cast<void *>(impl->gpuScene.optixData.d_launchParams),
                    &impl->gpuScene.optixData.launchParams, sizeof(LaunchParams), cudaMemcpyHostToDevice);
-
         OPTIX_CHECK(optixLaunch(impl->gpuScene.optixData.pipeline,
                                 0, // stream
                                 impl->gpuScene.optixData.d_launchParams, sizeof(LaunchParams),
                                 &impl->gpuScene.optixData.sbt, h_activeCount, 1, 1));
-        
-        classifyPairs<<<gridForCount(h_activeCount), block1D>>>(impl->gpuScene.materials, h_activeCount, impl->d_keys,
-                                                                impl->d_values, impl->d_hitMask,
-                                                                impl->d_hitMaterialIndices);
 
+        classifyPairs<<<gridForCount(h_activeCount), block1D>>>(impl->gpuScene.materials, h_activeCount, impl->d_keys,
+                                                                impl->d_values, impl->hitBuffers.mask,
+                                                                impl->hitBuffers.materialIndices);
+        CUDA_CHECK(cudaDeviceSynchronize());
         thrust::sort_by_key(thrust::device, impl->d_keys, impl->d_keys + h_activeCount, impl->d_values);
 
         computeMaterialRanges<<<1, 7>>>(impl->d_keys, h_activeCount, impl->d_ranges);
@@ -615,105 +524,19 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         cudaMemcpy(&ranges, impl->d_ranges, sizeof(MaterialRanges), cudaMemcpyDeviceToHost);
 
         reorderPaths<<<gridForCount(h_activeCount), block1D>>>(
-            impl->d_values, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_hitPositions,
-            impl->d_hitNormals, impl->d_hitMaterialIndices, impl->d_pixelIndices, impl->d_lastBounceWasDelta,
-            impl->d_lastBsdfPdf, impl->d_isInside, impl->d_rng, impl->d_sortedOrigins, impl->d_sortedDirections,
-            impl->d_sortedThroughput, impl->d_sortedHitPositions, impl->d_sortedHitNormals,
-            impl->d_sortedHitMaterialIndices, impl->d_sortedPixelIndices, impl->d_sortedLastBounceWasDelta,
-            impl->d_sortedLastBsdfPdf, impl->d_sortedIsInside, impl->d_sortedRNG, h_activeCount);
-
-        int missOffset = ranges.offset[MISS];
-        int missCount = ranges.count[MISS];
-        if (missCount > 0)
+            impl->d_values, impl->currentQueue, impl->sortedQueue, impl->hitBuffers.positions, impl->hitBuffers.normals,
+            impl->hitBuffers.materialIndices, h_activeCount);
+        CUDA_CHECK(cudaDeviceSynchronize());
+        for (int i = 0; i < MATERIAL_TYPE_COUNT; i++)
         {
-
-            shadeMissKernel<<<gridForCount(missCount), block1D>>>(
-                impl->d_sortedOrigins + missOffset, impl->d_sortedDirections + missOffset,
-                impl->d_sortedThroughput + missOffset, impl->d_accumBuffer, impl->d_sortedPixelIndices + missOffset,
-                missCount, bounce == 0);
-        }
-        int lambertOffset = ranges.offset[LAMBERT];
-        int lambertCount = ranges.count[LAMBERT];
-        if (lambertCount > 0)
-        {
-            shadeLambertKernel<<<gridForCount(lambertCount), block1D>>>(
-                impl->gpuScene, impl->d_sortedDirections + lambertOffset, impl->d_sortedThroughput + lambertOffset,
-                impl->d_rng, impl->d_sortedHitPositions + lambertOffset, impl->d_sortedHitNormals + lambertOffset,
-                impl->d_sortedHitMaterialIndices + lambertOffset, impl->d_sortedPixelIndices + lambertOffset,
-                impl->d_nextOrigins, impl->d_nextDirections, impl->d_nextThroughput, impl->d_nextPixelIndices,
-                impl->d_nextLastBounceWasDelta, impl->d_nextLastBsdfPdf, impl->d_nextIsInside, impl->d_nextRNG,
-                impl->d_nextActiveCount, lambertCount, bounce);
-        }
-        int metalOffset = ranges.offset[METAL];
-        int metalCount = ranges.count[METAL];
-        if (metalCount > 0)
-        {
-            shadeMetalKernel<<<gridForCount(metalCount), block1D>>>(
-                impl->gpuScene, impl->d_sortedDirections + metalOffset,
-                impl->d_sortedThroughput + metalOffset, impl->d_sortedRNG + metalOffset,
-                impl->d_sortedHitPositions + metalOffset, impl->d_sortedHitNormals + metalOffset,
-                impl->d_sortedHitMaterialIndices + metalOffset, impl->d_sortedPixelIndices + metalOffset,
-                impl->d_accumBuffer, impl->d_nextOrigins, impl->d_nextDirections, impl->d_nextThroughput,
-                impl->d_nextPixelIndices, impl->d_nextLastBounceWasDelta, impl->d_nextLastBsdfPdf, impl->d_nextIsInside,
-                impl->d_nextRNG, impl->d_nextActiveCount, metalCount, bounce);
-        }
-        int plasticOffset = ranges.offset[PLASTIC];
-        int plasticCount = ranges.count[PLASTIC];
-        if (plasticCount > 0)
-        {
-            shadePlasticNEEKernel<<<gridForCount(plasticCount), block1D>>>(
-                impl->gpuScene, impl->d_sortedDirections + plasticOffset, impl->d_sortedThroughput + plasticOffset,
-                impl->d_rng, impl->d_sortedHitPositions + plasticOffset, impl->d_sortedHitNormals + plasticOffset,
-                impl->d_sortedHitMaterialIndices + plasticOffset, impl->d_sortedPixelIndices + plasticOffset,
-                impl->d_accumBuffer, impl->gpuScene.nbLights, impl->gpuScene.lightCumulativeWeights, plasticCount);
-
-            shadePlasticKernel<<<gridForCount(plasticCount), block1D>>>(
-                impl->gpuScene.materials, impl->d_sortedDirections + plasticOffset,
-                impl->d_sortedThroughput + plasticOffset, impl->d_sortedRNG + plasticOffset,
-                impl->d_sortedHitPositions + plasticOffset, impl->d_sortedHitNormals + plasticOffset,
-                impl->d_sortedHitMaterialIndices + plasticOffset, impl->d_sortedPixelIndices + plasticOffset,
-                impl->d_accumBuffer + plasticOffset, impl->d_nextOrigins, impl->d_nextDirections,
-                impl->d_nextThroughput, impl->d_nextPixelIndices, impl->d_nextLastBounceWasDelta,
-                impl->d_nextLastBsdfPdf, impl->d_nextIsInside, impl->d_nextRNG, impl->d_nextActiveCount, plasticCount,
-                bounce);
-        }
-        int mirrorOffset = ranges.offset[MIRROR];
-        int mirrorCount = ranges.count[MIRROR];
-        if (mirrorCount > 0)
-        {
-            shadeMirrorKernel<<<gridForCount(mirrorCount), block1D>>>(
-                impl->gpuScene, impl->d_sortedDirections + mirrorOffset, impl->d_sortedThroughput + mirrorOffset,
-                impl->d_sortedRNG + mirrorOffset, impl->d_sortedHitPositions + mirrorOffset,
-                impl->d_sortedHitNormals + mirrorOffset, impl->d_sortedHitMaterialIndices + mirrorOffset,
-                impl->d_sortedPixelIndices + mirrorOffset, impl->d_accumBuffer, impl->d_nextOrigins,
-                impl->d_nextDirections, impl->d_nextThroughput, impl->d_nextPixelIndices,
-                impl->d_nextLastBounceWasDelta, impl->d_nextLastBsdfPdf, impl->d_nextIsInside, impl->d_nextRNG,
-                impl->d_nextActiveCount, mirrorCount, bounce);
-        }
-        int transparentOffset = ranges.offset[TRANSPARENT];
-        int transparentCount = ranges.count[TRANSPARENT];
-        if (transparentCount > 0)
-        {
-            shadeTransparentKernel<<<gridForCount(transparentCount), block1D>>>(
-                impl->gpuScene, impl->d_sortedDirections + transparentOffset,
-                impl->d_sortedThroughput + transparentOffset, impl->d_sortedRNG + transparentOffset,
-                impl->d_isInside + transparentOffset, impl->d_sortedHitPositions + transparentOffset,
-                impl->d_sortedHitNormals + transparentOffset, impl->d_sortedHitMaterialIndices + transparentOffset,
-                impl->d_sortedPixelIndices + transparentOffset, impl->d_accumBuffer, impl->d_nextOrigins,
-                impl->d_nextDirections, impl->d_nextThroughput, impl->d_nextPixelIndices,
-                impl->d_nextLastBounceWasDelta, impl->d_nextLastBsdfPdf, impl->d_nextIsInside, impl->d_nextRNG,
-                impl->d_nextActiveCount, transparentCount, bounce);
-        }
-        int emissiveOffset = ranges.offset[EMISSIVE];
-        int emissiveCount = ranges.count[EMISSIVE];
-        if (emissiveCount > 0)
-        {
-
-            shadeEmissiveKernel<<<gridForCount(emissiveCount), block1D>>>(
-                impl->gpuScene, impl->d_sortedOrigins + emissiveOffset, impl->d_sortedDirections + emissiveOffset,
-                impl->d_sortedThroughput + emissiveOffset, impl->d_sortedLastBounceWasDelta + emissiveOffset,
-                impl->d_sortedLastBsdfPdf + emissiveOffset, impl->d_sortedHitMaterialIndices + emissiveOffset,
-                impl->d_sortedPixelIndices + emissiveOffset, impl->d_accumBuffer, emissiveCount);
+            int offset = ranges.offset[i];
+            int count = ranges.count[i];
+            if (count > 0)
+            {
+                launchShadeKernel(static_cast<MaterialType>(i), impl->sortedQueue, impl->nextQueue, impl->gpuScene,
+                                  impl->d_accumBuffer, offset, count, bounce);
+                CUDA_CHECK(cudaDeviceSynchronize());
+            }
         }
 
         err = cudaGetLastError();
@@ -727,23 +550,14 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         // 2.3 Récupération du nombre de rayons actifs pour le prochain bounce
         // ---------------------------------------------------------------------
 
-        cudaMemcpy(&h_activeCount, impl->d_nextActiveCount, sizeof(int), cudaMemcpyDeviceToHost);
+        cudaMemcpy(&h_activeCount, impl->nextQueue.activeCount, sizeof(int), cudaMemcpyDeviceToHost);
 
-        std::swap(impl->d_activeCount, impl->d_nextActiveCount);
+        std::swap(impl->currentQueue, impl->nextQueue);
 
-    
-        std::swap(impl->d_origins, impl->d_nextOrigins);
-        std::swap(impl->d_directions, impl->d_nextDirections);
-        std::swap(impl->d_throughput, impl->d_nextThroughput);
-        std::swap(impl->d_lastBounceWasDelta, impl->d_nextLastBounceWasDelta);
-        std::swap(impl->d_lastBsdfPdf, impl->d_nextLastBsdfPdf);
-        std::swap(impl->d_isInside, impl->d_nextIsInside);
-        std::swap(impl->d_pixelIndices, impl->d_nextPixelIndices);
-        std::swap(impl->d_rng, impl->d_nextRNG);
-
-        /*buildOctantKeys<<<gridForCount(h_activeCount), block1D>>>(impl->d_directions, h_activeCount, impl->d_octantKeys,
-                                                                  impl->d_values);
-        thrust::sort_by_key(thrust::device, impl->d_octantKeys, impl->d_octantKeys + h_activeCount, impl->d_values);
+        // sorting rays
+        /*buildOctantKeys<<<gridForCount(h_activeCount), block1D>>>(impl->d_directions, h_activeCount,
+        impl->d_octantKeys, impl->d_values); thrust::sort_by_key(thrust::device, impl->d_octantKeys, impl->d_octantKeys
+        + h_activeCount, impl->d_values);
 
         reorderPaths<<<gridForCount(h_activeCount), block1D>>>(
             impl->d_values, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_hitPositions,
@@ -879,58 +693,29 @@ float Renderer::render(bool outputImage, bool convergence)
 
 void Renderer::cleanUp()
 {
-    cudaFree(impl->d_value);
+    impl->currentQueue.destroy();
+    impl->nextQueue.destroy();
+    impl->sortedQueue.destroy();
+    impl->hitBuffers.destroy();
+    impl->gpuScene.destroy();
     cudaFree(impl->d_accumBuffer);
+    cudaFree(impl->d_value);
+
     cudaFree(impl->d_ranges);
-    cudaFree(impl->d_throughput);
-    cudaFree(impl->d_rng);
-    cudaFree(impl->d_isInside);
-    cudaFree(impl->d_lastBounceWasDelta);
-    cudaFree(impl->d_lastBsdfPdf);
+
     cudaFree(impl->d_normalizedBuffer);
 
     cudaFree(impl->d_keys);
     cudaFree(impl->d_values);
-    cudaFree(impl->d_sortedOrigins);
-    cudaFree(impl->d_sortedDirections);
-    cudaFree(impl->d_sortedThroughput);
-    cudaFree(impl->d_sortedHitPositions);
-    cudaFree(impl->d_sortedHitNormals);
-    cudaFree(impl->d_sortedHitMaterialIndices);
-    cudaFree(impl->d_sortedLastBounceWasDelta);
-    cudaFree(impl->d_sortedLastBsdfPdf);
-    cudaFree(impl->d_sortedIsInside);
-    cudaFree(impl->d_pixelIndices);
-    cudaFree(impl->d_sortedPixelIndices);
-    cudaFree(impl->d_sortedRNG);
     cudaFree(impl->d_octantKeys);
 
-    cudaFree(impl->d_nextOrigins);
-    cudaFree(impl->d_nextDirections);
-    cudaFree(impl->d_nextThroughput);
-    cudaFree(impl->d_nextPixelIndices);
-    cudaFree(impl->d_nextLastBounceWasDelta);
-    cudaFree(impl->d_nextLastBsdfPdf);
-    cudaFree(impl->d_nextIsInside);
-    cudaFree(impl->d_nextRNG);
-
     cudaFree(impl->d_bloomBuffer);
-
+    cudaFree(impl->d_hdrBloomBuffer);
     cudaFree(impl->d_tempBuffer);
 
     cudaFree(impl->d_convergenceBuffer);
 
-    cudaFree(impl->d_origins);
-    cudaFree(impl->d_directions);
-    cudaFree(impl->d_hitPositions);
-    cudaFree(impl->d_hitNormals);
-    cudaFree(impl->d_hitMaterialIndices);
-    cudaFree(impl->d_hitMask);
-    cudaFree(impl->d_activeCount);
-    cudaFree(impl->d_nextActiveCount);
-
     cudaFree(impl->d_lvl1);
-
     cudaFree(impl->d_lvl2);
 
     cudaStreamDestroy(impl->stream);
