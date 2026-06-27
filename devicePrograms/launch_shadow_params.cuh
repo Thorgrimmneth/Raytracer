@@ -14,8 +14,6 @@ struct LaunchShadowParams
 {
     float3* origins = nullptr;
     float3* directions = nullptr;
-    
-    int* hitMask = nullptr;
 
     int activeCount = 0;
 
@@ -27,6 +25,7 @@ struct LaunchShadowParams
     int nbMaterials = 0;
 
     float* maxDistances = nullptr;
-
+    int* pixelIndices = nullptr;
+    
     float3* transmittance = nullptr;
 };
