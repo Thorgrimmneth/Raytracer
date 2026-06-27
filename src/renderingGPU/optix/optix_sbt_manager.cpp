@@ -2,9 +2,9 @@
 
 #include <cuda_runtime.h>
 
-#include "../utils/macro.cuh"
+#include "../utils/simplified_def.cuh"
 
-void OptixSBTManager::create(const OptixProgramGroupManager &pgm, const std::vector<TriangleMesh> &meshes)
+void OptixSBTManager::create(const OptixProgramGroupManager &pgm, const std::vector<MeshGeometry> &meshes)
 {
     destroy();
 
@@ -35,7 +35,7 @@ void OptixSBTManager::create(const OptixProgramGroupManager &pgm, const std::vec
 
     for (size_t i = 0; i < meshes.size(); ++i)
     {
-        const TriangleMesh &mesh = meshes[i];
+        const MeshGeometry &mesh = meshes[i];
 
         OPTIX_CHECK(optixSbtRecordPackHeader(pgm.hitPG, &hitRecords[i]));
 
@@ -44,8 +44,6 @@ void OptixSBTManager::create(const OptixProgramGroupManager &pgm, const std::vec
         hitRecords[i].data.uvs = mesh.uvs;
 
         hitRecords[i].data.triangles = mesh.triangles;
-
-        hitRecords[i].data.materialIndex = mesh.materialIndex;
     }
 
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_hitRecords), sizeof(HitRecordSBT) * hitRecords.size()));

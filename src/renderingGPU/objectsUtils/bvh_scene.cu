@@ -6,7 +6,7 @@
 
 HOST 
 BVHScene BVHScene::buildBVHScene(std::vector<BaseObject> *primitives, std::vector<Sphere> *spheres,
-                                 std::vector<TriangleMesh> *meshes,
+                                 
                                  std::vector<ImplicitSphere> *implicitSpheres)
 {
     BVHScene scene{};

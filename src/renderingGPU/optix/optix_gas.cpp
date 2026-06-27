@@ -1,6 +1,6 @@
 #include "optix_gas.h"
 
-#include "../utils/macro.cuh"
+#include "../utils/simplified_def.cuh"
 
 void OptixGAS::build(OptixDeviceContext context, CUstream stream, const float3 *d_vertices, uint32_t vertexCount,
                      const uint3 *d_indices, uint32_t triangleCount)
@@ -155,7 +155,7 @@ void OptixGAS::build(OptixDeviceContext context, CUstream stream, const float3 *
     printf("\n");
 }
 
-void OptixGAS::build(OptixContext context, TriangleMesh mesh)
+void OptixGAS::build(OptixContext context, MeshGeometry mesh)
 {
     build(context.deviceContext, context.stream, mesh.vertices, mesh.vertexCount, mesh.triangles, mesh.triangleCount);
 }

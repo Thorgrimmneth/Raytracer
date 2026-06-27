@@ -5,7 +5,7 @@
 // Version conservative : garde le comportement du fichier original
 // ============================================================
 
-#include "macro.cuh"
+#include "simplified_def.cuh"
 #include <cuda_runtime.h>
 #include <math.h>
 // ============================================================
@@ -16,13 +16,7 @@ HD_INLINE float3 make_float3(const float a) { return make_float3(a, a, a); }
 
 HD_INLINE float3 make_float3(const float4 a) { return make_float3(a.x, a.y, a.z); }
 
-HD_INLINE float4 float4f(const float a) { return make_float4(a, a, a, 0.f); }
-
-HD_INLINE float3 toFloat3(const float4 &a) { return make_float3(a.x, a.y, a.z); }
-
-HD_INLINE float4 toFloat4(const float3 &a) { return make_float4(a.x, a.y, a.z, 0.f); }
-
-HD_INLINE float4 make_float4(const float3 &a, const float &b) { return make_float4(a.x, a.y, a.z, b); }
+HD_INLINE float4 make_float4(const float3 &a, const float &b = 0.f) { return make_float4(a.x, a.y, a.z, b); }
 
 HD_INLINE float4 make_float4(const float b) { return make_float4(b, b, b, b); }
 

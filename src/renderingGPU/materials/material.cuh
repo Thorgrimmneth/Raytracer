@@ -1,8 +1,8 @@
 #pragma once
 
 #include "../../utils/defines.hpp"
-#include "../utils/cuda_defines.cuh"
-#include "../utils/macro.cuh"
+#include "../utils/defines.cuh"
+#include "../utils/simplified_def.cuh"
 #include "../utils/rng.cuh"
 
 #include "../lights/lightsample.cuh"

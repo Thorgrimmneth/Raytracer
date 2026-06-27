@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../objectsUtils/aabb.cuh"
-#include "../utils/macro.cuh"
+#include "../utils/simplified_def.cuh"
 #include <stdint.h>
 
 enum ObjectType : uint32_t

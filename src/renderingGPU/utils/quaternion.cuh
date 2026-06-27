@@ -1,8 +1,8 @@
 #pragma once
 
 #include "op.cuh"
-#include "cuda_defines.cuh"
-#include "macro.cuh"
+#include "defines.cuh"
+#include "simplified_def.cuh"
 
 struct Quaternion
 {

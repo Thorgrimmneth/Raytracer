@@ -9,7 +9,7 @@
 #include "../utils/defines.hpp"
 #include "utils/constant.cuh"
 #include "utils/fill_buffers.cuh"
-#include "utils/macro.cuh"
+#include "utils/simplified_def.cuh"
 
 #include "renderingUtils/post_treatment.cuh"
 #include "renderingUtils/shading_kernels.cuh"
@@ -206,7 +206,7 @@ HOST void initConstant(int width, int height, Camera c_camera, float4 sunDir)
 {
     int c_nbBounces = 8;
     float c_earthRadius = 6360e3f;
-    float3 c_sunDirection = toFloat3(sunDir);
+    float3 c_sunDirection = make_float3(sunDir);
     int c_skyColorSamples = 4;
     float c_hr = 1.f / 7994.f;
     float c_hm = 1.f / 1200.f;
@@ -649,7 +649,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         if (metalCount > 0)
         {
             shadeMetalKernel<<<gridForCount(metalCount), block1D>>>(
-                impl->gpuScene, impl->d_sortedOrigins + metalOffset, impl->d_sortedDirections + metalOffset,
+                impl->gpuScene, impl->d_sortedDirections + metalOffset,
                 impl->d_sortedThroughput + metalOffset, impl->d_sortedRNG + metalOffset,
                 impl->d_sortedHitPositions + metalOffset, impl->d_sortedHitNormals + metalOffset,
                 impl->d_sortedHitMaterialIndices + metalOffset, impl->d_sortedPixelIndices + metalOffset,

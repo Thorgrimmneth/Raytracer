@@ -2,10 +2,10 @@
 
 #include <stdint.h>
 
-#include "../utils/cuda_defines.cuh"
+#include "../utils/defines.cuh"
 #include "../utils/op.cuh"
 #include "../utils/rng.cuh"
-#include "../utils/macro.cuh"
+#include "../utils/simplified_def.cuh"
 
 #include "lightsample.cuh"
 
@@ -53,11 +53,11 @@ struct alignas(16) Light
 
     inline static uint32_t packMetadata(
         uint8_t type,
-        uint32_t geomIndex)
+        uint32_t meshInstanceIndex)
     {
         return
             uint32_t(type)
-            | (geomIndex << 8);
+            | (meshInstanceIndex << 8);
     }
 
     //
@@ -69,7 +69,7 @@ struct alignas(16) Light
         return LightType(uint8_t(metadata & 0xFF));
     }
 
-    D_FORCEINLINE uint32_t getGeomIndex() const
+    D_FORCEINLINE uint32_t getMeshInstanceIndex() const
     {
         return metadata >> 8;
     }

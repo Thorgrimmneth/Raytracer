@@ -4,7 +4,7 @@
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 
-#include "../utils/macro.cuh"
+#include "../utils/simplified_def.cuh"
 #include "../utils/op.cuh"
 #include "../utils/quaternion.cuh"
 #include <vector>
@@ -19,12 +19,8 @@ HOST MeshGeometry loadMeshGeometry(const std::string &p_path);
 // Load mesh geometry with scaling (shared data, loaded once)
 HOST MeshGeometry loadMeshGeometry(const std::string &p_path, const float3 scale);
 
-// Load mesh with transform (legacy, applies transform immediately)
-HOST TriangleMesh loadTriangleMesh(const std::string &p_path, int materialIndex, int index, float3 scale,
-                                   Quaternion rotation, float3 translation);
-
 // Create instance with geometry reference
-HOST MeshInstance createMeshInstance(int geometryIndex, int materialIndex, float3 scale, 
-                                    Quaternion rotation, float3 translation);
+HOST MeshInstance createMeshInstance(int geometryIndex, int materialIndex, float3 scale = make_float3(1.f),
+                           Quaternion rotation = quaternionFromAxisAngle(make_float3(0.f, 1.f, 0.f), 0.f), float3 translation = make_float3(0.f, 0.f, 0.f));
 
-HOST TriangleMesh PlaneToMesh(const Plane &plane, float size = 20000.f);
+HOST MeshGeometry PlaneToMesh(const Plane &plane, float size = 20000.f);

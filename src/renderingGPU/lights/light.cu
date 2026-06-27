@@ -175,7 +175,7 @@ LightSample Light::sampleCone(const float3 &p_point, RNG&rng) const
 DEVICE 
 LightSample Light::sampleSphereGeom(const float3 &p_point, RNG&rng, const CudaScene &scene) const
 {
-    const Sphere &s = scene.spheres[getGeomIndex()];
+    const Sphere &s = scene.spheres[getMeshInstanceIndex()];
     const Material &m = scene.materials[s.getMaterialIndex()];
 
     float z = 1.f - 2.f * rng.nextFloat();
@@ -216,7 +216,7 @@ LightSample Light::sampleSphereGeom(const float3 &p_point, RNG&rng, const CudaSc
 DEVICE 
 LightSample Light::sampleImplicitSphereGeom(const float3 &p_point, RNG&rng, const CudaScene &scene) const
 {
-    const ImplicitSphere &s = scene.implicitSpheres[getGeomIndex()];
+    const ImplicitSphere &s = scene.implicitSpheres[getMeshInstanceIndex()];
     const Material &m = scene.materials[s.getMaterialIndex()];
 
     float z = 1.f - 2.f * rng.nextFloat();
@@ -257,27 +257,28 @@ LightSample Light::sampleImplicitSphereGeom(const float3 &p_point, RNG&rng, cons
 DEVICE 
 LightSample Light::sampleMeshGeom(const float3 &p_point, RNG&rng, const CudaScene &scene) const
 {
-    const TriangleMesh &mesh = scene.triangleMeshes[getGeomIndex()];
-    const Material &m = scene.materials[mesh.materialIndex];
+    const MeshInstance &inst = scene.meshInstances[getMeshInstanceIndex()];
+    const MeshGeometry &geom = scene.meshGeometries[inst.geometryIndex];
+    const Material &m = scene.materials[inst.materialIndex];
 
     LightSample ls{};
 
-    if (mesh.triangleCount == 0 || mesh.meshArea <= 0.f)
+    if (geom.triangleCount == 0 || geom.meshArea <= 0.f)
     {
         return ls;
     }
 
-    float sampleArea = rng.nextFloat() * mesh.meshArea;
+    float sampleArea = rng.nextFloat() * geom.meshArea;
 
     int triIndex = 0;
 
-    while (triIndex < mesh.triangleCount - 1 && mesh.triangleAreaCdf[triIndex] < sampleArea)
+    while (triIndex < geom.triangleCount - 1 && geom.triangleAreaCdf[triIndex] < sampleArea)
     {
         ++triIndex;
     }
 
-    const uint3 &tri = mesh.triangles[triIndex];
-    const float3 *vertices = mesh.vertices;
+    const uint3 &tri = geom.triangles[triIndex];
+    const float3 *vertices = geom.vertices;
 
     float3 v0 = vertices[tri.x];
     float3 v1 = vertices[tri.y];
@@ -309,7 +310,7 @@ LightSample Light::sampleMeshGeom(const float3 &p_point, RNG&rng, const CudaScen
     if (cosThetaLight <= 0.f)
         return ls;
 
-    float pdf_area = 1.f / mesh.meshArea;
+    float pdf_area = 1.f / geom.meshArea;
     float pdf = pdf_area * dist2 / cosThetaLight;
 
     ls.direction = wi;

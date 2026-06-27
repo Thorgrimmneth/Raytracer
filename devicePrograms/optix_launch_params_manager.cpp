@@ -1,6 +1,6 @@
 #include "optix_launch_params_manager.h"
 
-#include "../src/renderingGPU/utils/macro.cuh"
+#include "../src/renderingGPU/utils/check.cuh"
 
 void OptixLaunchParamsManager::create()
 {

@@ -13,7 +13,6 @@ struct CudaSceneHelper
     std::vector<Sphere> spheresGPU = std::vector<Sphere>();
     std::vector<ImplicitSphere> implicitSpheresGPU = std::vector<ImplicitSphere>();
     std::vector<Plane> planesGPU = std::vector<Plane>();
-    std::vector<TriangleMesh> triangleMeshesGPU = std::vector<TriangleMesh>();
     std::vector<MeshGeometry> meshGeometriesGPU = std::vector<MeshGeometry>();  // Shared geometry data
     std::vector<MeshInstance> meshInstancesGPU = std::vector<MeshInstance>();    // Per-instance data
     std::vector<float3> verticesGPU = std::vector<float3>();

@@ -27,20 +27,3 @@ struct MeshInstance
     float3 translation = {0, 0, 0}; // Translation vector
     float transform[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};  // 3x4 transformation matrix (computed from rotation/scale/translation)
 };
-
-// Legacy struct - kept for backward compatibility during transition
-struct TriangleMesh
-{
-    uint3 *triangles = nullptr;
-    float3 *vertices = nullptr;
-    float3 *normals = nullptr;
-    float2 *uvs = nullptr;
-
-    int triangleCount = 0;
-    int vertexCount = 0;
-
-    int materialIndex = 0;
-
-    float meshArea = 0.0f;
-    float *triangleAreaCdf = nullptr;
-};

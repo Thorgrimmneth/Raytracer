@@ -1,6 +1,6 @@
 #pragma once
 
-#include "macro.cuh"
+#include "simplified_def.cuh"
 #include "../materials/material.cuh"
 
 GLOBAL

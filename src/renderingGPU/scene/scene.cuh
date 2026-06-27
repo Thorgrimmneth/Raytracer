@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../utils/macro.cuh"
+#include "../utils/simplified_def.cuh"
 #include "mesh_loader.cuh"
 
 #include <vector>
@@ -70,7 +70,6 @@ struct CudaScene
     BVHScene bvhScene;
     Sphere *spheres;
     Plane *planes;
-    TriangleMesh *triangleMeshes;
     MeshGeometry *meshGeometries;          // Shared geometry data (loaded once per file)
     MeshInstance *meshInstances;            // Per-instance data (transform, material)
     ImplicitSphere *implicitSpheres;
@@ -84,7 +83,7 @@ struct CudaScene
 
     int nbSpheres;
     int nbPlanes;
-    int nbTriangleMeshes;
+    int nbMeshes;
     int nbMeshGeometries;                   // Number of unique mesh geometries
     int nbMeshInstances;                    // Number of mesh instances
     int nbMaterials;
@@ -216,14 +215,15 @@ struct CudaScene
         }
         else if (hit.objectType == HIT_TRIANGLE_MESH)
         {
-            const TriangleMesh &mesh = triangleMeshes[hit.objectIndex];
+            const MeshInstance &inst = meshInstances[hit.objectIndex];
+            const MeshGeometry &geom = meshGeometries[inst.geometryIndex];
 
             const float cosTheta = fmaxf(dot(hit.normal, -dir), 0.0f);
 
             if (cosTheta <= 0.0f)
                 return 0.0f;
 
-            pdf = dist2 / (mesh.meshArea * cosTheta);
+            pdf = dist2 / (geom.meshArea * cosTheta);
         }
         else
         {

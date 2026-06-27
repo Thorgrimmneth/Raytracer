@@ -47,7 +47,7 @@ extern "C" __global__ void __closesthit__radiance()
     }
     else
     {
-        payload->materialIndex = data->materialIndex; // Fallback to SBT data
+        payload->materialIndex = 0; // Fallback to SBT data
     }
 
     payload->objectType = HIT_TRIANGLE_MESH;

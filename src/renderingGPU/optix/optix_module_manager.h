@@ -4,7 +4,7 @@
 #include <optix_stubs.h>
 #include <string>
 
-#include "../utils/macro.cuh"
+#include "../utils/check.cuh"
 
 class OptixModuleManager
 {

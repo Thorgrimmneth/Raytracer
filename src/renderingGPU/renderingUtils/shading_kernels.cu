@@ -305,7 +305,7 @@ __global__ void shadeLambertKernel(CudaScene scene, float3 *directions, float3 *
     // ------------------------------------------------------------
 }
 
-__global__ void shadeMetalKernel(CudaScene scene, float3 *origins, float3 *directions, float3 *throughputs, RNG *rngs,
+__global__ void shadeMetalKernel(CudaScene scene, float3 *directions, float3 *throughputs, RNG *rngs,
                                  float3 *hitPositions, float3 *hitNormals, int *hitMaterialIndices, int *pixelIndices,
                                  float3 *accumBuffer, float3 *nextOrigins, float3 *nextDirections,
                                  float3 *nextThroughput, int *nextPixelIndices, bool *nextLastBounceWasDelta,
@@ -318,8 +318,6 @@ __global__ void shadeMetalKernel(CudaScene scene, float3 *origins, float3 *direc
         return;
 
     float3 throughput = throughputs[qid];
-
-    float3 origin = origins[qid];
 
     float3 direction = directions[qid];
 

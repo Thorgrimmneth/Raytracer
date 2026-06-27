@@ -31,8 +31,6 @@ struct HitData
     float2 *uvs;
 
     uint3 *triangles;
-
-    int materialIndex;
 };
 
 using RaygenRecord = SbtRecord<RaygenData>;
@@ -42,7 +40,7 @@ using HitRecordSBT = SbtRecord<HitData>;
 class OptixSBTManager
 {
   public:
-    void create(const OptixProgramGroupManager &programGroupManager, const std::vector<TriangleMesh> &meshes);
+    void create(const OptixProgramGroupManager &programGroupManager, const std::vector<MeshGeometry> &meshes);
 
     void destroy();
 

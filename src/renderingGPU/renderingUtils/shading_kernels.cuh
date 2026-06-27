@@ -19,7 +19,7 @@ __global__ void shadeLambertKernel(CudaScene scene, float3 *directions, float3 *
                                    float *nextLastBsdfPdf, bool *nextIsInside, RNG *nextRNG, int *nextActiveCount,
                                    int materialCount, uint depth);
 
-__global__ void shadeMetalKernel(CudaScene scene, float3 *origins, float3 *directions, float3 *throughputs, RNG *rngs,
+__global__ void shadeMetalKernel(CudaScene scene, float3 *directions, float3 *throughputs, RNG *rngs,
                                  float3 *hitPositions, float3 *hitNormals, int *hitMaterialIndices, int *pixelIndices,
                                  float3 *accumBuffer, float3 *nextOrigins, float3 *nextDirections,
                                  float3 *nextThroughput, int *nextPixelIndices, bool *nextLastBounceWasDelta,

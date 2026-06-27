@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../raytracingUtils/ray.cuh"
-#include "../utils/macro.cuh"
+#include "../utils/simplified_def.cuh"
 #include "../utils/op.cuh"
 
 struct AABB

@@ -14,7 +14,7 @@ class OptixGAS
     void build(OptixDeviceContext context, CUstream stream, const float3 *d_vertices, uint32_t vertexCount,
                const uint3 *d_indices, uint32_t triangleCount);
 
-    void build(OptixContext context, TriangleMesh mesh);
+    void build(OptixContext context, MeshGeometry mesh);
     void destroy();
 
     OptixTraversableHandle handle = 0;

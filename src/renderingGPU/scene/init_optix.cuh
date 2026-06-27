@@ -5,12 +5,12 @@
 #include "../optix/optix_pipeline_manager.h"
 #include "../optix/optix_program_group_manager.h"
 
+#include <optix_stack_size.h>
 #include <string>
 
 inline void initOptix(OptixContext &context, OptixProgramGroupManager &programGroupManager,
-                      OptixPipelineManager &pipelineManager,
-                      OptixLaunchParamsManager &launchParamsManager, const std::string &raygenPath,
-                      const std::string &missPath, const std::string &closestPath)
+                      OptixPipelineManager &pipelineManager, OptixLaunchParamsManager &launchParamsManager,
+                      const std::string &raygenPath, const std::string &missPath, const std::string &closestPath)
 {
     context.initialize();
 
@@ -43,10 +43,24 @@ inline void initOptix(OptixContext &context, OptixProgramGroupManager &programGr
     launchParamsManager.create();
     std::cout << "d_params = " << launchParamsManager.d_params << std::endl;
 
-    OPTIX_CHECK(optixPipelineSetStackSize(pipelineManager.pipeline,
-                                          2 * 1024, // directCallableStackSizeFromTraversal
-                                          2 * 1024, // directCallableStackSizeFromState
-                                          2 * 1024, // continuationStackSize
-                                          2         // maxTraversableGraphDepth
-                                          ));
+    OptixStackSizes stackSizes = {};
+
+    OPTIX_CHECK(optixUtilAccumulateStackSizes(programGroupManager.raygenPG, &stackSizes, pipelineManager.pipeline));
+
+    OPTIX_CHECK(optixUtilAccumulateStackSizes(programGroupManager.missPG, &stackSizes, pipelineManager.pipeline));
+
+    OPTIX_CHECK(optixUtilAccumulateStackSizes(programGroupManager.hitPG, &stackSizes, pipelineManager.pipeline));
+
+    uint32_t dcStackTraversal;
+    uint32_t dcStackState;
+    uint32_t continuationStack;
+
+    OPTIX_CHECK(optixUtilComputeStackSizes(&stackSizes,
+                                           1, // maxTraceDepth
+                                           0, // maxCCDepth
+                                           0, // maxDCDepth
+                                           &dcStackTraversal, &dcStackState, &continuationStack));
+
+    OPTIX_CHECK(optixPipelineSetStackSize(pipelineManager.pipeline, dcStackTraversal, dcStackState, continuationStack,
+                                          2)); // maxTraversableGraphDepth
 }

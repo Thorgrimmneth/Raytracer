@@ -4,7 +4,7 @@
 #include <limits>
 #include <vector>
 
-#include "../utils/macro.cuh"
+#include "../utils/simplified_def.cuh"
 
 #include "aabb.cuh"
 
@@ -63,14 +63,13 @@ struct BVHScene
     Sphere *d_spheres;
     ImplicitSphere *d_implicitSpheres;
     Plane *d_planes;
-    TriangleMesh *d_meshes;
     
     int nbNodes;
     int nbObjects;
 
     HOST 
     static BVHScene buildBVHScene(std::vector<BaseObject> *primitives, std::vector<Sphere> *spheres,
-                                           std::vector<TriangleMesh> *meshes,
+                                           
                                            std::vector<ImplicitSphere> *implicitSpheres);
 
     HOST 

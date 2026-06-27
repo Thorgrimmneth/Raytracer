@@ -5,7 +5,7 @@
 #include <optix.h>
 #include <optix_stubs.h>
 #include <iostream>
-#include "../utils/macro.cuh"
+#include "../utils/check.cuh"
 
 class OptixContext
 {
