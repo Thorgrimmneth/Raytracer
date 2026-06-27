@@ -597,15 +597,27 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
     helper.meshInstancesGPU.push_back(createMeshInstance(helper.meshGeometriesGPU.size() - 1, p.materialIndex));
 
     OptixContext context;
-    OptixProgramGroupManager programGroupManager;
-    OptixPipelineManager pipelineManager;
-    OptixLaunchParamsManager launchParamsManager;
+    context.initialize();
+    OptixProgramGroupManager programGroupManagerRadiance;
+    OptixPipelineManager pipelineManagerRadiance;
+    OptixLaunchParamsManager<LaunchRadianceParams> launchParamsManagerRadiance;
 
-    initOptix(context, programGroupManager, pipelineManager, launchParamsManager, "build/raygen.ptx", "build/miss.ptx",
-              "build/closesthit.ptx");
+    initOptix(context, programGroupManagerRadiance, pipelineManagerRadiance, launchParamsManagerRadiance,
+              "build/radianceRaygen.ptx", "__raygen__radiance", "build/radianceMiss.ptx", "__miss__radiance",
+              "build/radianceClosestHit.ptx", "__closesthit__radiance");
 
-    OptixSBTManager sbtManager;
-    sbtManager.create(programGroupManager, helper.meshGeometriesGPU);
+    OptixSBTManager sbtManagerRadiance;
+    sbtManagerRadiance.create(helper.meshGeometriesGPU, programGroupManagerRadiance);
+
+    OptixProgramGroupManager programGroupManagerShadow;
+    OptixPipelineManager pipelineManagerShadow;
+    OptixLaunchParamsManager<LaunchShadowParams> launchParamsManagerShadow;
+    initOptix(context, programGroupManagerShadow, pipelineManagerShadow, launchParamsManagerShadow,
+              "build/shadowRaygen.ptx", "__raygen__shadow", "build/shadowMiss.ptx", "__miss__shadow", "", "",
+              "build/shadowAnyHit.ptx", "__anyhit__shadow");
+
+    OptixSBTManager sbtManagerShadow;
+    sbtManagerShadow.create(helper.meshGeometriesGPU, programGroupManagerShadow);
 
     // =========================
     // Create GAS for shared mesh geometries
@@ -636,7 +648,7 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
         computeTransform(meshInst, instance);
 
         instance.instanceId = i;
-        instance.sbtOffset = meshInst.geometryIndex;
+        instance.sbtOffset = meshInst.geometryIndex; // Offset in SBT for this instance
 
         instance.visibilityMask = 255;
         instance.flags = OPTIX_INSTANCE_FLAG_NONE;
@@ -649,9 +661,9 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
     OptixIAS ias;
     ias.build(context.deviceContext, instances);
 
-    launchParamsManager.params.traversable = ias.handle;
-    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManager.d_params), &launchParamsManager.params,
-                          sizeof(LaunchParams), cudaMemcpyHostToDevice));
+    launchParamsManagerRadiance.params.traversable = ias.handle;
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerRadiance.d_params),
+                          &launchParamsManagerRadiance.params, sizeof(LaunchRadianceParams), cudaMemcpyHostToDevice));
 
     gpuScene.uploadObjects(helper);
     gpuScene.uploadLights(helper);
@@ -660,15 +672,23 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
     // Now set mesh instances in launch params after uploadObjects has allocated them
     if (gpuScene.meshInstances && gpuScene.nbMeshInstances > 0)
     {
-        launchParamsManager.params.meshInstances = gpuScene.meshInstances;
-        launchParamsManager.params.nbMeshInstances = gpuScene.nbMeshInstances;
+        launchParamsManagerRadiance.params.meshInstances = gpuScene.meshInstances;
+        launchParamsManagerRadiance.params.nbMeshInstances = gpuScene.nbMeshInstances;
         // Update launch params on GPU with mesh instance pointers
-        CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManager.d_params), &launchParamsManager.params,
-                              sizeof(LaunchParams), cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerRadiance.d_params),
+                              &launchParamsManagerRadiance.params, sizeof(LaunchRadianceParams), cudaMemcpyHostToDevice));
     }
-    gpuScene.optixData = OptixSceneData{
-        pipelineManager.pipeline, sbtManager.sbt, launchParamsManager.d_params, launchParamsManager.params, ias.handle,
-        ias.getBuffer(),          gasList};
-    programGroupManager.destroy();
+    gpuScene.radiancePass.pipeline = std::move(pipelineManagerRadiance);
+    gpuScene.radiancePass.programGroups = std::move(programGroupManagerRadiance);
+    gpuScene.radiancePass.sbt = std::move(sbtManagerRadiance);
+    gpuScene.radiancePass.launchParams = std::move(launchParamsManagerRadiance);
+
+    gpuScene.shadowPass.pipeline = std::move(pipelineManagerShadow);
+    gpuScene.shadowPass.programGroups = std::move(programGroupManagerShadow);
+    gpuScene.shadowPass.sbt = std::move(sbtManagerShadow);
+    gpuScene.shadowPass.launchParams = std::move(launchParamsManagerShadow);
+
+    programGroupManagerRadiance.destroy();
+    programGroupManagerShadow.destroy();
     return gpuScene;
 }

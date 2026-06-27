@@ -12,7 +12,8 @@ public:
         const OptixPipelineCompileOptions& pipelineCompileOptions,
         OptixProgramGroup raygenPG,
         OptixProgramGroup missPG,
-        OptixProgramGroup hitPG
+        OptixProgramGroup hitPG,
+        OptixProgramGroup anyHitPG = nullptr
     );
 
     void create(

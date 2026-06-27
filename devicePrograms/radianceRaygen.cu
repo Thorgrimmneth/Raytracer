@@ -6,13 +6,13 @@
 #include <optix.h>
 #include <optix_device.h>
 
-#include "launch_params.cuh"
+#include "launch_radiance_params.cuh"
 
 extern "C" {
-__constant__ LaunchParams params;
+__constant__ LaunchRadianceParams params;
 }
 
-extern "C" __global__ void __raygen__intersect()
+extern "C" __global__ void __raygen__radiance()
 {
     uint3 launchIndex = optixGetLaunchIndex();
 

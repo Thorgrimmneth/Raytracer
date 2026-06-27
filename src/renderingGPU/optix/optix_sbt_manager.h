@@ -7,7 +7,7 @@
 
 #include "../objects/triangle_mesh.cuh"
 #include "../src/renderingGPU/utils/op.cuh"
-
+#include "optixRayType.h"
 #include "optix_program_group_manager.h"
 
 template <typename T> struct alignas(OPTIX_SBT_RECORD_ALIGNMENT) SbtRecord
@@ -40,7 +40,7 @@ using HitRecordSBT = SbtRecord<HitData>;
 class OptixSBTManager
 {
   public:
-    void create(const OptixProgramGroupManager &programGroupManager, const std::vector<MeshGeometry> &meshes);
+    void create(const std::vector<MeshGeometry> &meshes, const OptixProgramGroupManager &pgm);
 
     void destroy();
 
@@ -50,4 +50,5 @@ class OptixSBTManager
     CUdeviceptr d_raygenRecord = 0;
     CUdeviceptr d_missRecord = 0;
     CUdeviceptr d_hitRecords = 0;
+    CUdeviceptr d_anyHitRecords = 0;
 };

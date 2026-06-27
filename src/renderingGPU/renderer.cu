@@ -1,12 +1,13 @@
 #include "renderer.hpp"
 
-#include "../../../devicePrograms/launch_params.cuh"
+#include "../../../devicePrograms/launch_radiance_params.cuh"
+#include "../../../devicePrograms/launch_shadow_params.cuh"
 #include "camera/camera.cuh"
 #include "scene/scene.cuh"
 
 #include "integrators/pathtracer_integrator.cuh"
 
-#include "../utils/defines.hpp"
+#include "../utils/definesCPU.hpp"
 #include "utils/constant.cuh"
 #include "utils/fillBuffers.cuh"
 #include "utils/simplifiedDef.cuh"
@@ -485,7 +486,6 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
     // -------------------------------------------------------------------------
     // 2. Boucle wavefront activeQueue
     // -------------------------------------------------------------------------
-
     for (int bounce = 0; bounce < impl->maxBounces; bounce++)
     {
 
@@ -496,28 +496,27 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         // ---------------------------------------------------------------------
         // 2.1 Intersection uniquement des rayons actifs
         // ---------------------------------------------------------------------
-        impl->gpuScene.optixData.launchParams.origins = impl->currentQueue.origins;
-        impl->gpuScene.optixData.launchParams.directions = impl->currentQueue.directions;
-        impl->gpuScene.optixData.launchParams.hitPositions = impl->hitBuffers.positions;
-        impl->gpuScene.optixData.launchParams.hitNormals = impl->hitBuffers.normals;
-        impl->gpuScene.optixData.launchParams.hitMaterialIndices = impl->hitBuffers.materialIndices;
-        impl->gpuScene.optixData.launchParams.hitMask = impl->hitBuffers.mask;
-        impl->gpuScene.optixData.launchParams.activeCount = h_activeCount;
+        impl->gpuScene.radiancePass.launchParams.params.origins = impl->currentQueue.origins;
+        impl->gpuScene.radiancePass.launchParams.params.directions = impl->currentQueue.directions;
+        impl->gpuScene.radiancePass.launchParams.params.hitPositions = impl->hitBuffers.positions;
+        impl->gpuScene.radiancePass.launchParams.params.hitNormals = impl->hitBuffers.normals;
+        impl->gpuScene.radiancePass.launchParams.params.hitMaterialIndices = impl->hitBuffers.materialIndices;
+        impl->gpuScene.radiancePass.launchParams.params.hitMask = impl->hitBuffers.mask;
+        impl->gpuScene.radiancePass.launchParams.params.activeCount = h_activeCount;
 
-        cudaMemcpy(reinterpret_cast<void *>(impl->gpuScene.optixData.d_launchParams),
-                   &impl->gpuScene.optixData.launchParams, sizeof(LaunchParams), cudaMemcpyHostToDevice);
-        OPTIX_CHECK(optixLaunch(impl->gpuScene.optixData.pipeline,
+        cudaMemcpy(reinterpret_cast<void *>(impl->gpuScene.radiancePass.launchParams.d_params),
+                   &impl->gpuScene.radiancePass.launchParams.params, sizeof(LaunchRadianceParams), cudaMemcpyHostToDevice);
+        OPTIX_CHECK(optixLaunch(impl->gpuScene.radiancePass.pipeline.pipeline,
                                 0, // stream
-                                impl->gpuScene.optixData.d_launchParams, sizeof(LaunchParams),
-                                &impl->gpuScene.optixData.sbt, h_activeCount, 1, 1));
+                                impl->gpuScene.radiancePass.launchParams.d_params, sizeof(LaunchRadianceParams),
+                                &impl->gpuScene.radiancePass.sbt.sbt, h_activeCount, 1, 1));
 
         classifyPairs<<<gridForCount(h_activeCount), block1D>>>(impl->gpuScene.materials, h_activeCount, impl->d_keys,
                                                                 impl->d_values, impl->hitBuffers.mask,
                                                                 impl->hitBuffers.materialIndices);
-        CUDA_CHECK(cudaDeviceSynchronize());
         thrust::sort_by_key(thrust::device, impl->d_keys, impl->d_keys + h_activeCount, impl->d_values);
 
-        computeMaterialRanges<<<1, 7>>>(impl->d_keys, h_activeCount, impl->d_ranges);
+        computeMaterialRanges<<<1, MATERIAL_TYPE_COUNT>>>(impl->d_keys, h_activeCount, impl->d_ranges);
 
         MaterialRanges ranges;
 
@@ -526,7 +525,6 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         reorderPaths<<<gridForCount(h_activeCount), block1D>>>(
             impl->d_values, impl->currentQueue, impl->sortedQueue, impl->hitBuffers.positions, impl->hitBuffers.normals,
             impl->hitBuffers.materialIndices, h_activeCount);
-        CUDA_CHECK(cudaDeviceSynchronize());
         for (int i = 0; i < MATERIAL_TYPE_COUNT; i++)
         {
             int offset = ranges.offset[i];
@@ -535,7 +533,6 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
             {
                 launchShadeKernel(static_cast<MaterialType>(i), impl->sortedQueue, impl->nextQueue, impl->gpuScene,
                                   impl->d_accumBuffer, offset, count, bounce);
-                CUDA_CHECK(cudaDeviceSynchronize());
             }
         }
 

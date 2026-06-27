@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../../devicePrograms/launch_params.cuh"
+#include "../../../devicePrograms/launch_radiance_params.cuh"
 struct Sphere
 {
     float4 center1; // xyz = center, w = radius

@@ -9,7 +9,8 @@ void OptixPipelineManager::create(
     const OptixPipelineCompileOptions& pipelineCompileOptions,
     OptixProgramGroup raygenPG,
     OptixProgramGroup missPG,
-    OptixProgramGroup hitPG
+    OptixProgramGroup hitPG,
+    OptixProgramGroup anyHitPG
 )
 {
     std::vector<OptixProgramGroup> groups =
@@ -18,6 +19,9 @@ void OptixPipelineManager::create(
         missPG,
         hitPG
     };
+
+    if(anyHitPG != nullptr)
+        groups.push_back(anyHitPG);
 
     OptixPipelineLinkOptions linkOptions = {};
 

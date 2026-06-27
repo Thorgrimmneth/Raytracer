@@ -1,14 +1,10 @@
 #pragma once
 
-#include "../../utils/defines.hpp"
+#include "../../utils/rngCPU.hpp"
+#include "../utils/op.cuh"
 #include "../utils/defines.cuh"
 #include "../utils/simplifiedDef.cuh"
 #include "../utils/rng.cuh"
-
-#include "../lights/lightsample.cuh"
-#include "../raytracingUtils/ray.cuh"
-
-#include "../../../devicePrograms/launch_params.cuh"
 
 enum MaterialType : int
 {

@@ -7,7 +7,6 @@
 
 #include "../scene/scene.cuh"
 
-#include "../../../devicePrograms/launch_params.cuh"
 
 __global__ void shadeMissKernel(float3 *origins, float3 *directions, float3 *throughput, float3 *accumBuffer,
                                 int *pixelIndices, int missCount, bool safeSun);

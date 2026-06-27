@@ -18,7 +18,8 @@
 
 #include "../raytracingUtils/ray.cuh"
 
-#include "../../../devicePrograms/launch_params.cuh"
+#include "../../../devicePrograms/launch_radiance_params.cuh"
+#include "../../../devicePrograms/launch_shadow_params.cuh"
 #include "../../../devicePrograms/optix_launch_params_manager.h"
 #include "../optix/optix_context.h"
 #include "../optix/optix_gas.h"
@@ -34,36 +35,12 @@
 
 struct Light;
 
-struct OptixSceneData
+template <typename LaunchParamsT> struct OptixPassData
 {
-    OptixPipeline pipeline = nullptr;
-
-    OptixShaderBindingTable sbt = {};
-
-    CUdeviceptr d_launchParams = 0;
-    LaunchParams launchParams = {};
-
-    OptixTraversableHandle iasHandle = 0;
-    CUdeviceptr d_iasBuffer = 0;
-    std::vector<OptixGAS> gasList;
-
-    OptixSceneData() = default;
-    OptixSceneData(OptixPipeline p, OptixShaderBindingTable s, CUdeviceptr lp, LaunchParams lpStruct,
-                   OptixTraversableHandle gasH, CUdeviceptr gasBuf, std::vector<OptixGAS> gas)
-        : pipeline(p), sbt(s), d_launchParams(lp), launchParams(lpStruct), iasHandle(gasH), d_iasBuffer(gasBuf),
-          gasList(gas)
-    {
-    }
-
-    void destroy()
-    {
-        if (pipeline)
-            optixPipelineDestroy(pipeline);
-        if (d_launchParams)
-            CUDA_CHECK(cudaFree((void *)d_launchParams));
-        if (d_iasBuffer)
-            CUDA_CHECK(cudaFree((void *)d_iasBuffer));
-    }
+    OptixPipelineManager pipeline;
+    OptixProgramGroupManager programGroups;
+    OptixSBTManager sbt;
+    OptixLaunchParamsManager<LaunchParamsT> launchParams;
 };
 
 struct CudaScene
@@ -79,7 +56,12 @@ struct CudaScene
     float *lightProbabilities;
     float *lightCumulativeWeights;
 
-    OptixSceneData optixData;
+    OptixTraversableHandle iasHandle = 0;
+    CUdeviceptr d_iasBuffer = 0;
+    std::vector<OptixGAS> gasList;
+
+    OptixPassData<LaunchRadianceParams> radiancePass;
+    OptixPassData<LaunchShadowParams> shadowPass;
 
     int nbSpheres;
     int nbPlanes;
@@ -120,9 +102,6 @@ struct CudaScene
         CUDA_CHECK(cudaFree(lights));
         CUDA_CHECK(cudaFree(lightProbabilities));
         CUDA_CHECK(cudaFree(lightCumulativeWeights));
-
-        // Détruit IAS, GAS, pipeline, launch params...
-        optixData.destroy();
 
         // Remise à zéro
         meshGeometries = nullptr;

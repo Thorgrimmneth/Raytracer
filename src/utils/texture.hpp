@@ -1,7 +1,7 @@
 #ifndef __RT_ISICG_IMAGE__
 #define __RT_ISICG_IMAGE__
 
-#include "utils/defines.hpp"
+#include "utils/definesCPU.hpp"
 #include <string>
 #include <vector>
 

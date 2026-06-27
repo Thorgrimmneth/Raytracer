@@ -4,7 +4,7 @@
 
 #include "../utils/simplifiedDef.cuh"
 
-void OptixSBTManager::create(const OptixProgramGroupManager &pgm, const std::vector<MeshGeometry> &meshes)
+void OptixSBTManager::create(const std::vector<MeshGeometry> &meshes, const OptixProgramGroupManager &pgm)
 {
     destroy();
 
@@ -35,15 +35,16 @@ void OptixSBTManager::create(const OptixProgramGroupManager &pgm, const std::vec
 
     for (size_t i = 0; i < meshes.size(); ++i)
     {
+        auto &rad = hitRecords[i];
         const MeshGeometry &mesh = meshes[i];
 
-        OPTIX_CHECK(optixSbtRecordPackHeader(pgm.hitPG, &hitRecords[i]));
+        OPTIX_CHECK(optixSbtRecordPackHeader(pgm.hitPG, &rad));
 
-        hitRecords[i].data.vertices = mesh.vertices;
-        hitRecords[i].data.normals = mesh.normals;
-        hitRecords[i].data.uvs = mesh.uvs;
+        rad.data.vertices = mesh.vertices;
+        rad.data.normals = mesh.normals;
+        rad.data.uvs = mesh.uvs;
 
-        hitRecords[i].data.triangles = mesh.triangles;
+        rad.data.triangles = mesh.triangles;
     }
 
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_hitRecords), sizeof(HitRecordSBT) * hitRecords.size()));
@@ -64,7 +65,7 @@ void OptixSBTManager::create(const OptixProgramGroupManager &pgm, const std::vec
 
     sbt.hitgroupRecordBase = d_hitRecords;
     sbt.hitgroupRecordStrideInBytes = sizeof(HitRecordSBT);
-    sbt.hitgroupRecordCount = static_cast<unsigned int>(hitRecords.size());
+    sbt.hitgroupRecordCount = meshes.size();
 }
 
 void OptixSBTManager::destroy()

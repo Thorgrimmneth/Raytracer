@@ -16,3 +16,8 @@ struct Payload
 
     HitObjectType objectType;
 };
+
+struct ShadowPayload
+{
+    float3 transmittance;
+};

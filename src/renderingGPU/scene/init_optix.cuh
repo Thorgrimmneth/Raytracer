@@ -5,43 +5,75 @@
 #include "../optix/optix_pipeline_manager.h"
 #include "../optix/optix_program_group_manager.h"
 
+#include <optional>
 #include <optix_stack_size.h>
 #include <string>
 
+template<typename LaunchParamsT>
 inline void initOptix(OptixContext &context, OptixProgramGroupManager &programGroupManager,
-                      OptixPipelineManager &pipelineManager, OptixLaunchParamsManager &launchParamsManager,
-                      const std::string &raygenPath, const std::string &missPath, const std::string &closestPath)
+                      OptixPipelineManager &pipelineManager, OptixLaunchParamsManager<LaunchParamsT> &launchParamsManager,
+                      const std::string &raygenPath, const std::string &raygenName, const std::string &missPath,
+                      const std::string &missName, const std::string &closestPath = "",
+                      const std::string &closestName = "", const std::string &anyHitPath = "",
+                      const std::string &anyHitName = "", const std::string &intersectionPath = "",
+                      const std::string &intersectionName = "")
 {
-    context.initialize();
+    //
+    // Modules
+    //
 
-    OptixModuleManager raygenModuleManager;
+    OptixModuleManager raygenModule;
+    raygenModule.createFromPath(context.deviceContext, raygenPath);
 
-    raygenModuleManager.createFromPath(context.deviceContext, raygenPath);
+    OptixModuleManager missModule;
+    missModule.createFromPath(context.deviceContext, missPath);
 
-    std::cout << "Raygen module created successfully" << std::endl;
+    std::optional<OptixModuleManager> closestModule;
+    if (!closestPath.empty())
+    {
+        closestModule.emplace();
+        closestModule->createFromPath(context.deviceContext, closestPath);
+    }
 
-    OptixModuleManager missModuleManager;
-    missModuleManager.createFromPath(context.deviceContext, missPath);
+    std::optional<OptixModuleManager> anyHitModule;
+    if (!anyHitPath.empty())
+    {
+        anyHitModule.emplace();
+        anyHitModule->createFromPath(context.deviceContext, anyHitPath);
+    }
+    std::optional<OptixModuleManager> intersectionModule;
+    if (!intersectionPath.empty())
+    {
+        intersectionModule.emplace();
+        intersectionModule->createFromPath(context.deviceContext, intersectionPath);
+    }
 
-    std::cout << "Miss module created successfully" << std::endl;
+    //
+    // Program Groups
+    //
 
-    OptixModuleManager chitModuleManager;
-    chitModuleManager.createFromPath(context.deviceContext, closestPath);
+    programGroupManager.create(
+        context.deviceContext, raygenModule.module, raygenName.c_str(), missModule.module, missName.c_str(),
+        closestModule ? closestModule->module : nullptr, closestName.empty() ? "" : closestName.c_str(),
+        anyHitModule ? anyHitModule->module : nullptr, anyHitName.empty() ? "" : anyHitName.c_str(),
+        intersectionModule ? intersectionModule->module : nullptr,
+        intersectionName.empty() ? "" : intersectionName.c_str());
 
-    std::cout << "Closest module created successfully" << std::endl;
+    //
+    // Pipeline
+    //
 
-    programGroupManager.create(context.deviceContext, raygenModuleManager.module, missModuleManager.module,
-                               chitModuleManager.module);
+    pipelineManager.create(context.deviceContext, raygenModule.getPipelineCompileOptions(), programGroupManager);
 
-    std::cout << "RaygenPG = " << programGroupManager.raygenPG << "\nMissPG   = " << programGroupManager.missPG
-              << "\nHitPG    = " << programGroupManager.hitPG << std::endl;
-
-    pipelineManager.create(context.deviceContext, raygenModuleManager.getPipelineCompileOptions(),
-                           programGroupManager.raygenPG, programGroupManager.missPG, programGroupManager.hitPG);
-    std::cout << "Pipeline = " << pipelineManager.pipeline << std::endl;
+    //
+    // Launch params
+    //
 
     launchParamsManager.create();
-    std::cout << "d_params = " << launchParamsManager.d_params << std::endl;
+
+    //
+    // Stack size
+    //
 
     OptixStackSizes stackSizes = {};
 
@@ -49,18 +81,17 @@ inline void initOptix(OptixContext &context, OptixProgramGroupManager &programGr
 
     OPTIX_CHECK(optixUtilAccumulateStackSizes(programGroupManager.missPG, &stackSizes, pipelineManager.pipeline));
 
-    OPTIX_CHECK(optixUtilAccumulateStackSizes(programGroupManager.hitPG, &stackSizes, pipelineManager.pipeline));
+    if (programGroupManager.hitPG)
+    {
+        OPTIX_CHECK(optixUtilAccumulateStackSizes(programGroupManager.hitPG, &stackSizes, pipelineManager.pipeline));
+    }
 
-    uint32_t dcStackTraversal;
-    uint32_t dcStackState;
-    uint32_t continuationStack;
+    uint32_t dcStackTraversal = 0;
+    uint32_t dcStackState = 0;
+    uint32_t continuationStack = 0;
 
-    OPTIX_CHECK(optixUtilComputeStackSizes(&stackSizes,
-                                           1, // maxTraceDepth
-                                           0, // maxCCDepth
-                                           0, // maxDCDepth
-                                           &dcStackTraversal, &dcStackState, &continuationStack));
+    OPTIX_CHECK(optixUtilComputeStackSizes(&stackSizes, 1, 0, 0, &dcStackTraversal, &dcStackState, &continuationStack));
 
-    OPTIX_CHECK(optixPipelineSetStackSize(pipelineManager.pipeline, dcStackTraversal, dcStackState, continuationStack,
-                                          2)); // maxTraversableGraphDepth
+    OPTIX_CHECK(
+        optixPipelineSetStackSize(pipelineManager.pipeline, dcStackTraversal, dcStackState, continuationStack, 2));
 }

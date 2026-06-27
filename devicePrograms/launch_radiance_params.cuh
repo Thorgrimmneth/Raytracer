@@ -8,6 +8,7 @@
 #include "../src/renderingGPU/raytracingUtils/ray.cuh"
 #include "../src/renderingGPU/utils/op.cuh"
 #include "../src/renderingGPU/objects/triangle_mesh.cuh"
+#include "../src/renderingGPU/materials/material.cuh"
 
 // Minimal hit record for internal scene queries (lightPdf, etc)
 struct OptixHit
@@ -20,7 +21,7 @@ struct OptixHit
     HitObjectType objectType;
 };
 
-struct LaunchParams
+struct LaunchRadianceParams
 {
     float3* origins = nullptr;
     float3* directions = nullptr;

@@ -5,22 +5,12 @@ project(mon_projet LANGUAGES C CXX CUDA)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CUDA_STANDARD 17)
 set(OPTIX_ROOT "/home/ejouenne/Downloads/NVIDIA-OptiX-SDK-8.1.0-linux64-x86_64")
+set(PTX_OUTPUT_DIR "${CMAKE_BINARY_DIR}/ptx")
+set(OPTIX_DEVICE_DIR ${CMAKE_SOURCE_DIR}/devicePrograms)
 
-set(OPTIX_DEVICE_DIR
-    ${CMAKE_SOURCE_DIR}/devicePrograms
-)
+file(MAKE_DIRECTORY ${PTX_OUTPUT_DIR})
 
-set(RAYGEN_PTX
-    ${CMAKE_BINARY_DIR}/raygen.ptx
-)
-
-set(MISS_PTX
-    ${CMAKE_BINARY_DIR}/miss.ptx
-)
-
-set(HIT_PTX
-    ${CMAKE_BINARY_DIR}/closesthit.ptx
-)
+set(PTX_FILE "${PTX_OUTPUT_DIR}/${FILE_NAME}.ptx")
 
 find_package(CUDAToolkit REQUIRED)
 find_package(OpenGL REQUIRED)
@@ -72,60 +62,41 @@ set_target_properties(mon_projet PROPERTIES
     CUDA_ARCHITECTURES 120
 )
 
-add_custom_command(
-    OUTPUT ${RAYGEN_PTX}
-
-    COMMAND ${CMAKE_CUDA_COMPILER}
-        --ptx
-        -std=c++17
-        -I${OPTIX_ROOT}/include
-        -I${OPTIX_DEVICE_DIR}
-        ${OPTIX_DEVICE_DIR}/raygen.cu
-        -o ${RAYGEN_PTX}
-
-    DEPENDS
-        ${OPTIX_DEVICE_DIR}/raygen.cu
+file(GLOB OPTIX_DEVICE_SOURCES
+    "${OPTIX_DEVICE_DIR}/*.cu"
 )
 
-add_custom_command(
-    OUTPUT ${MISS_PTX}
+set(PTX_FILES)
 
-    COMMAND ${CMAKE_CUDA_COMPILER}
-        --ptx
-        -std=c++17
-        -I${OPTIX_ROOT}/include
-        -I${OPTIX_DEVICE_DIR}
-        ${OPTIX_DEVICE_DIR}/miss.cu
-        -o ${MISS_PTX}
+foreach(CUDA_FILE ${OPTIX_DEVICE_SOURCES})
 
-    DEPENDS
-        ${OPTIX_DEVICE_DIR}/miss.cu
-)
+    get_filename_component(FILE_NAME ${CUDA_FILE} NAME_WE)
 
-add_custom_command(
-    OUTPUT ${HIT_PTX}
+    set(PTX_FILE "${CMAKE_BINARY_DIR}/${FILE_NAME}.ptx")
 
-    COMMAND ${CMAKE_CUDA_COMPILER}
-        --ptx
-        -std=c++17
-        -I${OPTIX_ROOT}/include
-        -I${OPTIX_DEVICE_DIR}
-        ${OPTIX_DEVICE_DIR}/closesthit.cu
-        -o ${HIT_PTX}
+    list(APPEND PTX_FILES ${PTX_FILE})
 
-    DEPENDS
-        ${OPTIX_DEVICE_DIR}/closesthit.cu
-)
+    add_custom_command(
+        OUTPUT ${PTX_FILE}
+
+        COMMAND ${CMAKE_CUDA_COMPILER}
+            --ptx
+            -std=c++17
+            -I${OPTIX_ROOT}/include
+            -I${OPTIX_DEVICE_DIR}
+            ${CUDA_FILE}
+            -o ${PTX_FILE}
+
+        DEPENDS ${CUDA_FILE}
+
+        VERBATIM
+    )
+
+endforeach()
 
 add_custom_target(
     optix_shaders
-    DEPENDS
-        ${RAYGEN_PTX}
-        ${MISS_PTX}
-        ${HIT_PTX}
+    DEPENDS ${PTX_FILES}
 )
 
-add_dependencies(
-    mon_projet
-    optix_shaders
-)
+add_dependencies(mon_projet optix_shaders)

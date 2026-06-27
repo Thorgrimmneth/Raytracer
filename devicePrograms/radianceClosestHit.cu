@@ -3,12 +3,12 @@
 #include "../src/renderingGPU/utils/objectType.h"
 #include "../src/renderingGPU/utils/op.cuh"
 #include "../src/renderingGPU/utils/packing.h"
-#include "launch_params.cuh"
+#include "launch_radiance_params.cuh"
 #include <optix.h>
 #include <optix_device.h>
 
 extern "C" {
-__constant__ LaunchParams params;
+__constant__ LaunchRadianceParams params;
 }
 
 extern "C" __global__ void __closesthit__radiance()

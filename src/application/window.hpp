@@ -10,7 +10,7 @@
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
 
-#include "utils/defines.hpp"
+#include "utils/definesCPU.hpp"
 
 #include "renderingGPU/renderer.hpp"
 

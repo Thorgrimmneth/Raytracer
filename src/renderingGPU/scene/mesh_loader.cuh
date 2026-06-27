@@ -12,6 +12,7 @@
 #include "../objects/base_object.cuh"
 #include "../objects/triangle_mesh.cuh"
 #include "../objects/plane.cuh"
+#include <iostream>
 
 // Load mesh geometry (shared data, loaded once)
 HOST MeshGeometry loadMeshGeometry(const std::string &p_path);
