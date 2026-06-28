@@ -26,7 +26,9 @@ extern "C" __global__ void __closesthit__radiance()
     const float3 &n1 = data->normals[tri.y];
     const float3 &n2 = data->normals[tri.z];
 
-    const float3 N = (1 - bc.x - bc.y) * n0 + bc.x * n1 + bc.y * n2;
+    float3 N = normalize((1 - bc.x - bc.y) * n0 + bc.x * n1 + bc.y * n2);
+    if (dot(N, -optixGetWorldRayDirection()) < 0.0f)
+        N = -N;
 
     payload->hit = 1;
 
@@ -40,7 +42,7 @@ extern "C" __global__ void __closesthit__radiance()
 
     // Get material index from mesh instance data
     uint instanceIndex = optixGetInstanceId();
-    
+
     if (params.meshInstances && instanceIndex < params.nbMeshInstances)
     {
         payload->materialIndex = params.meshInstances[instanceIndex].materialIndex;

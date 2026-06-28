@@ -50,7 +50,7 @@ class Renderer::Impl
 
     int width = 1920;
     int height = 1080;
-
+    int minNumberShadowRay = width * height;
     Camera h_camera;
 
     float threshold = 1.0f;
@@ -83,7 +83,7 @@ class Renderer::Impl
     ShadowRayQueue shadowQueue;
     int *d_shadowCount = nullptr;
     HitBuffers hitBuffers;
-
+    bool launchedShadeKernel = true;
     // Buffers intermédiaires pour le ray sorting
     int *d_keys = nullptr;
     int *d_values = nullptr;
@@ -208,7 +208,7 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     initConstant(p_width, p_height, impl->h_camera, make_float4(sunDirx, sunDiry, sunDirz, 0.f));
     impl->width = p_width;
     impl->height = p_height;
-
+    impl->minNumberShadowRay = p_width * p_height;
     float4 sunDir = make_float4(sunDirx, sunDiry, sunDirz, 0.f);
 
     setSeed(43);
@@ -243,7 +243,7 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     impl->nextQueue.init(pixelCount);
     impl->sortedQueue.init(pixelCount);
     impl->hitBuffers.init(pixelCount);
-    impl->shadowQueue.init(pixelCount);
+    impl->shadowQueue.init(pixelCount * 2); // Assuming a maximum of 2 shadow rays per pixel
     cudaMalloc(&impl->d_shadowCount, sizeof(int));
 
     cudaMemcpy(impl->currentQueue.activeCount, &pixelCount, sizeof(int), cudaMemcpyHostToDevice);
@@ -510,7 +510,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
             break;
 
         cudaMemset(impl->nextQueue.activeCount, 0, sizeof(int));
-        cudaMemset(impl->d_shadowCount, 0, sizeof(int));
+        if(impl->launchedShadeKernel) cudaMemset(impl->d_shadowCount, 0, sizeof(int));
         // ---------------------------------------------------------------------
         // 2.1 Intersection uniquement des rayons actifs
         // ---------------------------------------------------------------------
@@ -570,8 +570,11 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
 
         std::swap(impl->currentQueue, impl->nextQueue);
         cudaMemcpy(&h_shadowCount, impl->d_shadowCount, sizeof(int), cudaMemcpyDeviceToHost);
-        if (h_shadowCount == 0)
+        if (h_shadowCount < impl->minNumberShadowRay)
+        {
+            impl->launchedShadeKernel = false;
             continue;
+        }
         impl->gpuScene.shadowPass.params.origins = impl->shadowQueue.origins;
         impl->gpuScene.shadowPass.params.directions = impl->shadowQueue.directions;
         impl->gpuScene.shadowPass.params.maxDistances = impl->shadowQueue.maxDistances;
@@ -588,6 +591,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         accumulateShadowKernel<<<gridForCount(h_shadowCount), block1D>>>(
             impl->shadowQueue.contributions, impl->shadowQueue.transmittance, impl->shadowQueue.pixelIndices,
             impl->d_accumBuffer, h_shadowCount);
+        impl->launchedShadeKernel = true;
         // sorting rays
         /*buildOctantKeys<<<gridForCount(h_activeCount), block1D>>>(impl->d_directions, h_activeCount,
         impl->d_octantKeys, impl->d_values); thrust::sort_by_key(thrust::device, impl->d_octantKeys, impl->d_octantKeys
@@ -600,6 +604,25 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
             impl->d_sortedThroughput, impl->d_sortedHitPositions, impl->d_sortedHitNormals,
             impl->d_sortedHitMaterialIndices, impl->d_sortedPixelIndices, impl->d_sortedLastBounceWasDelta,
             impl->d_sortedLastBsdfPdf, impl->d_sortedIsInside, impl->d_sortedRNG, h_activeCount);*/
+    }
+    if(!impl->launchedShadeKernel)
+    {
+        impl->gpuScene.shadowPass.params.origins = impl->shadowQueue.origins;
+        impl->gpuScene.shadowPass.params.directions = impl->shadowQueue.directions;
+        impl->gpuScene.shadowPass.params.maxDistances = impl->shadowQueue.maxDistances;
+        impl->gpuScene.shadowPass.params.transmittance = impl->shadowQueue.transmittance;
+
+        impl->gpuScene.shadowPass.params.activeCount = h_shadowCount;
+        cudaMemcpy(reinterpret_cast<void *>(impl->gpuScene.shadowPass.d_params),
+                   &impl->gpuScene.shadowPass.params, sizeof(LaunchShadowParams), cudaMemcpyHostToDevice);
+
+        OPTIX_CHECK(optixLaunch(impl->gpuScene.shadowPass.pipeline,
+                                0, // stream
+                                impl->gpuScene.shadowPass.d_params, sizeof(LaunchShadowParams),
+                                &impl->gpuScene.shadowPass.sbt, h_shadowCount, 1, 1));
+        accumulateShadowKernel<<<gridForCount(h_shadowCount), block1D>>>(
+            impl->shadowQueue.contributions, impl->shadowQueue.transmittance, impl->shadowQueue.pixelIndices,
+            impl->d_accumBuffer, h_shadowCount);
     }
     // -------------------------------------------------------------------------
     // 3. Accumulation dans d_accumBuffer

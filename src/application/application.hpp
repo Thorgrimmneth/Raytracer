@@ -19,6 +19,7 @@ class Application {
     int nbRPP = 32;
     int nbImage = 10;
     int skipImage = 0;
+    int rngManip = 0;
     float t = 0.5f;
     int mode = 0;
     float threshold = 0.001f;

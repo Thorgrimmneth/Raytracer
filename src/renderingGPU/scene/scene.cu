@@ -524,6 +524,7 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
     {
         float manipRNG = randomFloat();
     }
+    
     for (int i = 0; i < 5; i++)
     {
         Material emissive = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), EMISSIVE,
@@ -556,11 +557,12 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
                                                 roughness * roughness, 1.f);
         helper.materialsGPU.push_back(metal);
     }
-
+    
     for (int i = 0; i < 10; i++)
     {
+        float roughness = randomFloat() * 0.5f;
         Material plastic = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), PLASTIC,
-                                                  randomFloat() * 0.5f);
+                                                  roughness * roughness);
         helper.materialsGPU.push_back(plastic);
     }
 

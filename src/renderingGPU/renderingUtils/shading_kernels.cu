@@ -595,7 +595,6 @@ __global__ void shadePlasticKernel(Material *materials, float3 *directions, floa
     int matIdx = hitMaterialIndices[qid];
     RNG rng = rngs[qid];
 
-    // Extraire composantes (le compilateur optimise ça en registres)
     float3 normal = hitNormals[qid];
     float3 dir = directions[qid];
     float3 thru = throughputs[qid];
@@ -625,6 +624,7 @@ __global__ void shadePlasticKernel(Material *materials, float3 *directions, floa
     float3 brdf;
     float pdf;
     float cosThetaNew;
+    bool alive = true;
 
     if (rng.nextFloat() < specW)
     {
@@ -644,36 +644,43 @@ __global__ void shadePlasticKernel(Material *materials, float3 *directions, floa
         // Transform back
         float3 H = h.x * T + h.y * B + h.z * normal;
         float HdotV = dot(H, wo);
-        newDir = reflect(-wo, H);
-        cosThetaNew = dot(normal, newDir);
-        if (cosThetaNew <= 0.f)
+        alive = (HdotV > 0.f);
+        if (alive)
         {
-            pdf = 0.f;
-            brdf = make_float3(0.f);
-        }
-        else
-        {
-            // Évaluer GGX sans redondance
-            float NdotH = dot(normal, H);
-            float NdotV = cosThetaView;
-            float NdotL = cosThetaNew;
 
-            // Calculer D, G, F en une passe
-            float denom = fmaxf(NdotH * NdotH * (alphaSquared - 1.f) + 1.f, 1e-8f);
-            float D = alphaSquared / (GPUPIf * denom * denom);
+            newDir = reflect(-wo, H);
+            cosThetaNew = dot(normal, newDir);
+            if (cosThetaNew <= 0.f)
+            {
+                pdf = 0.f;
+                brdf = make_float3(0.f);
+            }
+            else
+            {
+                // Évaluer GGX sans redondance
+                float NdotH = dot(normal, H);
+                float NdotV = cosThetaView;
+                float NdotL = cosThetaNew;
 
-            // Smith G (sans réallouer V)
-            float G1V = 2.f / (1.f + sqrtf(1.f + alphaSquared * (1.f - NdotV * NdotV) / fmaxf(NdotV * NdotV, 1e-8f)));
-            float G1L = 2.f / (1.f + sqrtf(1.f + alphaSquared * (1.f - NdotL * NdotL) / fmaxf(NdotL * NdotL, 1e-8f)));
-            float G = G1V * G1L;
+                // Calculer D, G, F en une passe
+                float denom = fmaxf(NdotH * NdotH * (alphaSquared - 1.f) + 1.f, 1e-8f);
+                float D = alphaSquared / (GPUPIf * denom * denom);
 
-            // Fresnel pour specular
-            float cosT5_h = pow5(1.f - HdotV);
-            float3 Fspec = make_float3(0.04f + 0.96f * cosT5_h);
+                // Smith G (sans réallouer V)
+                float G1V =
+                    2.f / (1.f + sqrtf(1.f + alphaSquared * (1.f - NdotV * NdotV) / fmaxf(NdotV * NdotV, 1e-8f)));
+                float G1L =
+                    2.f / (1.f + sqrtf(1.f + alphaSquared * (1.f - NdotL * NdotL) / fmaxf(NdotL * NdotL, 1e-8f)));
+                float G = G1V * G1L;
 
-            brdf = (D * G / fmaxf(4.f * NdotV * NdotL, 1e-8f)) * Fspec;
-            pdf = (HdotV > 0.f && NdotV > 0.f) ? G1V * D / fmaxf(4.f * NdotV, 1e-8f) : 0.f;
-            pdf = specW * pdf + (1.f - specW) * fmaxf(NdotL, 0.f) * GPUInvPIf;
+                // Fresnel pour specular
+                float cosT5_h = pow5(1.f - HdotV);
+                float3 Fspec = make_float3(0.04f + 0.96f * cosT5_h);
+
+                brdf = (D * G / fmaxf(4.f * NdotV * NdotL, 1e-8f)) * Fspec;
+                pdf = (HdotV > 0.f && NdotV > 0.f) ? G1V * D / fmaxf(4.f * NdotV, 1e-8f) : 0.f;
+                pdf = specW * pdf + (1.f - specW) * fmaxf(NdotL, 0.f) * GPUInvPIf;
+            }
         }
     }
     else
@@ -692,7 +699,7 @@ __global__ void shadePlasticKernel(Material *materials, float3 *directions, floa
     }
 
     // === EARLY EXIT ===
-    bool alive = (pdf > 1e-4f);
+    alive = alive && (pdf > 1e-4f);
 
     // === UPDATE THROUGHPUT ===
     if (alive)

@@ -131,7 +131,7 @@ void Window::draw()
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
-unsigned char *Window::cumulativeRendering(Vec3f sunDir, int width, int height, bool convergence, float threshold)
+unsigned char *Window::cumulativeRendering(Vec3f sunDir, int width, int height, bool convergence, float threshold, int rngManip)
 {
     if (!glfwInit())
     {
@@ -232,7 +232,7 @@ unsigned char *Window::cumulativeRendering(Vec3f sunDir, int width, int height, 
 
     glfwShowWindow(window);
 
-    renderer.init(width, height, sunDir.x, sunDir.y, sunDir.z);
+    renderer.init(width, height, sunDir.x, sunDir.y, sunDir.z, rngManip);
 
     initShaders();
     initTexture(width, height);

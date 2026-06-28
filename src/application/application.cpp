@@ -40,6 +40,10 @@ int Application::initParameters(int argc, char **argv)
             threshold = std::stof(argv[++i]);
             convergence = true;
         }
+        else if(arg == "-rng" && i + 1 < argc)
+        {
+            rngManip = std::stoi(argv[++i]);
+        }
         else if (arg == "--help")
         {
             std::cout << "Usage: ./mon_projet [options]\n";
@@ -51,6 +55,7 @@ int Application::initParameters(int argc, char **argv)
             std::cout << "  -t <float>   time parameter\n";
             std::cout << "  -convergence <int> runs until convergence is reached\n";
             std::cout << "  -threshold <float> threshold for the convergence\n";
+            std::cout << "  -rng <int>   change rng\n";
             return 1;
         }
     }
@@ -103,7 +108,7 @@ int Application::launchApp(int argc, char **argv)
 
         sunDir = computeSunDir(t);
 
-        unsigned char *img_cuda_raw = win.cumulativeRendering(sunDir, width, height, convergence, threshold);
+        unsigned char *img_cuda_raw = win.cumulativeRendering(sunDir, width, height, convergence, threshold, rngManip);
         
         // end of rendering
         image.createFromRaw(img_cuda_raw, width, height);

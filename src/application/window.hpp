@@ -19,7 +19,7 @@ class Window {
     Window() = delete;
     ~Window();
     Window(int width, int height);
-    unsigned char *cumulativeRendering(Vec3f sunDir, int width, int height, bool convergence = false, float threshold = 0.01f);
+    unsigned char *cumulativeRendering(Vec3f sunDir, int width, int height, bool convergence = false, float threshold = 0.01f, int rngManip = 0);
 
   private:
     GLuint createShader(GLenum type, const char *source);
