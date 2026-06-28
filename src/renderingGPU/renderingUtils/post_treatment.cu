@@ -275,3 +275,31 @@ void finalizeImageV2(float3 *hdr, float3 *bloom, float3 *outCompare, cudaSurface
 
     surf2Dwrite(pixel, surface, x * sizeof(uchar4), y);
 }
+
+GLOBAL
+void finalizeImageV2NoRender(float3 *hdr, float3 *bloom, float3 *outCompare, int width, int height, float exposure, float bloomStrength)
+{
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x >= width || y >= height)
+        return;
+    
+    int idx = y * width + x;
+
+    float3 hdrBloom = bloom[idx] * bloomStrength + hdr[idx];
+    // apply bloom
+    outCompare[idx] = hdrBloom;
+
+    // finalize image
+    float3 &c = hdr[idx];
+    c = hdrBloom;
+    // Reinhard tonemap
+    c = (c * exposure) / (make_float3(1.f) + c * exposure);
+
+    // Gamma correction
+    c = make_float3(sqrtf(fmaxf(c.x, 0.f)), sqrtf(fmaxf(c.y, 0.f)), sqrtf(fmaxf(c.z, 0.f)));
+
+    uchar4 pixel = make_uchar4((unsigned char)(255.f * fminf(c.x, 1.f)), (unsigned char)(255.f * fminf(c.y, 1.f)),
+                               (unsigned char)(255.f * fminf(c.z, 1.f)), 255);
+}

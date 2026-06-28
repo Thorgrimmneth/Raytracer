@@ -2,6 +2,7 @@
 
 #include "../scene/scene.cuh"
 #include "rng.cuh"
+#include "check.cuh"
 
 struct RayQueue
 {
@@ -20,18 +21,42 @@ struct RayQueue
 
     void destroy()
     {
-        cudaFree(origins);
-        cudaFree(directions);
-        cudaFree(throughputs);
-
-        cudaFree(lastBounceWasDelta);
-        cudaFree(lastBsdfPdf);
-        cudaFree(isInside);
-
-        cudaFree(rng);
-        cudaFree(pixelIndices);
-
-        cudaFree(activeCount);
+        if(origins){
+            CUDA_CHECK(cudaFree(origins));
+            origins = nullptr;
+        }
+        if(directions){
+            CUDA_CHECK(cudaFree(directions));
+            directions = nullptr;
+        }
+        if(throughputs){
+            CUDA_CHECK(cudaFree(throughputs));
+            throughputs = nullptr;
+        }
+        if(lastBounceWasDelta){
+            CUDA_CHECK(cudaFree(lastBounceWasDelta));
+            lastBounceWasDelta = nullptr;
+        }
+        if(lastBsdfPdf){
+            CUDA_CHECK(cudaFree(lastBsdfPdf));
+            lastBsdfPdf = nullptr;
+        }
+        if(isInside){
+            CUDA_CHECK(cudaFree(isInside));
+            isInside = nullptr;
+        }
+        if(rng){
+            CUDA_CHECK(cudaFree(rng));
+            rng = nullptr;
+        }
+        if(pixelIndices){
+            CUDA_CHECK(cudaFree(pixelIndices));
+            pixelIndices = nullptr;
+        }
+        if(activeCount){
+            CUDA_CHECK(cudaFree(activeCount));
+            activeCount = nullptr;
+        }
     }
 
     void init(int maxSize)
@@ -70,20 +95,50 @@ struct SortedRayQueue
 
     void destroy()
     {
-        cudaFree(origins);
-        cudaFree(directions);
-        cudaFree(throughputs);
-
-        cudaFree(lastBounceWasDelta);
-        cudaFree(lastBsdfPdf);
-        cudaFree(isInside);
-
-        cudaFree(hitPositions);
-        cudaFree(hitNormals);
-        cudaFree(hitMaterialIndices);
-
-        cudaFree(rng);
-        cudaFree(pixelIndices);
+        if(origins){
+            CUDA_CHECK(cudaFree(origins));
+            origins = nullptr;
+        }
+        if(directions){
+            CUDA_CHECK(cudaFree(directions));
+            directions = nullptr;
+        }
+        if(throughputs){
+            CUDA_CHECK(cudaFree(throughputs));
+            throughputs = nullptr;
+        }
+        if(lastBounceWasDelta){
+            CUDA_CHECK(cudaFree(lastBounceWasDelta));
+            lastBounceWasDelta = nullptr;
+        }
+        if(lastBsdfPdf){
+            CUDA_CHECK(cudaFree(lastBsdfPdf));
+            lastBsdfPdf = nullptr;
+        }
+        if(isInside){
+            CUDA_CHECK(cudaFree(isInside));
+            isInside = nullptr;
+        }
+        if(hitPositions){
+            CUDA_CHECK(cudaFree(hitPositions));
+            hitPositions = nullptr;
+        }
+        if(hitNormals){
+            CUDA_CHECK(cudaFree(hitNormals));
+            hitNormals = nullptr;
+        }
+        if(hitMaterialIndices){
+            CUDA_CHECK(cudaFree(hitMaterialIndices));
+            hitMaterialIndices = nullptr;
+        }
+        if(rng){
+            CUDA_CHECK(cudaFree(rng));
+            rng = nullptr;
+        }
+        if(pixelIndices){
+            CUDA_CHECK(cudaFree(pixelIndices));
+            pixelIndices = nullptr;
+        }
     }
 
     void init(int maxSize)
@@ -114,10 +169,26 @@ struct HitBuffers
 
     void destroy()
     {
-        cudaFree(positions);
-        cudaFree(normals);
-        cudaFree(materialIndices);
-        cudaFree(mask);
+        if(positions)
+        {
+            CUDA_CHECK(cudaFree(positions));
+            positions = nullptr;
+        }
+        if(normals)
+        {
+            CUDA_CHECK(cudaFree(normals));
+            normals = nullptr;
+        }
+        if(materialIndices)
+        {
+            CUDA_CHECK(cudaFree(materialIndices));
+            materialIndices = nullptr;
+        }
+        if(mask)
+        {
+            CUDA_CHECK(cudaFree(mask));
+            mask = nullptr;
+        }
     }
 
     void init(int maxSize)

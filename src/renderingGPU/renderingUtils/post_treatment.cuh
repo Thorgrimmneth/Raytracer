@@ -30,3 +30,6 @@ void finalizeImage(float3 *hdr, cudaSurfaceObject_t surface, int width, int heig
 
 GLOBAL
 void finalizeImageV2(float3 *hdr, float3 *bloom, float3 *outCompare, cudaSurfaceObject_t surface, int width, int height, float exposure, float bloomStrength);
+
+GLOBAL
+void finalizeImageV2NoRender(float3 *hdr, float3 *bloom, float3 *outCompare, int width, int height, float exposure, float bloomStrength);

@@ -23,7 +23,8 @@ extern "C" __global__ void __raygen__shadow()
 
     ShadowPayload payload;
 
-    payload.transmittance = make_float3(1.0f);
+    payload.transmittance = make_float3(1.f);
+    payload.depth = 0;
 
     uint32_t p0;
     uint32_t p1;
@@ -31,7 +32,7 @@ extern "C" __global__ void __raygen__shadow()
     packPointer(&payload, p0, p1);
 
     optixTrace(params.traversable, params.origins[qid], params.directions[qid], 1e-3f, params.maxDistances[qid], 0.0f, OptixVisibilityMask(255),
-               OPTIX_RAY_FLAG_DISABLE_ANYHIT, 0, 1, 0, p0, p1);
+               OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT, 0, 1, 0, p0, p1);
 
     params.transmittance[qid] = payload.transmittance;
 }

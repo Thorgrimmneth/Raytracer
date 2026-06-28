@@ -34,6 +34,7 @@ class Renderer
     float renderFrame(bool outputImage, bool convergence = false);
     float renderFrameWavefront(bool outputImage, bool convergence = false);
     
+    void finalizeImageNoRender(bool convergence = false);
     // Main function
     float render(bool outputImage = true, bool convergence = false);
 

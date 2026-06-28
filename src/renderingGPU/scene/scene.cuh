@@ -37,10 +37,32 @@ struct Light;
 
 template <typename LaunchParamsT> struct OptixPassData
 {
-    OptixPipelineManager pipeline;
-    OptixProgramGroupManager programGroups;
-    OptixSBTManager sbt;
-    OptixLaunchParamsManager<LaunchParamsT> launchParams;
+    OptixPipeline pipeline = nullptr;
+
+    OptixShaderBindingTable sbt{};
+
+    CUdeviceptr d_params = 0;
+
+    LaunchParamsT params{};
+
+    void destroy()
+    {
+        if (d_params)
+        {
+            CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_params)));
+            d_params = 0;
+        }
+
+        sbt = {};
+
+        if (pipeline)
+        {
+            OPTIX_CHECK(optixPipelineDestroy(pipeline));
+            pipeline = nullptr;
+        }
+
+        params = LaunchParamsT{};
+    }
 };
 
 struct CudaScene
@@ -74,6 +96,7 @@ struct CudaScene
 
     inline HOST void destroy()
     {
+        std::cout << "Destroying CudaScene..." << std::endl;
         // Libération des géométries
         if (meshGeometries)
         {
@@ -85,9 +108,10 @@ struct CudaScene
                 CUDA_CHECK(cudaFree(meshGeometries[i].triangles));
                 CUDA_CHECK(cudaFree(meshGeometries[i].triangleAreaCdf));
             }
-
+            std::cout << "Destroyed " << nbMeshGeometries << " mesh geometries." << std::endl;
             CUDA_CHECK(cudaFree(meshGeometries));
         }
+        std::cout << "Destroyed " << nbMeshGeometries << " mesh geometries." << std::endl;
 
         CUDA_CHECK(cudaFree(meshInstances));
 
@@ -102,6 +126,13 @@ struct CudaScene
         CUDA_CHECK(cudaFree(lights));
         CUDA_CHECK(cudaFree(lightProbabilities));
         CUDA_CHECK(cudaFree(lightCumulativeWeights));
+
+        std::cout << "Destroyed buffers" << std::endl;
+
+        radiancePass.destroy();
+        std::cout << "Destroyed radiance pass" << std::endl;
+        shadowPass.destroy();
+        std::cout << "Destroyed shadow pass" << std::endl;
 
         // Remise à zéro
         meshGeometries = nullptr;
@@ -145,62 +176,6 @@ struct CudaScene
         return false;
     }
 
-    D_FORCEINLINE float3 traceShadowRay(const float3 &origin, const float3 &direction, const float p_tMin,
-                                        const float p_tMax) const
-    {
-
-        float3 shadowColor = make_float3(1.f);
-        return shadowColor;
-        /*float remainingDistance = p_tMax;
-        float3 originT = origin;
-        float3 directionT = direction;
-
-        // Trace through up to 2 transparent surfaces
-        for (int bounce = 0; bounce < 2; ++bounce)
-        {
-            OptixHit hit;
-
-            if (!intersect(originT, directionT, p_tMin + 1e-4f, remainingDistance - 1e-4f, hit))
-            {
-                // No hit = ray reached the light
-                return shadowColor;
-            }
-
-            const Material &mtl = materials[hit.materialIndex];
-            MaterialType matType = mtl.type();
-
-            // Check if material is transparent
-            if (matType == TRANSPARENT)
-            {
-                // Tint shadow ray with material transmission color
-                float3 transmission = mtl.computeTransmission();
-                shadowColor *= transmission;
-
-                // Early termination: if transmission becomes negligible, stop bouncing
-                float transAlpha = fmaxf(shadowColor.x, fmaxf(shadowColor.y, shadowColor.z));
-                if (transAlpha < 0.001f)
-                {
-                    return make_float3(0.f);
-                }
-
-                // Continue ray from hit point toward light
-                originT = hit.position + directionT * 1e-4f;
-                remainingDistance -= hit.t;
-            }
-            else if (matType == EMISSIVE)
-            {
-                return shadowColor;
-            }
-            else
-            {
-                // Opaque material blocks shadow completely
-                return make_float3(0.f);
-            }
-        }
-
-        // After max bounces, assume ray reached the light
-        return shadowColor;*/
-    }
 
     D_FORCEINLINE float lightPdf(const float3 &origin, const float3 &dir) const
     {

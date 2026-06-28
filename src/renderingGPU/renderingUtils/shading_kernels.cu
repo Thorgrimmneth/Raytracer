@@ -162,7 +162,9 @@ __global__ void shadeLambertKernel(CudaScene scene, float3 *directions, float3 *
                                    float3 *hitPositions, float3 *hitNormals, int *hitMaterialIndices, int *pixelIndices,
                                    float3 *nextOrigins, float3 *nextDirections, float3 *nextThroughput,
                                    int *nextPixelIndices, bool *nextLastBounceWasDelta, float *nextLastBsdfPdf,
-                                   bool *nextIsInside, RNG *nextRng, int *nextActiveCount, int activeCount, uint depth)
+                                   bool *nextIsInside, RNG *nextRng, int *nextActiveCount, int activeCount,
+                                   float3 *shadowOrigins, float3 *shadowDirections, float3 *shadowContributions,
+                                   int *shadowPixelIndices, float *shadowMaxDistances, int *shadowCount, uint depth)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -197,8 +199,13 @@ __global__ void shadeLambertKernel(CudaScene scene, float3 *directions, float3 *
     // DIRECT LIGHTING / NEE
     // Seulement pour les matériaux non-delta.
     // ------------------------------------------------------------
-    /*int nbLights = scene.nbLights;
-    if (alive && nbLights > 0)
+    int nbLights = scene.nbLights;
+    bool neeAlive = alive && (nbLights > 0);
+    float3 contribution = make_float3(0.f);
+    float3 origin = pos + normal * 1e-3f;
+    float3 directionToLight = make_float3(0.f);
+    float maxDistance = 0.f;
+    if (neeAlive)
     {
         int lightIndex = selectLightByImportance(nbLights, scene.lightCumulativeWeights, rng);
 
@@ -207,35 +214,29 @@ __global__ void shadeLambertKernel(CudaScene scene, float3 *directions, float3 *
         Light &light = scene.lights[lightIndex];
 
         LightSample ls = light.sample(pos, rng, scene);
-
-        if (ls.pdf > 0.f)
+        neeAlive = ls.pdf > 0.f;
+        if (neeAlive)
         {
-
-            float3 shadowTint =
-                scene.traceShadowRay(pos + normal * 1e-3f, ls.direction, 1e-3f, ls.distance - 1e-3f); // problèmes
-
-            if (length(shadowTint) > 1e-6f)
+            float cosTheta = fmaxf(dot(normal, ls.direction), 0.0f);
+            neeAlive = cosTheta > 0.f;
+            if (neeAlive)
             {
-                float cosTheta = fmaxf(dot(normal, ls.direction), 0.0f);
+                float3 direction = directions[qid];
+                float3 f = mtl.evalLambertBSDF();
+                float pdf_bsdf = mtl.lambertPDF(direction, normal, ls.direction);
 
-                if (cosTheta > 0.f)
+                float pdf_light = ls.pdf * lightSelectionProb;
+                neeAlive = pdf_light > 0.f;
+                if (neeAlive)
                 {
-                //float3 direction = directions[qid];
-                    float3 f = mtl.evalLambertBSDF();
-                    float pdf_bsdf = mtl.lambertPDF(direction, normal, ls.direction);
-
-                    float pdf_light = ls.pdf * lightSelectionProb;
-
-                    if (pdf_light > 0.f)
-                    {
-                        float w = powerHeuristic(pdf_light, pdf_bsdf);
-                        accumBuffer[pixelIndices[qid]] += throughput * f * ls.radiance * shadowTint * cosTheta * w /
-    pdf_light;
-                    }
+                    float w = powerHeuristic(pdf_light, pdf_bsdf);
+                    maxDistance = ls.distance;
+                    directionToLight = ls.direction;
+                    contribution = throughput * f * ls.radiance * cosTheta * w / pdf_light;
                 }
             }
         }
-    }*/
+    }
     if (alive)
     {
         float cosTheta = fmaxf(dot(normal, bsdf.direction), 0.0f);
@@ -300,9 +301,22 @@ __global__ void shadeLambertKernel(CudaScene scene, float3 *directions, float3 *
 
     nextRng[dst] = rng;
 
-    // ------------------------------------------------------------
-    // COMPACT NEXT ACTIVE QUEUE
-    // ------------------------------------------------------------
+    // nee queue compaction
+    mask = __ballot_sync(0xffffffff, neeAlive);
+    localRank = __popc(mask & ((1u << lane) - 1));
+    warpCount = __popc(mask);
+    if (lane == 0)
+    {
+        warpBase = atomicAdd(shadowCount, warpCount);
+    }
+    warpBase = __shfl_sync(0xffffffff, warpBase, 0);
+    if (!neeAlive)
+        return;
+    shadowOrigins[warpBase + localRank] = origin;
+    shadowDirections[warpBase + localRank] = directionToLight;
+    shadowContributions[warpBase + localRank] = contribution;
+    shadowPixelIndices[warpBase + localRank] = pixelIndices[qid];
+    shadowMaxDistances[warpBase + localRank] = maxDistance;
 }
 
 __global__ void shadeMetalKernel(CudaScene scene, float3 *directions, float3 *throughputs, RNG *rngs,
@@ -310,7 +324,9 @@ __global__ void shadeMetalKernel(CudaScene scene, float3 *directions, float3 *th
                                  float3 *accumBuffer, float3 *nextOrigins, float3 *nextDirections,
                                  float3 *nextThroughput, int *nextPixelIndices, bool *nextLastBounceWasDelta,
                                  float *nextLastBsdfPdf, bool *nextIsInside, RNG *nextRng, int *nextActiveCount,
-                                 int activeCount, uint depth)
+                                 int activeCount, float3 *shadowOrigins, float3 *shadowDirections,
+                                 float3 *shadowContributions, int *shadowPixelIndices, float *shadowMaxDistances,
+                                 int *shadowCount, uint depth)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -339,8 +355,13 @@ __global__ void shadeMetalKernel(CudaScene scene, float3 *directions, float3 *th
     // Seulement pour les matériaux non-delta.
     // ------------------------------------------------------------
 
-    /*int nbLights = scene.nbLights;
-    if (alive && nbLights > 0)
+    int nbLights = scene.nbLights;
+    bool neeAlive = alive && (nbLights > 0);
+    float3 contribution = make_float3(0.f);
+    float3 origin = pos + normal * 1e-3f;
+    float3 directionToLight = make_float3(0.f);
+    float maxDistance = 0.f;
+    if (neeAlive)
     {
         int lightIndex = selectLightByImportance(nbLights, scene.lightCumulativeWeights, rng);
 
@@ -349,34 +370,28 @@ __global__ void shadeMetalKernel(CudaScene scene, float3 *directions, float3 *th
         Light &light = scene.lights[lightIndex];
 
         LightSample ls = light.sample(pos, rng, scene);
-
-        if (ls.pdf > 0.f)
+        neeAlive = ls.pdf > 0.f;
+        if (neeAlive)
         {
-
-            float3 shadowTint = scene.traceShadowRay(pos + normal * 1e-3f, ls.direction, 1e-3f, ls.distance -
-    1e-3f);
-
-            if (length(shadowTint) > 1e-6f)
+            float cosTheta = fmaxf(dot(normal, ls.direction), 0.0f);
+            neeAlive = cosTheta > 0.f;
+            if (neeAlive)
             {
-                float cosTheta = fmaxf(dot(normal, ls.direction), 0.0f);
+                float3 f = mtl.evalMetalBSDF(direction, normal, ls.direction);
+                float pdf_bsdf = mtl.metalPDF(direction, normal, ls.direction);
 
-                if (cosTheta > 0.f)
+                float pdf_light = ls.pdf * lightSelectionProb;
+                neeAlive = pdf_light > 0.f;
+                if (neeAlive)
                 {
-                    float3 f = mtl.evalMetalBSDF(direction, normal, ls.direction);
-                    float pdf_bsdf = mtl.metalPDF(direction, normal, ls.direction);
-
-                    float pdf_light = ls.pdf * lightSelectionProb;
-
-                    if (pdf_light > 0.f)
-                    {
-                        float w = powerHeuristic(pdf_light, pdf_bsdf);
-
-                        radiance += throughput * f * ls.radiance * shadowTint * cosTheta * w / pdf_light;
-                    }
+                    float w = powerHeuristic(pdf_light, pdf_bsdf);
+                    maxDistance = ls.distance;
+                    directionToLight = ls.direction;
+                    contribution += throughput * f * ls.radiance * cosTheta * w / pdf_light;
                 }
             }
         }
-    }*/
+    }
 
     // ------------------------------------------------------------
     // UPDATE THROUGHPUT
@@ -443,6 +458,23 @@ __global__ void shadeMetalKernel(CudaScene scene, float3 *directions, float3 *th
     nextIsInside[dst] = false;
 
     nextRng[dst] = rng;
+
+    // nee queue compaction
+    mask = __ballot_sync(0xffffffff, neeAlive);
+    localRank = __popc(mask & ((1u << lane) - 1));
+    warpCount = __popc(mask);
+    if (lane == 0)
+    {
+        warpBase = atomicAdd(shadowCount, warpCount);
+    }
+    warpBase = __shfl_sync(0xffffffff, warpBase, 0);
+    if (!neeAlive)
+        return;
+    shadowOrigins[warpBase + localRank] = origin;
+    shadowDirections[warpBase + localRank] = directionToLight;
+    shadowContributions[warpBase + localRank] = contribution;
+    shadowPixelIndices[warpBase + localRank] = pixelIndices[qid];
+    shadowMaxDistances[warpBase + localRank] = maxDistance;
     // ------------------------------------------------------------
     // COMPACT NEXT ACTIVE QUEUE
     // ------------------------------------------------------------
@@ -451,7 +483,9 @@ __global__ void shadeMetalKernel(CudaScene scene, float3 *directions, float3 *th
 __global__ void shadePlasticNEEKernel(CudaScene scene, float3 *directions, float3 *throughputs, RNG *rngs,
                                       float3 *hitPositions, float3 *hitNormals, int *hitMaterialIndices,
                                       int *pixelIndices, float3 *accumBuffer, int nbLights, float *lightWeights,
-                                      int activeCount)
+                                      int activeCount, float3 *shadowOrigins, float3 *shadowDirections,
+                                      float3 *shadowContributions, int *shadowPixelIndices, float *shadowMaxDistances,
+                                      int *shadowCount)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -464,68 +498,87 @@ __global__ void shadePlasticNEEKernel(CudaScene scene, float3 *directions, float
     Material &mtl = scene.materials[materialIndex];
     RNG &rng = rngs[qid];
 
-    int lightIndex = 0;
-    float totalWeight = lightWeights[nbLights - 1];
+    bool neeAlive = scene.nbLights > 0;
 
-    if (totalWeight > 0.0f)
+    float3 contribution = make_float3(0.f);
+    float3 directionToLight = make_float3(0.f);
+    float maxDistance = 0.0f;
+
+    if (neeAlive)
     {
-        float random = rng.nextFloat() * totalWeight;
-        int left = 0, right = nbLights - 1;
-        for (int i = 0; i < 10 && left < right; i++)
+        int lightIndex = selectLightByImportance(nbLights, scene.lightCumulativeWeights, rng);
+
+        float lightSelectionProb = getLightProbability(nbLights, scene.lightProbabilities, lightIndex);
+
+        Light &light = scene.lights[lightIndex];
+
+        LightSample ls = light.sample(pos, rng, scene);
+
+        neeAlive = ls.pdf > 0.f;
+
+        if (neeAlive)
         {
-            int mid = (left + right) >> 1; // Faster than division
-            if (lightWeights[mid] < random)
-                left = mid + 1;
-            else
-                right = mid;
+            float cosTheta = fmaxf(dot(normal, ls.direction), 0.0f);
+
+            neeAlive = cosTheta > 0.f;
+
+            if (neeAlive)
+            {
+                float3 direction = directions[qid];
+
+                float3 f = mtl.evalPlasticBSDF(direction, normal, ls.direction);
+
+                neeAlive = (f.x > 0.f || f.y > 0.f || f.z > 0.f);
+
+                if (neeAlive)
+                {
+                    float pdf_bsdf = mtl.plasticPDF(direction, normal, ls.direction);
+
+                    float pdf_light = ls.pdf * lightSelectionProb;
+
+                    neeAlive = pdf_light > 0.f;
+
+                    if (neeAlive)
+                    {
+                        float w = powerHeuristic(pdf_light, pdf_bsdf);
+
+                        directionToLight = ls.direction;
+                        maxDistance = ls.distance - 1e-3f;
+
+                        contribution = throughputs[qid] * f * ls.radiance * cosTheta * w / pdf_light;
+                    }
+                }
+            }
         }
-        lightIndex = left;
     }
-    else
+
+    unsigned mask = __ballot_sync(0xffffffff, neeAlive);
+
+    int lane = threadIdx.x & 31;
+
+    int localRank = __popc(mask & ((1u << lane) - 1));
+
+    int warpCount = __popc(mask);
+
+    int warpBase = 0;
+
+    if (lane == 0)
     {
-        lightIndex = min(int(rng.nextFloat() * nbLights), nbLights - 1);
+        warpBase = atomicAdd(shadowCount, warpCount);
     }
 
-    // Sample light once, reuse result
-    LightSample ls = scene.lights[lightIndex].sample(pos, rng, scene); // lots of registers
+    warpBase = __shfl_sync(0xffffffff, warpBase, 0);
 
-    if (ls.pdf <= 0.f) // Early exit for invalid samples
+    if (!neeAlive)
         return;
 
-    float cosTheta = fmaxf(dot(normal, ls.direction), 0.0f);
-    if (cosTheta <= 0.f) // Early exit for backfacing
-        return;
+    int dst = warpBase + localRank;
 
-    // Compute shadow ray - reuse temporary space efficiently
-    float3 shadowTint = scene.traceShadowRay(pos + normal * 1e-3f, ls.direction, 1e-3f, ls.distance - 1e-3f);
-
-    // Inline length check to avoid storing shadowTint if not needed
-    if (shadowTint.x <= 1e-6f && shadowTint.y <= 1e-6f && shadowTint.z <= 1e-6f)
-        return;
-
-    // Only unpack direction when needed
-    float3 direction = directions[qid];
-
-    // Compute BSDF contributions - interleave to help dependency chain
-    float3 f = mtl.evalPlasticBSDF(direction, normal, ls.direction);
-    float pdf_bsdf = mtl.plasticPDF(direction, normal, ls.direction);
-
-    // Early exit for zero BSDF
-    if (f.x <= 0.f && f.y <= 0.f && f.z <= 0.f)
-        return;
-
-    float lightSelectionProb = scene.lightProbabilities[lightIndex];
-    float pdf_light = ls.pdf * lightSelectionProb;
-
-    if (pdf_light <= 0.f)
-        return;
-
-    // Final computation - combine terms efficiently
-    float w = powerHeuristic(pdf_light, pdf_bsdf);
-    float3 throughput = throughputs[qid];
-
-    // Compute contribution inline without extra temporaries
-    accumBuffer[pixelIndices[qid]] += throughput * (f * ls.radiance * shadowTint) * (cosTheta * w / pdf_light);
+    shadowOrigins[dst] = pos + normal * 1e-3f;
+    shadowDirections[dst] = directionToLight;
+    shadowMaxDistances[dst] = maxDistance;
+    shadowContributions[dst] = contribution;
+    shadowPixelIndices[dst] = pixelIndices[qid];
 }
 
 __global__ void shadePlasticKernel(Material *materials, float3 *directions, float3 *throughputs, RNG *rngs,
@@ -633,7 +686,7 @@ __global__ void shadePlasticKernel(Material *materials, float3 *directions, floa
         float s, c;
         sincosf(phi, &s, &c);
         newDir = sint * c * T + sint * s * B + cost * normal;
-        brdf = baseColor * GPUInvPIf;
+        brdf = baseColor * GPUInvPIf * (1.f - specW);
         cosThetaNew = dot(normal, newDir);
         pdf = (1.f - specW) * fmaxf(cosThetaNew, 0.f) * GPUInvPIf;
     }

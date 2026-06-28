@@ -527,7 +527,7 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
     for (int i = 0; i < 5; i++)
     {
         Material emissive = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), EMISSIVE,
-                                                   0.f, 0.f, 1.f, randomFloat() * 6.f + 5.f);
+                                                   0.f, 0.f, 1.f, randomFloat() * 5.f + 8.f);
         helper.materialsGPU.push_back(emissive);
     }
     for (int i = 0; i < 10; i++)
@@ -664,6 +664,9 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
     launchParamsManagerRadiance.params.traversable = ias.handle;
     CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerRadiance.d_params),
                           &launchParamsManagerRadiance.params, sizeof(LaunchRadianceParams), cudaMemcpyHostToDevice));
+    launchParamsManagerShadow.params.traversable = ias.handle;
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerShadow.d_params),
+                          &launchParamsManagerShadow.params, sizeof(LaunchShadowParams), cudaMemcpyHostToDevice));
 
     gpuScene.uploadObjects(helper);
     gpuScene.uploadLights(helper);
@@ -676,17 +679,37 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
         launchParamsManagerRadiance.params.nbMeshInstances = gpuScene.nbMeshInstances;
         // Update launch params on GPU with mesh instance pointers
         CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerRadiance.d_params),
-                              &launchParamsManagerRadiance.params, sizeof(LaunchRadianceParams), cudaMemcpyHostToDevice));
-    }
-    gpuScene.radiancePass.pipeline = std::move(pipelineManagerRadiance);
-    gpuScene.radiancePass.programGroups = std::move(programGroupManagerRadiance);
-    gpuScene.radiancePass.sbt = std::move(sbtManagerRadiance);
-    gpuScene.radiancePass.launchParams = std::move(launchParamsManagerRadiance);
+                              &launchParamsManagerRadiance.params, sizeof(LaunchRadianceParams),
+                              cudaMemcpyHostToDevice));
 
-    gpuScene.shadowPass.pipeline = std::move(pipelineManagerShadow);
-    gpuScene.shadowPass.programGroups = std::move(programGroupManagerShadow);
-    gpuScene.shadowPass.sbt = std::move(sbtManagerShadow);
-    gpuScene.shadowPass.launchParams = std::move(launchParamsManagerShadow);
+        launchParamsManagerShadow.params.meshInstances = gpuScene.meshInstances;
+        launchParamsManagerShadow.params.nbMeshInstances = gpuScene.nbMeshInstances;
+        launchParamsManagerShadow.params.materials = gpuScene.materials;
+        launchParamsManagerShadow.params.nbMaterials = gpuScene.nbMaterials;
+        CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerShadow.d_params),
+                              &launchParamsManagerShadow.params, sizeof(LaunchShadowParams), cudaMemcpyHostToDevice));
+    }
+
+    // Radiance
+    gpuScene.radiancePass.pipeline = pipelineManagerRadiance.pipeline;
+    gpuScene.radiancePass.sbt = sbtManagerRadiance.sbt;
+
+    gpuScene.radiancePass.params = launchParamsManagerRadiance.params;
+    gpuScene.radiancePass.d_params = launchParamsManagerRadiance.d_params;
+
+    // Shadow
+    gpuScene.shadowPass.pipeline = pipelineManagerShadow.pipeline;
+    gpuScene.shadowPass.sbt = sbtManagerShadow.sbt;
+
+    gpuScene.shadowPass.params = launchParamsManagerShadow.params;
+    gpuScene.shadowPass.d_params = launchParamsManagerShadow.d_params;
+    // Transfer ownership of radiance resources
+    pipelineManagerRadiance.pipeline = nullptr;
+    sbtManagerRadiance.sbt = {};
+
+    // Transfer ownership of shadow resources
+    pipelineManagerShadow.pipeline = nullptr;
+    sbtManagerShadow.sbt = {};
 
     programGroupManagerRadiance.destroy();
     programGroupManagerShadow.destroy();

@@ -16,19 +16,22 @@ __global__ void shadeLambertKernel(CudaScene scene, float3 *directions, float3 *
                                    int *pixelIndices, float3 *nextOrigins, float3 *nextDirections,
                                    float3 *nextThroughput, int *nextPixelIndices, bool *nextLastBounceWasDelta,
                                    float *nextLastBsdfPdf, bool *nextIsInside, RNG *nextRNG, int *nextActiveCount,
-                                   int materialCount, uint depth);
+                                   int materialCount, float3 *shadowOrigins, float3 *shadowDirections, float3 *shadowContributions,
+                                   int *shadowPixelIndices, float *shadowMaxDistances, int *shadowCount, uint depth);
 
 __global__ void shadeMetalKernel(CudaScene scene, float3 *directions, float3 *throughputs, RNG *rngs,
                                  float3 *hitPositions, float3 *hitNormals, int *hitMaterialIndices, int *pixelIndices,
                                  float3 *accumBuffer, float3 *nextOrigins, float3 *nextDirections,
                                  float3 *nextThroughput, int *nextPixelIndices, bool *nextLastBounceWasDelta,
                                  float *nextLastBsdfPdf, bool *nextIsInside, RNG *nextRng, int *nextActiveCount,
-                                 int activeCount, uint depth);
+                                 int activeCount, float3 *shadowOrigins, float3 *shadowDirections, float3 *shadowContributions,
+                                 int *shadowPixelIndices, float *shadowMaxDistances, int *shadowCount, uint depth);
 
 __global__ void shadePlasticNEEKernel(CudaScene scene, float3 *directions, float3 *throughputs, RNG *rngs,
                                       float3 *hitPositions, float3 *hitNormals,
                                       int *hitMaterialIndices, int *pixelIndices, float3 *accumBuffer,
-                                      int nbLights, float *lightWeights, int activeCount);
+                                      int nbLights, float *lightWeights, int activeCount, float3 *shadowOrigins, float3 *shadowDirections, float3 *shadowContributions,
+                                      int *shadowPixelIndices, float *shadowMaxDistances, int *shadowCount);
 
 __global__ void shadePlasticKernel(Material *materials, float3 *directions, float3 *throughputs, RNG *rngs,
                                    float3 *hitPositions, float3 *hitNormals, int *hitMaterialIndices,
