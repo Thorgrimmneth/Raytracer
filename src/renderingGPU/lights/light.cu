@@ -176,7 +176,7 @@ DEVICE
 LightSample Light::sampleSphereGeom(const float3 &p_point, RNG&rng, const CudaScene &scene) const
 {
     const Sphere &s = scene.spheres[getMeshInstanceIndex()];
-    const Material &m = scene.materials[s.getMaterialIndex()];
+    const Material &m = scene.materials[s.materialIndex];
 
     float z = 1.f - 2.f * rng.nextFloat();
     float r = sqrtf(max(0.f, 1.f - z * z));  // Clamp to avoid NaN
@@ -186,8 +186,8 @@ LightSample Light::sampleSphereGeom(const float3 &p_point, RNG&rng, const CudaSc
     float sinPhi = sinf(phi);
 
     float3 n = make_float3(r * cosPhi, r * sinPhi, z);
-    float radius = s.getRadius();
-    float3 p = s.getCenter1() + radius * n;
+    float radius = s.radius;
+    float3 p = s.center1 + radius * n;
 
     float3 diff = p - p_point;
     float dist2 = length2(diff);

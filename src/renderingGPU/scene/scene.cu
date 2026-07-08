@@ -182,7 +182,7 @@ void sortMaterials(CudaSceneHelper &helper)
 
     for (int i = 0; i < helper.spheresGPU.size(); i++)
     {
-        helper.spheresGPU[i].setMaterialIndex(helper.spheresGPU[i].getMaterialIndex() + padding[helper.sphereType[i]]);
+        helper.spheresGPU[i].materialIndex = helper.spheresGPU[i].materialIndex + padding[helper.sphereType[i]];
     }
 
     for (int i = 0; i < helper.implicitSpheresGPU.size(); i++)
@@ -252,7 +252,7 @@ CudaScene spheresScene(float4 sunDir)
                 Material mat = Material::randomLambert();
 
                 helper.lambertList.push_back(mat);
-                s.setMaterialIndex(helper.lambertList.size() - 1);
+                s.materialIndex = helper.lambertList.size() - 1;
                 helper.sphereType.push_back(0);
             }
             else if (choose_mat < 0.62)
@@ -261,7 +261,7 @@ CudaScene spheresScene(float4 sunDir)
                 Material mat = Material::randomMetal();
 
                 helper.metalList.push_back(mat);
-                s.setMaterialIndex(helper.metalList.size() - 1);
+                s.materialIndex = helper.metalList.size() - 1;
                 helper.sphereType.push_back(1);
             }
             else if (choose_mat < 0.82)
@@ -270,13 +270,13 @@ CudaScene spheresScene(float4 sunDir)
                 Material mat = Material::randomPlastic();
 
                 helper.plasticList.push_back(mat);
-                s.setMaterialIndex(helper.plasticList.size() - 1);
+                s.materialIndex = helper.plasticList.size() - 1;
                 helper.sphereType.push_back(2);
             }
             else if (choose_mat < 0.90)
             {
                 // Miroir légèrement bleuté
-                s.setMaterialIndex(mirrorIdx);
+                s.materialIndex = mirrorIdx;
                 helper.sphereType.push_back(5);
             }
             else if (choose_mat < 0.985)
@@ -285,7 +285,7 @@ CudaScene spheresScene(float4 sunDir)
                 Material mat = Material::randomTransparent();
 
                 helper.transparentList.push_back(mat);
-                s.setMaterialIndex(helper.transparentList.size() - 1);
+                s.materialIndex = helper.transparentList.size() - 1;
                 helper.sphereType.push_back(3);
             }
             else
@@ -294,7 +294,7 @@ CudaScene spheresScene(float4 sunDir)
                 Material mat = Material::randomEmissive();
 
                 helper.emissiveList.push_back(mat);
-                s.setMaterialIndex(helper.emissiveList.size() - 1);
+                s.materialIndex = helper.emissiveList.size() - 1;
                 helper.sphereType.push_back(4);
                 Light light;
                 light.metadata = Light::packMetadata(LightType::SPHERE_GEOM, (int)helper.spheresGPU.size());
@@ -303,7 +303,7 @@ CudaScene spheresScene(float4 sunDir)
             }
 
             // ===== AABB =====
-            float3 r = make_float3(s.getRadius());
+            float3 r = make_float3(s.radius);
 
             helper.primitivesGPU.push_back(
                 BaseObject{center - r, center + r, ObjectType::SPHERE, (int)helper.spheresGPU.size()});

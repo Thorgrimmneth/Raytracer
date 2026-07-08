@@ -20,6 +20,5 @@ struct Payload
 struct ShadowPayload
 {
     float3 transmittance;
-
     int depth;
 };
