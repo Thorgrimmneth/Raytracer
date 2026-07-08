@@ -5,6 +5,7 @@
 #include <optix.h>
 #include <optix_stubs.h>
 
+#include "../objects/sdf.cuh"
 #include "../objects/triangle_mesh.cuh"
 #include "../src/renderingGPU/utils/op.cuh"
 #include "optixRayType.h"
@@ -26,11 +27,28 @@ struct MissData
 
 struct HitData
 {
-    float3 *vertices;
-    float3 *normals;
-    float2 *uvs;
+    enum class GeometryType
+    {
+        TriangleMesh,
+        Sdf
+    };
 
-    uint3 *triangles;
+    GeometryType type;
+
+    union {
+        struct
+        {
+            float3 *vertices;
+            float3 *normals;
+            float2 *uvs;
+            uint3 *triangles;
+        } mesh;
+
+        struct
+        {
+            SDF *sdfs;
+        } sdf;
+    };
 };
 
 using RaygenRecord = SbtRecord<RaygenData>;
@@ -40,7 +58,8 @@ using HitRecordSBT = SbtRecord<HitData>;
 class OptixSBTManager
 {
   public:
-    void create(const std::vector<MeshGeometry> &meshes, const OptixProgramGroupManager &pgm);
+    void create(const std::vector<MeshGeometry> &meshes, const OptixProgramGroupManager &pgm,
+                const SDFGeometry &sdfGeometry, const OptixProgramGroupManager &sdf_pgm);
 
     void destroy();
 

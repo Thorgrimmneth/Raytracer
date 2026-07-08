@@ -243,7 +243,7 @@ CudaScene spheresScene(float4 sunDir)
                 length(center - make_float3(-4.f, 1.f, 0.f)) < minDist)
                 continue;
 
-            Sphere s = Sphere(center, smallRadius);
+            Sphere s = Sphere::create(center, smallRadius, 0);
 
             // ===== MATERIAL =====
             if (choose_mat < 0.40)
@@ -313,7 +313,7 @@ CudaScene spheresScene(float4 sunDir)
 
     // ===== GROSSES SPHERES =====
     auto addBigSphere = [&](float3 center, float radius, int matIndex, int sphereTypeValue) {
-        Sphere s = Sphere(center, radius, matIndex);
+        Sphere s = Sphere::create(center, radius, matIndex);
 
         float3 r = make_float3(radius);
 
@@ -524,7 +524,7 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
     {
         float manipRNG = randomFloat();
     }
-    
+
     for (int i = 0; i < 5; i++)
     {
         Material emissive = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), EMISSIVE,
@@ -557,7 +557,7 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
                                                 roughness * roughness, 1.f);
         helper.materialsGPU.push_back(metal);
     }
-    
+
     for (int i = 0; i < 10; i++)
     {
         float roughness = randomFloat() * 0.5f;
@@ -598,6 +598,36 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
     helper.meshGeometriesGPU.push_back(PlaneToMesh(p, 20000.f));
     helper.meshInstancesGPU.push_back(createMeshInstance(helper.meshGeometriesGPU.size() - 1, p.materialIndex));
 
+    for (int i = 0; i < 5; i++)
+    {
+        int materialIndex = int(randomFloat() * helper.materialsGPU.size());
+        SDF sdf = SDF::createRandomSphereSDF(materialIndex);
+        helper.sdfsGPU.push_back(sdf);
+    }
+
+    for (int i = 0; i < 5; i++)
+    {
+        int materialIndex = int(randomFloat() * helper.materialsGPU.size());
+        SDF sdf = SDF::createRandomToreSDF(materialIndex);
+        helper.sdfsGPU.push_back(sdf);
+    }
+
+    std::vector<OptixAabb> aabbs;
+    for (const auto &sdf : helper.sdfsGPU)
+    {
+        aabbs.push_back(sdf.getAABB());
+    }
+
+    CUDA_CHECK(
+        cudaMalloc(reinterpret_cast<void **>(&gpuScene.sdfGeometries.d_aabbBuffer), aabbs.size() * sizeof(OptixAabb)));
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(gpuScene.sdfGeometries.d_aabbBuffer), aabbs.data(),
+                          aabbs.size() * sizeof(OptixAabb), cudaMemcpyHostToDevice));
+    CUDA_CHECK(
+        cudaMalloc(reinterpret_cast<void **>(&gpuScene.sdfGeometries.sdfs), helper.sdfsGPU.size() * sizeof(SDF)));
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(gpuScene.sdfGeometries.sdfs), helper.sdfsGPU.data(),
+                          helper.sdfsGPU.size() * sizeof(SDF), cudaMemcpyHostToDevice));
+    gpuScene.sdfGeometries.sdfCount = helper.sdfsGPU.size();
+
     OptixContext context;
     context.initialize();
     OptixProgramGroupManager programGroupManagerRadiance;
@@ -608,8 +638,22 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
               "build/radianceRaygen.ptx", "__raygen__radiance", "build/radianceMiss.ptx", "__miss__radiance",
               "build/radianceClosestHit.ptx", "__closesthit__radiance");
 
+    OptixProgramGroupManager pgmSDFRadiance;
+    OptixModuleManager raygenModule;
+    raygenModule.createFromPath(context.deviceContext, "build/radianceRaygen.ptx");
+
+    OptixModuleManager missModule;
+    missModule.createFromPath(context.deviceContext, "build/radianceMiss.ptx");
+    OptixModuleManager closestHitModule;
+    closestHitModule.createFromPath(context.deviceContext, "build/radianceSdfClosestHit.ptx");
+    OptixModuleManager intersectionModule;
+    intersectionModule.createFromPath(context.deviceContext, "build/sdfIntersection.ptx");
+    pgmSDFRadiance.create(context.deviceContext, raygenModule.module, "__raygen__radiance", missModule.module,
+                          "__miss__radiance", closestHitModule.module, "__closesthit__radiance__sdf", nullptr, "",
+                          intersectionModule.module, "__intersection__sdf");
     OptixSBTManager sbtManagerRadiance;
-    sbtManagerRadiance.create(helper.meshGeometriesGPU, programGroupManagerRadiance);
+    sbtManagerRadiance.create(helper.meshGeometriesGPU, programGroupManagerRadiance, gpuScene.sdfGeometries,
+                              pgmSDFRadiance);
 
     OptixProgramGroupManager programGroupManagerShadow;
     OptixPipelineManager pipelineManagerShadow;
@@ -619,7 +663,19 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
               "build/shadowAnyHit.ptx", "__anyhit__shadow");
 
     OptixSBTManager sbtManagerShadow;
-    sbtManagerShadow.create(helper.meshGeometriesGPU, programGroupManagerShadow);
+    OptixProgramGroupManager pgmSDFShadow;
+    OptixModuleManager raygenModuleShadow;
+    raygenModuleShadow.createFromPath(context.deviceContext, "build/shadowRaygen.ptx");
+    OptixModuleManager missModuleShadow;
+    missModuleShadow.createFromPath(context.deviceContext, "build/shadowMiss.ptx");
+    OptixModuleManager anyHitModuleShadow;
+    anyHitModuleShadow.createFromPath(context.deviceContext, "build/shadowSdfAnyHit.ptx");
+    OptixModuleManager intersectionModuleShadow;
+    intersectionModuleShadow.createFromPath(context.deviceContext, "build/sdfIntersection.ptx");
+    pgmSDFShadow.create(context.deviceContext, raygenModuleShadow.module, "__raygen__shadow", missModuleShadow.module,
+                        "__miss__shadow", nullptr, "", anyHitModuleShadow.module, "__anyhit__shadow__sdf",
+                        intersectionModuleShadow.module, "__intersection__sdf");
+    sbtManagerShadow.create(helper.meshGeometriesGPU, programGroupManagerShadow, gpuScene.sdfGeometries, pgmSDFShadow);
 
     // =========================
     // Create GAS for shared mesh geometries
@@ -634,7 +690,9 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
         gas.build(context, geometry);
         gasList.push_back(std::move(gas));
     }
-
+    OptixGAS sdfGAS;
+    sdfGAS.build(context, gpuScene.sdfGeometries);
+    gasList.push_back(std::move(sdfGAS));
     // =========================
     // Create instances from GAS with transformations
     // =========================

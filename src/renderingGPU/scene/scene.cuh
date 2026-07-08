@@ -77,7 +77,7 @@ struct CudaScene
     Light *lights;
     float *lightProbabilities;
     float *lightCumulativeWeights;
-
+    SDFGeometry sdfGeometries;
     OptixTraversableHandle iasHandle = 0;
     CUdeviceptr d_iasBuffer = 0;
     std::vector<OptixGAS> gasList;
@@ -192,37 +192,8 @@ struct CudaScene
         const float dist2 = hit.t * hit.t;
         float pdf = 0.0f;
 
-        if (hit.objectType == HIT_SPHERE)
-        {
-            const Sphere &s = spheres[hit.objectIndex];
 
-            const float3 toSurface = hit.position - s.center1;
-            const float invRadius = 1.0f / s.radius;
-
-            const float cosTheta = fmaxf(dot(toSurface, -dir) * invRadius, 0.0f);
-
-            if (cosTheta <= 0.0f)
-                return 0.0f;
-
-            const float area = 4.0f * GPUPIf * s.radius * s.radius;
-            pdf = dist2 / (area * cosTheta);
-        }
-        else if (hit.objectType == HIT_SPHERE_IMPLICIT)
-        {
-            const ImplicitSphere &s = implicitSpheres[hit.objectIndex];
-
-            const float3 toSurface = hit.position - s.getCenter1();
-            const float invRadius = 1.0f / s.getRadius();
-
-            const float cosTheta = fmaxf(dot(toSurface, -dir) * invRadius, 0.0f);
-
-            if (cosTheta <= 0.0f)
-                return 0.0f;
-
-            const float area = 4.0f * GPUPIf * s.getRadius() * s.getRadius();
-            pdf = dist2 / (area * cosTheta);
-        }
-        else if (hit.objectType == HIT_TRIANGLE_MESH)
+        if (hit.objectType == HIT_TRIANGLE_MESH)
         {
             const MeshInstance &inst = meshInstances[hit.objectIndex];
             const MeshGeometry &geom = meshGeometries[inst.geometryIndex];

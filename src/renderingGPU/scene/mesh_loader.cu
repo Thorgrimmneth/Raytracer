@@ -307,11 +307,6 @@ HOST MeshInstance createMeshInstance(int geometryIndex, int materialIndex, float
     MeshInstance instance;
     instance.geometryIndex = geometryIndex;
     instance.materialIndex = materialIndex;
-    instance.scale = scale;
-    instance.translation = translation;
-    
-    // Convert Quaternion to float4 (x, y, z, w)
-    instance.rotation = make_float4(rotation.x, rotation.y, rotation.z, rotation.w);
     
     buildTransformMatrix(instance.transform, scale, rotation, translation);
     return instance;

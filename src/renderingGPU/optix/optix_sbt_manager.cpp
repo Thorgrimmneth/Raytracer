@@ -4,10 +4,12 @@
 
 #include "../utils/simplifiedDef.cuh"
 
-void OptixSBTManager::create(const std::vector<MeshGeometry> &meshes, const OptixProgramGroupManager &pgm)
+void OptixSBTManager::create(const std::vector<MeshGeometry> &meshes, const OptixProgramGroupManager &pgm,
+                             const SDFGeometry &sdfGeometry, const OptixProgramGroupManager &sdf_pgm)
 {
     destroy();
-
+    if (meshes.empty() && sdfGeometry.sdfCount == 0)
+        return;
     //
     // Raygen
     //
@@ -31,27 +33,43 @@ void OptixSBTManager::create(const std::vector<MeshGeometry> &meshes, const Opti
     //
     // Hit groups
     //
-    std::vector<HitRecordSBT> hitRecords(meshes.size());
-
-    for (size_t i = 0; i < meshes.size(); ++i)
+    size_t meshRecordCount = meshes.size();
+    size_t sdfRecordCount = sdfGeometry.sdfCount > 0 ? 1 : 0;
+    size_t totalRecordCount = meshRecordCount + sdfRecordCount;
+    std::vector<HitRecordSBT> hitRecords(totalRecordCount);
+    if (!meshes.empty())
     {
-        auto &rad = hitRecords[i];
-        const MeshGeometry &mesh = meshes[i];
 
-        OPTIX_CHECK(optixSbtRecordPackHeader(pgm.hitPG, &rad));
+        for (size_t i = 0; i < meshes.size(); ++i)
+        {
+            auto &rad = hitRecords[i];
+            const MeshGeometry &mesh = meshes[i];
 
-        rad.data.vertices = mesh.vertices;
-        rad.data.normals = mesh.normals;
-        rad.data.uvs = mesh.uvs;
+            OPTIX_CHECK(optixSbtRecordPackHeader(pgm.hitPG, &rad));
 
-        rad.data.triangles = mesh.triangles;
+            rad.data.mesh.vertices = mesh.vertices;
+            rad.data.mesh.normals = mesh.normals;
+            rad.data.mesh.uvs = mesh.uvs;
+
+            rad.data.mesh.triangles = mesh.triangles;
+        }
     }
+    if (sdfGeometry.sdfCount)
+    {
+        HitRecordSBT rec{};
 
+        OPTIX_CHECK(optixSbtRecordPackHeader(sdf_pgm.hitPG, &rec));
+
+        rec.data.type = HitData::GeometryType::Sdf;
+
+        rec.data.sdf.sdfs = sdfGeometry.sdfs;
+
+        hitRecords[meshRecordCount] = rec;
+    }
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_hitRecords), sizeof(HitRecordSBT) * hitRecords.size()));
 
     CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(d_hitRecords), hitRecords.data(),
                           sizeof(HitRecordSBT) * hitRecords.size(), cudaMemcpyHostToDevice));
-
     //
     // SBT
     //
@@ -65,7 +83,7 @@ void OptixSBTManager::create(const std::vector<MeshGeometry> &meshes, const Opti
 
     sbt.hitgroupRecordBase = d_hitRecords;
     sbt.hitgroupRecordStrideInBytes = sizeof(HitRecordSBT);
-    sbt.hitgroupRecordCount = meshes.size();
+    sbt.hitgroupRecordCount = totalRecordCount;
 }
 
 void OptixSBTManager::destroy()

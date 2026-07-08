@@ -11,22 +11,22 @@ extern "C" {
 __constant__ LaunchRadianceParams params;
 }
 
-extern "C" __global__ void __closesthit__radiance()
+extern "C" __global__ void __closesthit__radiance__sdf()
 {
     const HitData *data = reinterpret_cast<const HitData *>(optixGetSbtDataPointer());
     Payload *payload = reinterpret_cast<Payload *>(unpackPointer(optixGetPayload_0(), optixGetPayload_1()));
 
-    const uint primID = optixGetPrimitiveIndex();
+    const uint primIdx = optixGetPrimitiveIndex();
 
-    const uint3 tri = data->mesh.triangles[primID];
+    const SDF& sdf = data->sdf.sdfs[primIdx];
 
-    const float2 bc = optixGetTriangleBarycentrics();
+    float h = 1e-4f;
+    float3 p = optixGetWorldRayOrigin() + optixGetRayTmax() * optixGetWorldRayDirection();
+    float nx = sdf.sdf(p + make_float3(h, 0, 0)) - sdf.sdf(p - make_float3(h, 0, 0));
+    float ny = sdf.sdf(p + make_float3(0, h, 0)) - sdf.sdf(p - make_float3(0, h, 0));
+    float nz = sdf.sdf(p + make_float3(0, 0, h)) - sdf.sdf(p - make_float3(0, 0, h));
+    float3 N = normalize(make_float3(nx, ny, nz));
 
-    const float3 &n0 = data->mesh.normals[tri.x];
-    const float3 &n1 = data->mesh.normals[tri.y];
-    const float3 &n2 = data->mesh.normals[tri.z];
-
-    float3 N = normalize((1 - bc.x - bc.y) * n0 + bc.x * n1 + bc.y * n2);
     if (dot(N, -optixGetWorldRayDirection()) < 0.0f)
         N = -N;
 
@@ -38,7 +38,7 @@ extern "C" __global__ void __closesthit__radiance()
 
     payload->normal = N;
 
-    payload->objectIndex = primID;
+    payload->objectIndex = primIdx;
 
     // Get material index from mesh instance data
     uint instanceIndex = optixGetInstanceId();
@@ -52,5 +52,5 @@ extern "C" __global__ void __closesthit__radiance()
         payload->materialIndex = 0; // Fallback to SBT data
     }
 
-    payload->objectType = HIT_TRIANGLE_MESH;
+    payload->objectType = HIT_SDF;
 }

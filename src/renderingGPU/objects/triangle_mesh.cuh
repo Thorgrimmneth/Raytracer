@@ -22,8 +22,5 @@ struct MeshInstance
 {
     int geometryIndex = 0;     // Index into the geometries array
     int materialIndex = 0;      // Material for this instance
-    float4 rotation = {0, 0, 0, 1};  // Quaternion (x, y, z, w)
-    float3 scale = {1, 1, 1};        // Scale vector
-    float3 translation = {0, 0, 0}; // Translation vector
     float transform[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};  // 3x4 transformation matrix (computed from rotation/scale/translation)
 };

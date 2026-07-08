@@ -7,6 +7,7 @@
 
 #include "../objects/triangle_mesh.cuh"
 #include "optix_context.h"
+#include "../objects/sdf.cuh"
 
 class OptixGAS
 {
@@ -15,6 +16,8 @@ class OptixGAS
                const uint3 *d_indices, uint32_t triangleCount);
 
     void build(OptixContext context, MeshGeometry mesh);
+
+    void build(OptixContext optixContext, SDFGeometry sdfs);
     void destroy();
 
     OptixTraversableHandle handle = 0;

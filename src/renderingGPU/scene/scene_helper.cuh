@@ -7,9 +7,11 @@
 #include "../materials/material.cuh"
 #include "../lights/light.cuh"
 #include "../objects/base_object.cuh"
+#include "../objects/sdf.cuh"
 
 struct CudaSceneHelper
 {
+    std::vector<SDF> sdfsGPU = std::vector<SDF>();
     std::vector<Sphere> spheresGPU = std::vector<Sphere>();
     std::vector<ImplicitSphere> implicitSpheresGPU = std::vector<ImplicitSphere>();
     std::vector<Plane> planesGPU = std::vector<Plane>();
