@@ -59,7 +59,7 @@ class OptixSBTManager
 {
   public:
     void create(const std::vector<MeshGeometry> &meshes, const OptixProgramGroupManager &pgm,
-                const SDFGeometry &sdfGeometry, const OptixProgramGroupManager &sdf_pgm);
+                const SDFGeometry &sdfGeometry);
 
     void destroy();
 

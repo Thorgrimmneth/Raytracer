@@ -573,7 +573,7 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
     helper.meshGeometriesGPU.push_back(dragonGeometry);
 
     // Create 50 instances with different transforms and materials
-    for (int i = 0; i < 50; i++)
+    for (int i = 0; i < 0; i++)
     {
         Quaternion rotation = quaternionFromAxisAngle(
             make_float3(randomFloat() * 2.f, randomFloat() * 2.f, randomFloat() * 2.f), randomFloat() * 360.f);
@@ -633,49 +633,31 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
     OptixProgramGroupManager programGroupManagerRadiance;
     OptixPipelineManager pipelineManagerRadiance;
     OptixLaunchParamsManager<LaunchRadianceParams> launchParamsManagerRadiance;
+    programGroupManagerRadiance.addRaygenProgram(context, "build/radianceRaygen.ptx", "__raygen__radiance");
+    programGroupManagerRadiance.addMissProgram(context, "build/radianceMiss.ptx", "__miss__radiance");
+    programGroupManagerRadiance.addMeshHitProgram(context, "build/radianceClosestHit.ptx", "__closesthit__radiance", "",
+                                                  "", "", "");
+    programGroupManagerRadiance.addSdfHitProgram(context, "build/radianceSdfClosestHit.ptx",
+                                                 "__closesthit__radiance__sdf", "", "", "build/radianceSdfIntersection.ptx",
+                                                 "__intersection__sdf");
 
-    initOptix(context, programGroupManagerRadiance, pipelineManagerRadiance, launchParamsManagerRadiance,
-              "build/radianceRaygen.ptx", "__raygen__radiance", "build/radianceMiss.ptx", "__miss__radiance",
-              "build/radianceClosestHit.ptx", "__closesthit__radiance");
+    initOptix(context, programGroupManagerRadiance, pipelineManagerRadiance, launchParamsManagerRadiance);
 
-    OptixProgramGroupManager pgmSDFRadiance;
-    OptixModuleManager raygenModule;
-    raygenModule.createFromPath(context.deviceContext, "build/radianceRaygen.ptx");
-
-    OptixModuleManager missModule;
-    missModule.createFromPath(context.deviceContext, "build/radianceMiss.ptx");
-    OptixModuleManager closestHitModule;
-    closestHitModule.createFromPath(context.deviceContext, "build/radianceSdfClosestHit.ptx");
-    OptixModuleManager intersectionModule;
-    intersectionModule.createFromPath(context.deviceContext, "build/sdfIntersection.ptx");
-    pgmSDFRadiance.create(context.deviceContext, raygenModule.module, "__raygen__radiance", missModule.module,
-                          "__miss__radiance", closestHitModule.module, "__closesthit__radiance__sdf", nullptr, "",
-                          intersectionModule.module, "__intersection__sdf");
     OptixSBTManager sbtManagerRadiance;
-    sbtManagerRadiance.create(helper.meshGeometriesGPU, programGroupManagerRadiance, gpuScene.sdfGeometries,
-                              pgmSDFRadiance);
+    sbtManagerRadiance.create(helper.meshGeometriesGPU, programGroupManagerRadiance, gpuScene.sdfGeometries);
 
     OptixProgramGroupManager programGroupManagerShadow;
     OptixPipelineManager pipelineManagerShadow;
     OptixLaunchParamsManager<LaunchShadowParams> launchParamsManagerShadow;
-    initOptix(context, programGroupManagerShadow, pipelineManagerShadow, launchParamsManagerShadow,
-              "build/shadowRaygen.ptx", "__raygen__shadow", "build/shadowMiss.ptx", "__miss__shadow", "", "",
-              "build/shadowAnyHit.ptx", "__anyhit__shadow");
+    programGroupManagerShadow.addRaygenProgram(context, "build/shadowRaygen.ptx", "__raygen__shadow");
+    programGroupManagerShadow.addMissProgram(context, "build/shadowMiss.ptx", "__miss__shadow");
+    programGroupManagerShadow.addMeshHitProgram(context, "", "", "build/shadowAnyHit.ptx", "__anyhit__shadow", "", "");
+    programGroupManagerShadow.addSdfHitProgram(context, "", "", "build/shadowSdfAnyHit.ptx", "__anyhit__shadow__sdf",
+                                               "build/shadowSdfIntersection.ptx", "__intersection__sdf__shadow");
+    initOptix(context, programGroupManagerShadow, pipelineManagerShadow, launchParamsManagerShadow);
 
     OptixSBTManager sbtManagerShadow;
-    OptixProgramGroupManager pgmSDFShadow;
-    OptixModuleManager raygenModuleShadow;
-    raygenModuleShadow.createFromPath(context.deviceContext, "build/shadowRaygen.ptx");
-    OptixModuleManager missModuleShadow;
-    missModuleShadow.createFromPath(context.deviceContext, "build/shadowMiss.ptx");
-    OptixModuleManager anyHitModuleShadow;
-    anyHitModuleShadow.createFromPath(context.deviceContext, "build/shadowSdfAnyHit.ptx");
-    OptixModuleManager intersectionModuleShadow;
-    intersectionModuleShadow.createFromPath(context.deviceContext, "build/sdfIntersection.ptx");
-    pgmSDFShadow.create(context.deviceContext, raygenModuleShadow.module, "__raygen__shadow", missModuleShadow.module,
-                        "__miss__shadow", nullptr, "", anyHitModuleShadow.module, "__anyhit__shadow__sdf",
-                        intersectionModuleShadow.module, "__intersection__sdf");
-    sbtManagerShadow.create(helper.meshGeometriesGPU, programGroupManagerShadow, gpuScene.sdfGeometries, pgmSDFShadow);
+    sbtManagerShadow.create(helper.meshGeometriesGPU, programGroupManagerShadow, gpuScene.sdfGeometries);
 
     // =========================
     // Create GAS for shared mesh geometries
@@ -717,6 +699,23 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
 
         instances.push_back(instance);
     }
+
+    OptixInstance sdfInstance{};
+
+    float transform[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
+
+    memcpy(sdfInstance.transform, transform, sizeof(transform));
+
+    sdfInstance.instanceId = helper.meshInstancesGPU.size();
+
+    sdfInstance.sbtOffset = helper.meshGeometriesGPU.size(); // dernier record SBT
+
+    sdfInstance.visibilityMask = 255;
+    sdfInstance.flags = OPTIX_INSTANCE_FLAG_NONE;
+
+    sdfInstance.traversableHandle = gasList.back().handle;
+
+    instances.push_back(sdfInstance);
 
     OptixIAS ias;
     ias.build(context.deviceContext, instances);

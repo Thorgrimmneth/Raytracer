@@ -43,14 +43,7 @@ extern "C" __global__ void __closesthit__radiance__sdf()
     // Get material index from mesh instance data
     uint instanceIndex = optixGetInstanceId();
 
-    if (params.meshInstances && instanceIndex < params.nbMeshInstances)
-    {
-        payload->materialIndex = params.meshInstances[instanceIndex].materialIndex;
-    }
-    else
-    {
-        payload->materialIndex = 0; // Fallback to SBT data
-    }
+    payload->materialIndex = sdf.getMaterialIndex();
 
     payload->objectType = HIT_SDF;
 }

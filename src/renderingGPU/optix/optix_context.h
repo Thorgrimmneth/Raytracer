@@ -17,4 +17,5 @@ public:
     CUcontext           cuContext = nullptr;
     CUstream            stream = nullptr;
     OptixDeviceContext  deviceContext = nullptr;
+    OptixPipelineCompileOptions pipelineCompileOptions = {};
 };

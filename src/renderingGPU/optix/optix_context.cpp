@@ -11,13 +11,23 @@ static void contextLogCallback(unsigned int level, const char *tag, const char *
 void OptixContext::initialize()
 {
     int cudaVersion = 0;
-cuDriverGetVersion(&cudaVersion);
+    cuDriverGetVersion(&cudaVersion);
 
-std::cout
-    << "CUDA Driver Version = "
-    << cudaVersion
-    << std::endl;
-    cudaFree(0);
+    std::cout << "CUDA Driver Version = " << cudaVersion << std::endl;
+
+    pipelineCompileOptions = {};
+
+    pipelineCompileOptions.usesMotionBlur = false;
+
+    pipelineCompileOptions.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_LEVEL_INSTANCING;
+
+    pipelineCompileOptions.numPayloadValues = 2;
+
+    pipelineCompileOptions.numAttributeValues = 2;
+
+    pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
+
+    pipelineCompileOptions.pipelineLaunchParamsVariableName = "params";
 
     OPTIX_CHECK(optixInit());
 

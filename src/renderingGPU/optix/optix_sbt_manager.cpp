@@ -5,7 +5,7 @@
 #include "../utils/simplifiedDef.cuh"
 
 void OptixSBTManager::create(const std::vector<MeshGeometry> &meshes, const OptixProgramGroupManager &pgm,
-                             const SDFGeometry &sdfGeometry, const OptixProgramGroupManager &sdf_pgm)
+                             const SDFGeometry &sdfGeometry)
 {
     destroy();
     if (meshes.empty() && sdfGeometry.sdfCount == 0)
@@ -45,7 +45,7 @@ void OptixSBTManager::create(const std::vector<MeshGeometry> &meshes, const Opti
             auto &rad = hitRecords[i];
             const MeshGeometry &mesh = meshes[i];
 
-            OPTIX_CHECK(optixSbtRecordPackHeader(pgm.hitPG, &rad));
+            OPTIX_CHECK(optixSbtRecordPackHeader(pgm.meshHitPG, &rad));
 
             rad.data.mesh.vertices = mesh.vertices;
             rad.data.mesh.normals = mesh.normals;
@@ -58,7 +58,7 @@ void OptixSBTManager::create(const std::vector<MeshGeometry> &meshes, const Opti
     {
         HitRecordSBT rec{};
 
-        OPTIX_CHECK(optixSbtRecordPackHeader(sdf_pgm.hitPG, &rec));
+        OPTIX_CHECK(optixSbtRecordPackHeader(pgm.sdfHitPG, &rec));
 
         rec.data.type = HitData::GeometryType::Sdf;
 

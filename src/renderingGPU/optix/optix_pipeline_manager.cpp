@@ -4,24 +4,21 @@
 
 #include "../utils/simplifiedDef.cuh"
 
+
 void OptixPipelineManager::create(
     OptixDeviceContext context,
     const OptixPipelineCompileOptions& pipelineCompileOptions,
-    OptixProgramGroup raygenPG,
-    OptixProgramGroup missPG,
-    OptixProgramGroup hitPG,
-    OptixProgramGroup anyHitPG
+    const OptixProgramGroupManager& programGroups
 )
 {
+    //TODO : add sdf module to the pipeline creation
     std::vector<OptixProgramGroup> groups =
     {
-        raygenPG,
-        missPG,
-        hitPG
+        programGroups.raygenPG,
+        programGroups.missPG,
+        programGroups.meshHitPG,
+        programGroups.sdfHitPG
     };
-
-    if(anyHitPG != nullptr)
-        groups.push_back(anyHitPG);
 
     OptixPipelineLinkOptions linkOptions = {};
 
@@ -55,16 +52,9 @@ void OptixPipelineManager::create(
 void OptixPipelineManager::create(
     OptixDeviceContext context,
     const OptixPipelineCompileOptions& pipelineCompileOptions,
-    const OptixProgramGroupManager& programGroups
+    const std::vector<OptixProgramGroup>& programGroups
 )
 {
-    std::vector<OptixProgramGroup> groups =
-    {
-        programGroups.raygenPG,
-        programGroups.missPG,
-        programGroups.hitPG
-    };
-
     OptixPipelineLinkOptions linkOptions = {};
 
     linkOptions.maxTraceDepth = 1;
@@ -77,8 +67,8 @@ void OptixPipelineManager::create(
             context,
             &pipelineCompileOptions,
             &linkOptions,
-            groups.data(),
-            static_cast<unsigned int>(groups.size()),
+            programGroups.data(),
+            static_cast<unsigned int>(programGroups.size()),
             log,
             &logSize,
             &pipeline
