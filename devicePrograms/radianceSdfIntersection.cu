@@ -22,7 +22,8 @@ extern "C" __global__ void __intersection__sdf()
 
     float3 rayOrigin = optixGetWorldRayOrigin();
     float3 rayDirection = optixGetWorldRayDirection();
-
+    float3 rayOriginLocal = transform(sdf.rotation, rayOrigin - sdf.translation);
+    float3 rayDirectionLocal = transform(sdf.rotation, rayDirection);
     float tMin = optixGetRayTmin();
     float tMax = optixGetRayTmax();
 
@@ -30,30 +31,19 @@ extern "C" __global__ void __intersection__sdf()
     float relaxationFactor = 1.5f;
     float oldDistance = 20000.f;
     float oldStep = 0.f;
-    for (int i = 0; i < 64; i++)
+    for (int i = 0; i < 128; i++)
     {
-        float3 point = rayOrigin + tMin * rayDirection;
-        float distance = sdf.sdf(point);
+        float3 p = rayOriginLocal + tMin * rayDirectionLocal;
 
-        if (distance < 1e-4f)
+        float d = sdf.sdf(p);
+
+        if (d < 1e-4f)
         {
-            tHit = tMin;
-            optixReportIntersection(tHit, 0);
+            optixReportIntersection(tMin, 0);
             return;
         }
 
-        if (relaxationFactor > 1.0f && fabs(distance) + fabs(oldDistance) < oldStep)
-        {
-            tMin += oldStep * (1.f - relaxationFactor);
-            relaxationFactor = 1.0f;
-            oldDistance = distance;
-            oldStep = 0.f;
-            continue;
-        }
-
-        oldDistance = distance;
-        oldStep = distance * relaxationFactor;
-        tMin += oldStep;
+        tMin += d;
 
         if (tMin > tMax)
             break;

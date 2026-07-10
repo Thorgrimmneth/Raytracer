@@ -192,166 +192,6 @@ void sortMaterials(CudaSceneHelper &helper)
     }
 }
 
-CudaScene spheresScene(float4 sunDir)
-{
-    CudaScene gpuScene;
-    CudaSceneHelper helper;
-
-    // ===== PLAN =====
-    {
-        Plane p = Plane(make_float3(0.f, 0.f, 0.f), make_float3(0.f, 1.f, 0.f));
-
-        Material ground = Material::makeMaterial(make_float3(0.5f), LAMBERT, 1.0f);
-        helper.lambertList.push_back(ground);
-        p.materialIndex = helper.lambertList.size() - 1;
-        helper.planeType.push_back(0);
-        helper.planesGPU.push_back(p);
-    }
-
-    // ===== MATERIALS DE BASE =====
-    Material blueGlass = Material::makeMaterial(make_float3(0.35f, 0.65f, 1.0f), TRANSPARENT, 0.f, 0.f, 1.5f, 0.f);
-
-    Material mirror = Material::makeMaterial(make_float3(1.f, 1.f, 1.f), MIRROR);
-    Material transparent = Material::makeMaterial(make_float3(0.9f, 0.9f, 0.9f), TRANSPARENT, 0.f, 0.f, 1.5f);
-    Material emissive = Material::makeMaterial(make_float3(1.f, 0.f, 0.f), EMISSIVE, 0.f, 0.f, 1.f, 11.f);
-    int blueTransparentIdx = helper.transparentList.size();
-    helper.transparentList.push_back(blueGlass);
-    int mirrorIdx = helper.mirrorList.size();
-    helper.mirrorList.push_back(mirror);
-    int transparentIdx = helper.transparentList.size();
-    helper.transparentList.push_back(transparent);
-    int emissiveIdx = helper.emissiveList.size();
-    helper.emissiveList.push_back(emissive);
-
-    float bigRadius = 1.0f;
-    float smallRadius = 0.2f;
-    float margin = 0.05f;
-    float minDist = bigRadius + smallRadius + margin;
-
-    int numberOfSpheresPerSide = 10;
-    // ===== PETITES SPHERES =====
-    for (int i = -numberOfSpheresPerSide; i < numberOfSpheresPerSide; i++)
-    {
-        for (int j = -numberOfSpheresPerSide; j < numberOfSpheresPerSide; j++)
-        {
-            double choose_mat = randomDouble();
-
-            float3 center = make_float3(i + 0.9f * randomFloat(), 0.2f, j + 0.9f * randomFloat());
-
-            if (length(center - make_float3(4.f, 1.f, 0.f)) < minDist ||
-                length(center - make_float3(0.f, 1.f, 0.f)) < minDist ||
-                length(center - make_float3(-4.f, 1.f, 0.f)) < minDist)
-                continue;
-
-            Sphere s = Sphere::create(center, smallRadius, 0);
-
-            // ===== MATERIAL =====
-            if (choose_mat < 0.40)
-            {
-                // Lambert coloré
-                Material mat = Material::randomLambert();
-
-                helper.lambertList.push_back(mat);
-                s.materialIndex = helper.lambertList.size() - 1;
-                helper.sphereType.push_back(0);
-            }
-            else if (choose_mat < 0.62)
-            {
-                // Métal coloré
-                Material mat = Material::randomMetal();
-
-                helper.metalList.push_back(mat);
-                s.materialIndex = helper.metalList.size() - 1;
-                helper.sphereType.push_back(1);
-            }
-            else if (choose_mat < 0.82)
-            {
-                // Plastique coloré
-                Material mat = Material::randomPlastic();
-
-                helper.plasticList.push_back(mat);
-                s.materialIndex = helper.plasticList.size() - 1;
-                helper.sphereType.push_back(2);
-            }
-            else if (choose_mat < 0.90)
-            {
-                // Miroir légèrement bleuté
-                s.materialIndex = mirrorIdx;
-                helper.sphereType.push_back(5);
-            }
-            else if (choose_mat < 0.985)
-            {
-                // Verre coloré aléatoire
-                Material mat = Material::randomTransparent();
-
-                helper.transparentList.push_back(mat);
-                s.materialIndex = helper.transparentList.size() - 1;
-                helper.sphereType.push_back(3);
-            }
-            else
-            {
-                // Émissif coloré rare
-                Material mat = Material::randomEmissive();
-
-                helper.emissiveList.push_back(mat);
-                s.materialIndex = helper.emissiveList.size() - 1;
-                helper.sphereType.push_back(4);
-                Light light;
-                light.metadata = Light::packMetadata(LightType::SPHERE_GEOM, (int)helper.spheresGPU.size());
-
-                helper.lightsGPU.push_back(light);
-            }
-
-            // ===== AABB =====
-            float3 r = make_float3(s.radius);
-
-            helper.primitivesGPU.push_back(
-                BaseObject{center - r, center + r, ObjectType::SPHERE, (int)helper.spheresGPU.size()});
-            helper.spheresGPU.push_back(s);
-        }
-    }
-
-    // ===== GROSSES SPHERES =====
-    auto addBigSphere = [&](float3 center, float radius, int matIndex, int sphereTypeValue) {
-        Sphere s = Sphere::create(center, radius, matIndex);
-
-        float3 r = make_float3(radius);
-
-        helper.primitivesGPU.push_back(
-            BaseObject{center - r, center + r, ObjectType::SPHERE, (int)helper.spheresGPU.size()});
-
-        helper.spheresGPU.push_back(s);
-        helper.sphereType.push_back(sphereTypeValue);
-
-        if (sphereTypeValue == 4) // EMISSIVE
-        {
-            Light l;
-            l.metadata = Light::packMetadata(LightType::SPHERE_GEOM, helper.spheresGPU.size() - 1);
-            helper.lightsGPU.push_back(l);
-        }
-    };
-
-    addBigSphere(make_float3(0.f, 1.f, 0.f), 1.f, transparentIdx, 3);
-    addBigSphere(make_float3(-4.f, 1.f, 0.f), 1.f, emissiveIdx, 4);
-    addBigSphere(make_float3(4.f, 1.f, 0.f), 1.f, mirrorIdx, 5);
-
-    sortMaterials(helper);
-
-    // ===== LIGHT (SUN) =====
-    Light l;
-    l.color_power = make_float4(1.f, 0.95f, 0.9f, 100.f);
-    l.direction = make_float4(sunDir.x, sunDir.y, sunDir.z, 0.f);
-    l.metadata = Light::packMetadata(LightType::SUN, 0);
-    helper.lightsGPU.push_back(l);
-
-    // ===== UPLOAD =====
-    gpuScene.uploadObjects(helper);
-    gpuScene.uploadLights(helper);
-    gpuScene.uploadMaterials(helper);
-
-    return gpuScene;
-}
-
 CudaScene implicitSpheresScene(float4 sunDir)
 {
     CudaScene gpuScene;
@@ -525,7 +365,7 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
         float manipRNG = randomFloat();
     }
 
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 10; i++)
     {
         Material emissive = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), EMISSIVE,
                                                    0.f, 0.f, 1.f, randomFloat() * 5.f + 8.f);
@@ -543,7 +383,7 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
                                                       TRANSPARENT, 0.f, 0.f, 1.5f);
         helper.materialsGPU.push_back(transparent);
     }
-    for (int i = 0; i < 15; i++)
+    for (int i = 0; i < 10; i++)
     {
         Material lambert =
             Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), LAMBERT, 1.0f);
@@ -573,7 +413,7 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
     helper.meshGeometriesGPU.push_back(dragonGeometry);
 
     // Create 50 instances with different transforms and materials
-    for (int i = 0; i < 0; i++)
+    for (int i = 0; i < 50; i++)
     {
         Quaternion rotation = quaternionFromAxisAngle(
             make_float3(randomFloat() * 2.f, randomFloat() * 2.f, randomFloat() * 2.f), randomFloat() * 360.f);
@@ -597,18 +437,22 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
     p.materialIndex = helper.materialsGPU.size() - 1;
     helper.meshGeometriesGPU.push_back(PlaneToMesh(p, 20000.f));
     helper.meshInstancesGPU.push_back(createMeshInstance(helper.meshGeometriesGPU.size() - 1, p.materialIndex));
-
-    for (int i = 0; i < 5; i++)
+    float r = randomFloat();
+    for (int i = 0; i < 15; i++)
     {
         int materialIndex = int(randomFloat() * helper.materialsGPU.size());
         SDF sdf = SDF::createRandomSphereSDF(materialIndex);
         helper.sdfsGPU.push_back(sdf);
     }
 
-    for (int i = 0; i < 5; i++)
+    for (int i = 0; i < 15; i++)
     {
         int materialIndex = int(randomFloat() * helper.materialsGPU.size());
+        Quaternion rotation = quaternionFromAxisAngle(
+            make_float3(randomFloat() * 2.f, randomFloat() * 2.f, randomFloat() * 2.f), randomFloat() * 360.f);
         SDF sdf = SDF::createRandomToreSDF(materialIndex);
+        Matrix3x3 rotationMatrix = quaternionToMatrix(rotation);
+        sdf.rotation = rotationMatrix.transpose();
         helper.sdfsGPU.push_back(sdf);
     }
 
@@ -638,8 +482,8 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
     programGroupManagerRadiance.addMeshHitProgram(context, "build/radianceClosestHit.ptx", "__closesthit__radiance", "",
                                                   "", "", "");
     programGroupManagerRadiance.addSdfHitProgram(context, "build/radianceSdfClosestHit.ptx",
-                                                 "__closesthit__radiance__sdf", "", "", "build/radianceSdfIntersection.ptx",
-                                                 "__intersection__sdf");
+                                                 "__closesthit__radiance__sdf", "", "",
+                                                 "build/radianceSdfIntersection.ptx", "__intersection__sdf");
 
     initOptix(context, programGroupManagerRadiance, pipelineManagerRadiance, launchParamsManagerRadiance);
 

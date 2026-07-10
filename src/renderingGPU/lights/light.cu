@@ -172,6 +172,7 @@ LightSample Light::sampleCone(const float3 &p_point, RNG&rng) const
     return rep;
 }
 
+/*
 DEVICE 
 LightSample Light::sampleSphereGeom(const float3 &p_point, RNG&rng, const CudaScene &scene) const
 {
@@ -211,7 +212,7 @@ LightSample Light::sampleSphereGeom(const float3 &p_point, RNG&rng, const CudaSc
     ls.pdf = pdf;
 
     return ls;
-}
+}*/
 
 DEVICE 
 LightSample Light::sampleImplicitSphereGeom(const float3 &p_point, RNG&rng, const CudaScene &scene) const
@@ -326,9 +327,9 @@ LightSample Light::sample(const float3 &p_point, RNG&rng, const CudaScene &scene
 {
     switch (getType())
     {
-    case SPHERE_GEOM:
+    /*case SPHERE_GEOM:
         return sampleSphereGeom(p_point, rng, scene);
-
+        */
     case IMPLICIT_SPHERE_GEOM:
         return sampleImplicitSphereGeom(p_point, rng, scene);
 

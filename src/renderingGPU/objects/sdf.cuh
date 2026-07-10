@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../utils/check.cuh"
+#include "../utils/op.cuh"
 #include "sphere.cuh"
 #include "tore.cuh"
 
@@ -13,7 +14,8 @@ enum class SDFType : uint8_t
 struct SDF
 {
     SDFType type;
-
+    float3 translation = make_float3(0.f);
+    Matrix3x3 rotation = Matrix3x3::identity();
     union {
         Sphere sphere;
         Tore tore;
@@ -52,7 +54,7 @@ struct SDF
         case SDFType::Sphere:
             return sphere.computeAABB();
         case SDFType::Tore:
-            return tore.computeAABB();
+            return tore.computeAABB(rotation, translation);
         default:
             return OptixAabb(); // Should not happen
         }

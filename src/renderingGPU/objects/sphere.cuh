@@ -1,9 +1,9 @@
 #pragma once
 
 #include "../../utils/rngCPU.hpp"
+#include "../utils/op.cuh"
 #include <optix.h>
 #include <optix_stubs.h>
-#include "../utils/op.cuh"
 
 struct Sphere
 {
@@ -18,13 +18,11 @@ struct Sphere
         return create(center, radius, materialIndex);
     }
 
-    static Sphere create(float3 c, float r, int m)
-    {
-        return {c, r, m};
-    }
+    static Sphere create(float3 c, float r, int m) { return {c, r, m}; }
 
     OptixAabb computeAABB() const
     {
+
         OptixAabb aabb;
         aabb.minX = center1.x - radius;
         aabb.minY = center1.y - radius;
@@ -35,8 +33,5 @@ struct Sphere
         return aabb;
     }
 
-    __device__ float sdf(const float3 &point) const
-    {
-        return length(point - center1) - radius;
-    }
+    __device__ float sdf(const float3 &point) const { return length(point - center1) - radius; }
 };

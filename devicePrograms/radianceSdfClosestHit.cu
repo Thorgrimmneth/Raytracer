@@ -22,21 +22,21 @@ extern "C" __global__ void __closesthit__radiance__sdf()
 
     float h = 1e-4f;
     float3 p = optixGetWorldRayOrigin() + optixGetRayTmax() * optixGetWorldRayDirection();
-    float nx = sdf.sdf(p + make_float3(h, 0, 0)) - sdf.sdf(p - make_float3(h, 0, 0));
-    float ny = sdf.sdf(p + make_float3(0, h, 0)) - sdf.sdf(p - make_float3(0, h, 0));
-    float nz = sdf.sdf(p + make_float3(0, 0, h)) - sdf.sdf(p - make_float3(0, 0, h));
+    float3 pLocal = transform(sdf.rotation, p - sdf.translation);
+    float nx = sdf.sdf(pLocal + make_float3(h, 0, 0)) - sdf.sdf(pLocal - make_float3(h, 0, 0));
+    float ny = sdf.sdf(pLocal + make_float3(0, h, 0)) - sdf.sdf(pLocal - make_float3(0, h, 0));
+    float nz = sdf.sdf(pLocal + make_float3(0, 0, h)) - sdf.sdf(pLocal - make_float3(0, 0, h));
     float3 N = normalize(make_float3(nx, ny, nz));
 
-    if (dot(N, -optixGetWorldRayDirection()) < 0.0f)
-        N = -N;
-
+    
+    float3 NWorld = normalize(transform(sdf.rotation.transpose(), N));
     payload->hit = 1;
 
     payload->t = optixGetRayTmax();
 
     payload->position = optixGetWorldRayOrigin() + payload->t * optixGetWorldRayDirection();
 
-    payload->normal = N;
+    payload->normal = NWorld;
 
     payload->objectIndex = primIdx;
 

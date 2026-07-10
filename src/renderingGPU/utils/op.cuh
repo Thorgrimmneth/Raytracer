@@ -20,7 +20,6 @@ HD_INLINE float4 make_float4(const float3 &a, const float &b = 0.f) { return mak
 
 HD_INLINE float4 make_float4(const float b) { return make_float4(b, b, b, b); }
 
-
 // ============================================================
 // float3 operators
 // ============================================================
@@ -363,3 +362,38 @@ HD inline int floatBitsToInt(float x)
     return u.i;
 #endif
 }
+
+struct Matrix3x3
+{
+    float3 row0;
+    float3 row1;
+    float3 row2;
+    HD_INLINE static Matrix3x3 identity()
+    {
+        Matrix3x3 m;
+        m.row0 = make_float3(1.f, 0.f, 0.f);
+        m.row1 = make_float3(0.f, 1.f, 0.f);
+        m.row2 = make_float3(0.f, 0.f, 1.f);
+        return m;
+    }
+
+    HD_INLINE Matrix3x3 transpose() const
+    {
+        Matrix3x3 t;
+
+        t.row0 = make_float3(row0.x, row1.x, row2.x);
+        t.row1 = make_float3(row0.y, row1.y, row2.y);
+        t.row2 = make_float3(row0.z, row1.z, row2.z);
+
+        return t;
+    }
+
+
+};
+
+HD_INLINE float3 transform(const Matrix3x3 &rotation, const float3 &v)
+{
+    return make_float3(dot(rotation.row0, v), dot(rotation.row1, v), dot(rotation.row2, v));
+}
+
+HD_INLINE float3 operator*(const Matrix3x3 &m, const float3 &v) { return transform(m, v); }
