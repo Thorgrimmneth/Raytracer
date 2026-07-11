@@ -27,16 +27,16 @@ extern "C" __global__ void __intersection__sdf()
     float tMin = optixGetRayTmin();
     float tMax = optixGetRayTmax();
 
-    float tHit;
-    float relaxationFactor = 1.5f;
-    float oldDistance = 20000.f;
-    float oldStep = 0.f;
+    if (!intersectAABB(rayOriginLocal, rayDirectionLocal, sdf.getAABB(), tMin, tMax))
+    
+        return;
+    
+
     for (int i = 0; i < 128; i++)
     {
         float3 p = rayOriginLocal + tMin * rayDirectionLocal;
 
-        float d = sdf.sdf(p);
-
+        float d = fabsf(sdf.sdf(p));
         if (d < 1e-4f)
         {
             optixReportIntersection(tMin, 0);

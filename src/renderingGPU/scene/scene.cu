@@ -365,7 +365,7 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
         float manipRNG = randomFloat();
     }
 
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 5; i++)
     {
         Material emissive = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), EMISSIVE,
                                                    0.f, 0.f, 1.f, randomFloat() * 5.f + 8.f);
@@ -377,7 +377,7 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
         helper.materialsGPU.push_back(mirror);
     }
 
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 15; i++)
     {
         Material transparent = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()),
                                                       TRANSPARENT, 0.f, 0.f, 1.5f);
@@ -431,17 +431,13 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
     }
 
     // Add ground plane
-    Plane p = Plane(make_float3(0.f, 0.f, 0.f), make_float3(0.f, 1.f, 0.f));
-    Material ground = Material::makeMaterial(make_float3(0.5f), LAMBERT, 1.0f);
-    helper.materialsGPU.push_back(ground);
-    p.materialIndex = helper.materialsGPU.size() - 1;
-    helper.meshGeometriesGPU.push_back(PlaneToMesh(p, 20000.f));
-    helper.meshInstancesGPU.push_back(createMeshInstance(helper.meshGeometriesGPU.size() - 1, p.materialIndex));
-    float r = randomFloat();
+    addGround(helper);
+
     for (int i = 0; i < 15; i++)
     {
         int materialIndex = int(randomFloat() * helper.materialsGPU.size());
         SDF sdf = SDF::createRandomSphereSDF(materialIndex);
+        sdf.translation = make_float3(randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f);
         helper.sdfsGPU.push_back(sdf);
     }
 
@@ -453,13 +449,14 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
         SDF sdf = SDF::createRandomToreSDF(materialIndex);
         Matrix3x3 rotationMatrix = quaternionToMatrix(rotation);
         sdf.rotation = rotationMatrix.transpose();
+        sdf.translation = make_float3(randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f);
         helper.sdfsGPU.push_back(sdf);
     }
 
     std::vector<OptixAabb> aabbs;
     for (const auto &sdf : helper.sdfsGPU)
     {
-        aabbs.push_back(sdf.getAABB());
+        aabbs.push_back(sdf.getWorldAABB());
     }
 
     CUDA_CHECK(
@@ -617,4 +614,14 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
     programGroupManagerRadiance.destroy();
     programGroupManagerShadow.destroy();
     return gpuScene;
+}
+
+void addGround(CudaSceneHelper &helper)
+{
+    Plane p = Plane(make_float3(0.f, 0.f, 0.f), make_float3(0.f, 1.f, 0.f));
+    Material ground = Material::makeMaterial(make_float3(0.5f), LAMBERT, 1.0f);
+    helper.materialsGPU.push_back(ground);
+    p.materialIndex = helper.materialsGPU.size() - 1;
+    helper.meshGeometriesGPU.push_back(PlaneToMesh(p, 20000.f));
+    helper.meshInstancesGPU.push_back(createMeshInstance(helper.meshGeometriesGPU.size() - 1, p.materialIndex));
 }

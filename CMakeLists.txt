@@ -52,8 +52,8 @@ target_link_libraries(mon_projet PRIVATE
 
 target_compile_options(mon_projet PRIVATE
     #$<$<COMPILE_LANGUAGE:CUDA>:--maxrregcount=72>
-    $<$<COMPILE_LANGUAGE:CUDA>:-Xptxas=-v>
-    $<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>
+    #$<$<COMPILE_LANGUAGE:CUDA>:-Xptxas=-v>
+    #$<$<COMPILE_LANGUAGE:CUDA>:-lineinfo>
     #$<$<COMPILE_LANGUAGE:CUDA>:--use_fast_math>
 )
 

@@ -7,31 +7,47 @@
 
 struct Sphere
 {
-    float3 center1;
     float radius;
     int materialIndex;
 
     static Sphere createRandomSphere(int materialIndex)
     {
-        float3 center = make_float3(randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f);
         float radius = randomFloat() * 2.f + 0.1f;
-        return create(center, radius, materialIndex);
+        return create(radius, materialIndex);
     }
 
-    static Sphere create(float3 c, float r, int m) { return {c, r, m}; }
+    static Sphere create(float r, int m) { return {r, m}; }
 
-    OptixAabb computeAABB() const
+    inline OptixAabb computeWorldAABB(const float3 &translation) const
     {
-
         OptixAabb aabb;
-        aabb.minX = center1.x - radius;
-        aabb.minY = center1.y - radius;
-        aabb.minZ = center1.z - radius;
-        aabb.maxX = center1.x + radius;
-        aabb.maxY = center1.y + radius;
-        aabb.maxZ = center1.z + radius;
+        aabb.minX = translation.x - radius;
+        aabb.minY = translation.y - radius;
+        aabb.minZ = translation.z - radius;
+        aabb.maxX = translation.x + radius;
+        aabb.maxY = translation.y + radius;
+        aabb.maxZ = translation.z + radius;
         return aabb;
     }
 
-    __device__ float sdf(const float3 &point) const { return length(point - center1) - radius; }
+    HD_FORCEINLINE OptixAabb computeAABB() const
+    {
+        OptixAabb aabb;
+        aabb.minX = -radius;
+        aabb.minY = -radius;
+        aabb.minZ = -radius;
+        aabb.maxX = radius;
+        aabb.maxY = radius;
+        aabb.maxZ = radius;
+        return aabb;
+    }
+
+    D_FORCEINLINE float3 getNormal(const float3 &point) const
+    {
+        float l = length(point);
+        float4 normal = make_float4(l - radius, point / l);
+        return make_float3(normal.y, normal.z, normal.w);
+    }
+
+    __device__ float sdf(const float3 &point) const { return length(point) - radius; }
 };

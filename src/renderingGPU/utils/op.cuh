@@ -20,6 +20,8 @@ HD_INLINE float4 make_float4(const float3 &a, const float &b = 0.f) { return mak
 
 HD_INLINE float4 make_float4(const float b) { return make_float4(b, b, b, b); }
 
+HD_INLINE float4 make_float4(const float a, const float3 &b) { return make_float4(a, b.x, b.y, b.z); }
+
 // ============================================================
 // float3 operators
 // ============================================================

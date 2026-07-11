@@ -219,3 +219,5 @@ CudaScene spheresScene(float4 sunDir);
 CudaScene implicitSpheresScene(float4 sunDir);
 
 CudaScene singleObject(float4 sunDir, int rngmanip = 0);
+
+void addGround(CudaSceneHelper &helper);

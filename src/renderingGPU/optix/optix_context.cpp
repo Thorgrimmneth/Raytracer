@@ -2,7 +2,7 @@
 
 #define STRINGIFY2(x) #x
 #define STRINGIFY(x) STRINGIFY2(x)
-#pragma message("OPTIX_VERSION = " STRINGIFY(OPTIX_VERSION))
+
 static void contextLogCallback(unsigned int level, const char *tag, const char *message, void *)
 {
     std::cout << "[" << level << "] " << tag << " : " << message << std::endl;

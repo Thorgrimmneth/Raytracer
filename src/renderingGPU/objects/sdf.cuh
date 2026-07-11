@@ -47,16 +47,42 @@ struct SDF
         }
     }
 
-    inline OptixAabb getAABB() const
+    inline OptixAabb getWorldAABB() const
+    {
+        switch (type)
+        {
+        case SDFType::Sphere:
+            return sphere.computeWorldAABB(translation);
+        case SDFType::Tore:
+            return tore.computeWorldAABB(rotation, translation);
+        default:
+            return OptixAabb(); // Should not happen
+        }
+    }
+
+    HD_FORCEINLINE OptixAabb getAABB() const
     {
         switch (type)
         {
         case SDFType::Sphere:
             return sphere.computeAABB();
         case SDFType::Tore:
-            return tore.computeAABB(rotation, translation);
+            return tore.computeAABB(rotation);
         default:
             return OptixAabb(); // Should not happen
+        }
+    }
+
+    D_FORCEINLINE float3 getNormal(const float3 &point) const
+    {
+        switch (type)
+        {
+        case SDFType::Sphere:
+            return sphere.getNormal(point);
+        case SDFType::Tore:
+            return tore.getNormal(point, rotation);
+        default:
+            return make_float3(0.f); // Should not happen
         }
     }
 
@@ -95,4 +121,21 @@ inline SDFGeometry loadSDFGeometry(const std::vector<SDF> &sdfs)
                               cudaMemcpyHostToDevice));
     }
     return geometry;
+}
+
+HD_INLINE bool intersectAABB(const float3 &origin, const float3 &dir, const OptixAabb &box, float &tMin, float &tMax)
+{
+    float3 invDir = make_float3(1.f / dir.x, 1.f / dir.y, 1.f / dir.z);
+
+    float3 t0 = (make_float3(box.minX, box.minY, box.minZ) - origin) * invDir;
+    float3 t1 = (make_float3(box.maxX, box.maxY, box.maxZ) - origin) * invDir;
+
+    float3 tNear = make_float3(fminf(t0.x, t1.x), fminf(t0.y, t1.y), fminf(t0.z, t1.z));
+
+    float3 tFar = make_float3(fmaxf(t0.x, t1.x), fmaxf(t0.y, t1.y), fmaxf(t0.z, t1.z));
+
+    tMin = fmaxf(tMin, fmaxf(fmaxf(tNear.x, tNear.y), tNear.z));
+    tMax = fminf(tMax, fminf(fminf(tFar.x, tFar.y), tFar.z));
+
+    return tMin <= tMax;
 }
