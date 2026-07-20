@@ -213,8 +213,6 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
 
     setSeed(43);
 
-    // impl->gpuScene = spheresScene(sunDir);
-    // impl->gpuScene = implicitSpheresScene(sunDir);
     impl->gpuScene = singleObject(sunDir, rngManip);
     impl->hdrBufferSize = impl->width * impl->height * sizeof(float3);
 
@@ -510,7 +508,8 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
             break;
 
         cudaMemset(impl->nextQueue.activeCount, 0, sizeof(int));
-        if(impl->launchedShadeKernel) cudaMemset(impl->d_shadowCount, 0, sizeof(int));
+        if (impl->launchedShadeKernel)
+            cudaMemset(impl->d_shadowCount, 0, sizeof(int));
         // ---------------------------------------------------------------------
         // 2.1 Intersection uniquement des rayons actifs
         // ---------------------------------------------------------------------
@@ -522,9 +521,8 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         impl->gpuScene.radiancePass.params.hitMask = impl->hitBuffers.mask;
         impl->gpuScene.radiancePass.params.activeCount = h_activeCount;
 
-        cudaMemcpy(reinterpret_cast<void *>(impl->gpuScene.radiancePass.d_params),
-                   &impl->gpuScene.radiancePass.params, sizeof(LaunchRadianceParams),
-                   cudaMemcpyHostToDevice);
+        cudaMemcpy(reinterpret_cast<void *>(impl->gpuScene.radiancePass.d_params), &impl->gpuScene.radiancePass.params,
+                   sizeof(LaunchRadianceParams), cudaMemcpyHostToDevice);
         OPTIX_CHECK(optixLaunch(impl->gpuScene.radiancePass.pipeline,
                                 0, // stream
                                 impl->gpuScene.radiancePass.d_params, sizeof(LaunchRadianceParams),
@@ -581,8 +579,8 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         impl->gpuScene.shadowPass.params.transmittance = impl->shadowQueue.transmittance;
 
         impl->gpuScene.shadowPass.params.activeCount = h_shadowCount;
-        cudaMemcpy(reinterpret_cast<void *>(impl->gpuScene.shadowPass.d_params),
-                   &impl->gpuScene.shadowPass.params, sizeof(LaunchShadowParams), cudaMemcpyHostToDevice);
+        cudaMemcpy(reinterpret_cast<void *>(impl->gpuScene.shadowPass.d_params), &impl->gpuScene.shadowPass.params,
+                   sizeof(LaunchShadowParams), cudaMemcpyHostToDevice);
 
         OPTIX_CHECK(optixLaunch(impl->gpuScene.shadowPass.pipeline,
                                 0, // stream
@@ -592,20 +590,20 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
             impl->shadowQueue.contributions, impl->shadowQueue.transmittance, impl->shadowQueue.pixelIndices,
             impl->d_accumBuffer, h_shadowCount);
         impl->launchedShadeKernel = true;
-        // sorting rays
-        /*buildOctantKeys<<<gridForCount(h_activeCount), block1D>>>(impl->d_directions, h_activeCount,
-        impl->d_octantKeys, impl->d_values); thrust::sort_by_key(thrust::device, impl->d_octantKeys, impl->d_octantKeys
-        + h_activeCount, impl->d_values);
 
-        reorderPaths<<<gridForCount(h_activeCount), block1D>>>(
-            impl->d_values, impl->d_origins, impl->d_directions, impl->d_throughput, impl->d_hitPositions,
-            impl->d_hitNormals, impl->d_hitMaterialIndices, impl->d_pixelIndices, impl->d_lastBounceWasDelta,
-            impl->d_lastBsdfPdf, impl->d_isInside, impl->d_rng, impl->d_sortedOrigins, impl->d_sortedDirections,
-            impl->d_sortedThroughput, impl->d_sortedHitPositions, impl->d_sortedHitNormals,
-            impl->d_sortedHitMaterialIndices, impl->d_sortedPixelIndices, impl->d_sortedLastBounceWasDelta,
-            impl->d_sortedLastBsdfPdf, impl->d_sortedIsInside, impl->d_sortedRNG, h_activeCount);*/
+        if (0)
+        {
+            // sorting rays
+            buildOctantKeys<<<gridForCount(h_activeCount), block1D>>>(impl->currentQueue.directions, h_activeCount,
+                                                                      impl->d_octantKeys, impl->d_values);
+            thrust::sort_by_key(thrust::device, impl->d_octantKeys, impl->d_octantKeys + h_activeCount, impl->d_values);
+
+            reorderRays<<<gridForCount(h_activeCount), block1D>>>(impl->d_values, impl->currentQueue, impl->nextQueue,
+                                                                  h_activeCount);
+            std::swap(impl->currentQueue, impl->nextQueue);
+        }
     }
-    if(!impl->launchedShadeKernel)
+    if (!impl->launchedShadeKernel)
     {
         impl->gpuScene.shadowPass.params.origins = impl->shadowQueue.origins;
         impl->gpuScene.shadowPass.params.directions = impl->shadowQueue.directions;
@@ -613,8 +611,8 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         impl->gpuScene.shadowPass.params.transmittance = impl->shadowQueue.transmittance;
 
         impl->gpuScene.shadowPass.params.activeCount = h_shadowCount;
-        cudaMemcpy(reinterpret_cast<void *>(impl->gpuScene.shadowPass.d_params),
-                   &impl->gpuScene.shadowPass.params, sizeof(LaunchShadowParams), cudaMemcpyHostToDevice);
+        cudaMemcpy(reinterpret_cast<void *>(impl->gpuScene.shadowPass.d_params), &impl->gpuScene.shadowPass.params,
+                   sizeof(LaunchShadowParams), cudaMemcpyHostToDevice);
 
         OPTIX_CHECK(optixLaunch(impl->gpuScene.shadowPass.pipeline,
                                 0, // stream
@@ -644,7 +642,7 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
     // -------------------------------------------------------------------------
     // 7. Mapping OpenGL / CUDA
     // -------------------------------------------------------------------------
-    if(!outputImage)
+    if (!outputImage)
     {
         finalizeImageNoRender(convergence);
         return impl->value;
@@ -740,8 +738,8 @@ void Renderer::finalizeImageNoRender(bool convergence)
     // -------------------------------------------------------------------------
 
     finalizeImageV2NoRender<<<impl->gridSize, impl->blockSize>>>(impl->d_normalizedBuffer, impl->d_bloomBuffer,
-                                                                impl->d_hdrBloomBuffer, impl->width,
-                                                                impl->height, impl->exposure, impl->bloomStrength);
+                                                                 impl->d_hdrBloomBuffer, impl->width, impl->height,
+                                                                 impl->exposure, impl->bloomStrength);
 
     if (convergence)
     {
