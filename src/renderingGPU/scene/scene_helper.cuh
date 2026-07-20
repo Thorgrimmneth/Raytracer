@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../utils/op.cuh"
 #include "../objects/sphere.cuh"
 #include "../objects/plane.cuh"
 #include "../objects/triangle_mesh.cuh"

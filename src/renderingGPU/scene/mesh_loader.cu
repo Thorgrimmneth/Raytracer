@@ -63,16 +63,29 @@ HOST MeshGeometry loadMeshGeometry(const std::string &p_path)
         for (unsigned int f = 0; f < mesh->mNumFaces; ++f)
         {
             const aiFace &face = mesh->mFaces[f];
+
             uint3 tri;
             tri.x = vertexOffset + face.mIndices[0];
             tri.y = vertexOffset + face.mIndices[1];
             tri.z = vertexOffset + face.mIndices[2];
-            float area = 0.5f * abs((vertices[tri.y].x - vertices[tri.x].x) * (vertices[tri.z].y - vertices[tri.x].y) -
-                                    (vertices[tri.y].y - vertices[tri.x].y) * (vertices[tri.z].x - vertices[tri.x].x));
+
+            float3 e1 = vertices[tri.y] - vertices[tri.x];
+            float3 e2 = vertices[tri.z] - vertices[tri.x];
+
+            float area = 0.5f * length(cross(e1, e2));
+
+            if (area <= 1e-8f)
+                continue;
+
             totalArea += area;
-            areaCdf.push_back(area);
+
+            // cumulative CDF
+            areaCdf.push_back(totalArea);
+
             triangles.push_back(tri);
         }
+        for (float &v : areaCdf)
+            v /= totalArea;
 
         cptTriangles += mesh->mNumFaces;
         cptVertices += mesh->mNumVertices;
@@ -192,16 +205,29 @@ HOST MeshGeometry loadMeshGeometry(const std::string &p_path, const float3 scale
         for (unsigned int f = 0; f < mesh->mNumFaces; ++f)
         {
             const aiFace &face = mesh->mFaces[f];
+
             uint3 tri;
             tri.x = vertexOffset + face.mIndices[0];
             tri.y = vertexOffset + face.mIndices[1];
             tri.z = vertexOffset + face.mIndices[2];
-            float area = 0.5f * abs((vertices[tri.y].x - vertices[tri.x].x) * (vertices[tri.z].y - vertices[tri.x].y) -
-                                    (vertices[tri.y].y - vertices[tri.x].y) * (vertices[tri.z].x - vertices[tri.x].x));
+
+            float3 e1 = vertices[tri.y] - vertices[tri.x];
+            float3 e2 = vertices[tri.z] - vertices[tri.x];
+
+            float area = 0.5f * length(cross(e1, e2));
+
+            if (area <= 1e-8f)
+                continue;
+
             totalArea += area;
-            areaCdf.push_back(area);
+
+            // cumulative CDF
+            areaCdf.push_back(totalArea);
+
             triangles.push_back(tri);
         }
+        for (float &v : areaCdf)
+            v /= totalArea;
 
         cptTriangles += mesh->mNumFaces;
         cptVertices += mesh->mNumVertices;
@@ -259,40 +285,40 @@ HOST MeshGeometry loadMeshGeometry(const std::string &p_path, const float3 scale
 }
 
 // Helper: Create 3x4 transformation matrix from scale, rotation quaternion, and translation
-HOST void buildTransformMatrix(float* out_transform, float3 scale, Quaternion rotation, float3 translation)
+HOST void buildTransformMatrix(float *out_transform, float3 scale, Quaternion rotation, float3 translation)
 {
     // Convert quaternion to rotation matrix (3x3)
     float q_x = rotation.x;
     float q_y = rotation.y;
     float q_z = rotation.z;
     float q_w = rotation.w;
-    
+
     // Rotation matrix from quaternion
-    float r00 = 1.f - 2.f*(q_y*q_y + q_z*q_z);
-    float r01 = 2.f*(q_x*q_y - q_w*q_z);
-    float r02 = 2.f*(q_x*q_z + q_w*q_y);
-    
-    float r10 = 2.f*(q_x*q_y + q_w*q_z);
-    float r11 = 1.f - 2.f*(q_x*q_x + q_z*q_z);
-    float r12 = 2.f*(q_y*q_z - q_w*q_x);
-    
-    float r20 = 2.f*(q_x*q_z - q_w*q_y);
-    float r21 = 2.f*(q_y*q_z + q_w*q_x);
-    float r22 = 1.f - 2.f*(q_x*q_x + q_y*q_y);
-    
+    float r00 = 1.f - 2.f * (q_y * q_y + q_z * q_z);
+    float r01 = 2.f * (q_x * q_y - q_w * q_z);
+    float r02 = 2.f * (q_x * q_z + q_w * q_y);
+
+    float r10 = 2.f * (q_x * q_y + q_w * q_z);
+    float r11 = 1.f - 2.f * (q_x * q_x + q_z * q_z);
+    float r12 = 2.f * (q_y * q_z - q_w * q_x);
+
+    float r20 = 2.f * (q_x * q_z - q_w * q_y);
+    float r21 = 2.f * (q_y * q_z + q_w * q_x);
+    float r22 = 1.f - 2.f * (q_x * q_x + q_y * q_y);
+
     // Build 3x4 matrix: [R*S | T]
     // Row 0: [r00*sx, r01*sx, r02*sx, tx]
     out_transform[0] = r00 * scale.x;
     out_transform[1] = r01 * scale.x;
     out_transform[2] = r02 * scale.x;
     out_transform[3] = translation.x;
-    
+
     // Row 1: [r10*sy, r11*sy, r12*sy, ty]
     out_transform[4] = r10 * scale.y;
     out_transform[5] = r11 * scale.y;
     out_transform[6] = r12 * scale.y;
     out_transform[7] = translation.y;
-    
+
     // Row 2: [r20*sz, r21*sz, r22*sz, tz]
     out_transform[8] = r20 * scale.z;
     out_transform[9] = r21 * scale.z;
@@ -301,13 +327,14 @@ HOST void buildTransformMatrix(float* out_transform, float3 scale, Quaternion ro
 }
 
 // Create an instance from a loaded geometry
-HOST MeshInstance createMeshInstance(int geometryIndex, int materialIndex, float3 scale, 
-                                    Quaternion rotation, float3 translation)
+HOST MeshInstance createMeshInstance(CudaSceneHelper &sceneHelper, int geometryIndex, int materialIndex, float3 scale, Quaternion rotation,
+                                     float3 translation)
 {
     MeshInstance instance;
     instance.geometryIndex = geometryIndex;
     instance.materialIndex = materialIndex;
-    
+    instance.worldArea = sceneHelper.meshGeometriesGPU[geometryIndex].meshArea * scale.x * scale.x;
+
     buildTransformMatrix(instance.transform, scale, rotation, translation);
     return instance;
 }

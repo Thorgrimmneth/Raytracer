@@ -89,6 +89,9 @@ struct SortedRayQueue
     float3 *hitPositions = nullptr;
     float3 *hitNormals = nullptr;
     int *hitMaterialIndices = nullptr;
+    float *hitDistances = nullptr;
+    int *hitTypes = nullptr;
+    int *hitObjectIndices = nullptr;
 
     RNG *rng = nullptr;
     int *pixelIndices = nullptr;
@@ -139,6 +142,18 @@ struct SortedRayQueue
             CUDA_CHECK(cudaFree(pixelIndices));
             pixelIndices = nullptr;
         }
+        if(hitDistances){
+            CUDA_CHECK(cudaFree(hitDistances));
+            hitDistances = nullptr;
+        }
+        if(hitTypes){
+            CUDA_CHECK(cudaFree(hitTypes));
+            hitTypes = nullptr;
+        }
+        if(hitObjectIndices){
+            CUDA_CHECK(cudaFree(hitObjectIndices));
+            hitObjectIndices = nullptr;
+        }
     }
 
     void init(int maxSize)
@@ -154,6 +169,9 @@ struct SortedRayQueue
         cudaMalloc(&hitPositions, maxSize * sizeof(float3));
         cudaMalloc(&hitNormals, maxSize * sizeof(float3));
         cudaMalloc(&hitMaterialIndices, maxSize * sizeof(int));
+        cudaMalloc(&hitDistances, maxSize * sizeof(float));
+        cudaMalloc(&hitTypes, maxSize * sizeof(int));
+        cudaMalloc(&hitObjectIndices, maxSize * sizeof(int));
 
         cudaMalloc(&rng, maxSize * sizeof(RNG));
         cudaMalloc(&pixelIndices, maxSize * sizeof(int));
@@ -165,6 +183,9 @@ struct HitBuffers
     float3 *positions = nullptr;
     float3 *normals = nullptr;
     int *materialIndices = nullptr;
+    float *distances = nullptr;
+    int *types = nullptr;
+    int *objectIndices = nullptr;
     int *mask = nullptr;
 
     void destroy()
@@ -189,6 +210,21 @@ struct HitBuffers
             CUDA_CHECK(cudaFree(mask));
             mask = nullptr;
         }
+        if(distances)
+        {
+            CUDA_CHECK(cudaFree(distances));
+            distances = nullptr;
+        }
+        if(objectIndices)
+        {
+            CUDA_CHECK(cudaFree(objectIndices));
+            objectIndices = nullptr;
+        }
+        if(types)
+        {
+            CUDA_CHECK(cudaFree(types));
+            types = nullptr;
+        }
     }
 
     void init(int maxSize)
@@ -197,5 +233,8 @@ struct HitBuffers
         cudaMalloc(&normals, maxSize * sizeof(float3));
         cudaMalloc(&materialIndices, maxSize * sizeof(int));
         cudaMalloc(&mask, maxSize * sizeof(int));
+        cudaMalloc(&distances, maxSize * sizeof(float));
+        cudaMalloc(&objectIndices, maxSize * sizeof(int));
+        cudaMalloc(&types, maxSize * sizeof(int));
     }
 };

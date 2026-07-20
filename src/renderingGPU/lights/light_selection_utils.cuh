@@ -38,7 +38,7 @@ int selectLightByImportance(const int &nbLights, const float *lightCumulativeWei
 
 // Helper function: Compute probability of selecting a specific light
 D_FORCEINLINE
-float getLightProbability(const int &nbLights, float *lightProbabilities, int &lightIndex)
+float getLightProbability(const int &nbLights, float *lightProbabilities, int lightIndex)
 {
     // Use pre-computed light probabilities
     if (lightIndex < 0 || lightIndex >= nbLights)

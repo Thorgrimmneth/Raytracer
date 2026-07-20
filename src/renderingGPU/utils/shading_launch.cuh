@@ -57,8 +57,8 @@ void launchShadeKernel<MaterialType::PLASTIC>(SortedRayQueue &in, RayQueue &out,
     shadePlasticNEEKernel<<<gridForCount(activeCount), block1D>>>(
         scene, in.directions + offset, in.throughputs + offset, in.rng + offset, in.hitPositions + offset,
         in.hitNormals + offset, in.hitMaterialIndices + offset, in.pixelIndices + offset, accumBuffer, scene.nbLights,
-        scene.lightCumulativeWeights, activeCount, shadowQueue.origins, shadowQueue.directions, shadowQueue.contributions,
-        shadowQueue.pixelIndices, shadowQueue.maxDistances, d_shadowCount);
+        scene.lightCumulativeWeights, activeCount, shadowQueue.origins, shadowQueue.directions,
+        shadowQueue.contributions, shadowQueue.pixelIndices, shadowQueue.maxDistances, d_shadowCount);
 
     shadePlasticKernel<<<gridForCount(activeCount), block1D>>>(
         scene.materials, in.directions + offset, in.throughputs + offset, in.rng + offset, in.hitPositions + offset,
@@ -98,7 +98,8 @@ void launchShadeKernel<MaterialType::EMISSIVE>(SortedRayQueue &in, RayQueue &out
 {
     shadeEmissiveKernel<<<gridForCount(activeCount), block1D>>>(
         scene, in.origins + offset, in.directions + offset, in.throughputs + offset, in.lastBounceWasDelta + offset,
-        in.lastBsdfPdf + offset, in.hitMaterialIndices + offset, in.pixelIndices + offset, accumBuffer, activeCount);
+        in.lastBsdfPdf + offset, in.hitMaterialIndices + offset, in.pixelIndices + offset, accumBuffer, in.hitDistances + offset,
+        in.hitTypes + offset, in.hitNormals + offset, in.hitObjectIndices + offset, activeCount);
 }
 
 void launchShadeKernel(MaterialType type, SortedRayQueue &in, RayQueue &out, CudaScene scene, float3 *accumBuffer,

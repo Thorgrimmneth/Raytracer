@@ -45,5 +45,8 @@ extern "C" __global__ void __raygen__radiance()
         params.hitPositions[qid] = payload.position;
         params.hitNormals[qid] = payload.normal;
         params.hitMaterialIndices[qid] = payload.materialIndex;
+        params.hitT[qid] = payload.t;
+        params.hitTypes[qid] = payload.object_type;
+        params.hitObjectIndices[qid] = payload.objectIndex;
     }
 }

@@ -231,13 +231,14 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
         int materialIndex = int(randomFloat() * helper.materialsGPU.size());
 
         // Create an instance (no GPU allocation here, just structure setup)
-        MeshInstance instance = createMeshInstance(int(randomFloat() * helper.meshGeometriesGPU.size()), materialIndex,
-                                                   scale, rotation, translation);
+        MeshInstance instance = createMeshInstance(helper, int(randomFloat() * helper.meshGeometriesGPU.size()),
+                                                   materialIndex, scale, rotation, translation);
         if (helper.materialsGPU[materialIndex].type() == EMISSIVE)
         {
             Light light;
             light.metadata = Light::packMetadata(LightType::MESH_GEOM, (int)helper.meshInstancesGPU.size());
             helper.lightsGPU.push_back(light);
+            instance.lightIndex = (int)helper.lightsGPU.size() - 1;
         }
         helper.meshInstancesGPU.push_back(instance);
     }
@@ -256,6 +257,7 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
             Light light;
             light.metadata = Light::packMetadata(LightType::SDF_GEOM, (int)helper.sdfsGPU.size());
             helper.lightsGPU.push_back(light);
+            sdf.lightIndex = (int)helper.lightsGPU.size() - 1;
         }
         helper.sdfsGPU.push_back(sdf);
     }
@@ -275,10 +277,24 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
             Light light;
             light.metadata = Light::packMetadata(LightType::SDF_GEOM, (int)helper.sdfsGPU.size());
             helper.lightsGPU.push_back(light);
+            sdf.lightIndex = (int)helper.lightsGPU.size() - 1;
         }
         helper.sdfsGPU.push_back(sdf);
     }
-
+    /*for (size_t i = 0; i < helper.meshInstancesGPU.size(); ++i)
+    {
+        if (helper.meshInstancesGPU[i].lightIndex != -1)
+        {
+            printf("instance %zu -> light %d\n", i, helper.meshInstancesGPU[i].lightIndex);
+        }
+    }
+    for(size_t i = 0; i < helper.sdfsGPU.size(); ++i)
+    {
+        if (helper.sdfsGPU[i].lightIndex != -1)
+        {
+            printf("sdf %zu -> light %d\n", i, helper.sdfsGPU[i].lightIndex);
+        }
+    }*/
     sortLights(helper);
     gpuScene.uploadLights(helper);
     gpuScene.uploadMaterials(helper);
@@ -451,7 +467,7 @@ void addGround(CudaSceneHelper &helper)
     helper.materialsGPU.push_back(ground);
     p.materialIndex = helper.materialsGPU.size() - 1;
     helper.meshGeometriesGPU.push_back(PlaneToMesh(p, 20000.f));
-    helper.meshInstancesGPU.push_back(createMeshInstance(helper.meshGeometriesGPU.size() - 1, p.materialIndex));
+    helper.meshInstancesGPU.push_back(createMeshInstance(helper, helper.meshGeometriesGPU.size() - 1, p.materialIndex));
 }
 
 void sortLights(CudaSceneHelper &helper)

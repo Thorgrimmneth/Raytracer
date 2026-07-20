@@ -25,7 +25,7 @@ void classifyPairs(Material *materials, int activeCount, int *keys, int *values,
 
 GLOBAL
 void reorderPaths(const int *permutation, RayQueue current, SortedRayQueue sorted, const float3 *hitPositions,
-                  const float3 *hitNormals, const int *hitMaterialIndices, int count)
+                  const float3 *hitNormals, const int *hitMaterialIndices, const float *distances, const int *objectIndices, const int *types, int count)
 {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -41,6 +41,9 @@ void reorderPaths(const int *permutation, RayQueue current, SortedRayQueue sorte
     sorted.hitPositions[tid] = hitPositions[src];
     sorted.hitNormals[tid] = hitNormals[src];
     sorted.hitMaterialIndices[tid] = hitMaterialIndices[src];
+    sorted.hitObjectIndices[tid] = objectIndices[src];
+    sorted.hitDistances[tid] = distances[src];
+    sorted.hitTypes[tid] = types[src];
 
     sorted.pixelIndices[tid] = current.pixelIndices[src];
 

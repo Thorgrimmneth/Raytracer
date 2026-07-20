@@ -23,4 +23,6 @@ struct MeshInstance
     int geometryIndex = 0;     // Index into the geometries array
     int materialIndex = 0;      // Material for this instance
     float transform[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};  // 3x4 transformation matrix (computed from rotation/scale/translation)
+    float worldArea = 1.f;
+    int lightIndex = -1; // Index into the lights array, if this instance is emissive
 };

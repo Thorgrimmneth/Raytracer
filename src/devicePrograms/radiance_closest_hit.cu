@@ -40,8 +40,6 @@ extern "C" __global__ void __closesthit__radiance()
 
     payload->normal = N;
 
-    payload->objectIndex = primID;
-
     // Get material index from mesh instance data
     uint instanceIndex = optixGetInstanceId();
 
@@ -53,6 +51,6 @@ extern "C" __global__ void __closesthit__radiance()
     {
         payload->materialIndex = 0; // Fallback to SBT data
     }
-
+    payload->objectIndex = instanceIndex;
     payload->object_type = HIT_TRIANGLE_MESH;
 }

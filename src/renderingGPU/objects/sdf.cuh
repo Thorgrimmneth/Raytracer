@@ -16,6 +16,7 @@ struct SDF
     SDFType type;
     float3 translation = make_float3(0.f);
     Matrix3x3 rotation = Matrix3x3::identity();
+    int lightIndex = -1; // Index into the lights array, if this instance is emissive
     union {
         Sphere sphere;
         Tore tore;

@@ -399,3 +399,21 @@ HD_INLINE float3 transform(const Matrix3x3 &rotation, const float3 &v)
 }
 
 HD_INLINE float3 operator*(const Matrix3x3 &m, const float3 &v) { return transform(m, v); }
+
+D_FORCEINLINE float3 transformPoint(const float transform[12], const float3& p)
+{
+    return make_float3(
+        transform[0] * p.x + transform[1] * p.y + transform[2] * p.z + transform[3],
+        transform[4] * p.x + transform[5] * p.y + transform[6] * p.z + transform[7],
+        transform[8] * p.x + transform[9] * p.y + transform[10] * p.z + transform[11]
+    );
+}
+
+D_FORCEINLINE float3 transformVector(const float transform[12], const float3& v)
+{
+    return make_float3(
+        transform[0] * v.x + transform[1] * v.y + transform[2] * v.z,
+        transform[4] * v.x + transform[5] * v.y + transform[6] * v.z,
+        transform[8] * v.x + transform[9] * v.y + transform[10] * v.z
+    );
+}

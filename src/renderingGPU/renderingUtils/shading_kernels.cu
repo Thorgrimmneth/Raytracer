@@ -176,7 +176,7 @@ __global__ void shadeLambertKernel(CudaScene scene, float3 *directions, float3 *
     float3 pos = hitPositions[qid];
     float3 normal = hitNormals[qid];
     int materialIndex = hitMaterialIndices[qid];
-    float3 direction = directions[qid];  // Load early for NEE
+    float3 direction = directions[qid]; // Load early for NEE
 
     Material &mtl = scene.materials[materialIndex];
     RNG &rng = p_rng[qid];
@@ -191,11 +191,11 @@ __global__ void shadeLambertKernel(CudaScene scene, float3 *directions, float3 *
     float x = r * cosf_phi;
     float y = r * sinf_phi;
     float z = sqrtf(fmaxf(0.f, 1.f - x * x - y * y));
-    
+
     float3 T, B;
     getTangentFrame(normal, T, B);
     float3 bsdfDir = x * T + y * B + z * normal;
-    
+
     float cosTheta_bsdf = fmaxf(dot(normal, bsdfDir), 0.f);
     float bsdf_pdf = cosTheta_bsdf * GPUInvPIf;
     bool alive = (bsdf_pdf > 1e-4f);
@@ -205,40 +205,40 @@ __global__ void shadeLambertKernel(CudaScene scene, float3 *directions, float3 *
     float3 contribution = make_float3(0.f);
     float3 shadowDir = make_float3(0.f);
     float maxDist = 0.f;
-    
+
     if (alive && scene.nbLights > 0)
     {
         int lightIndex = selectLightByImportance(scene.nbLights, scene.lightCumulativeWeights, rng);
         Light &light = scene.lights[lightIndex];
         LightSample ls = light.sample(pos, rng, scene);
-        
+
         float cosTheta_nee = fmaxf(dot(normal, ls.direction), 0.0f);
         float lightPdf = ls.pdf * getLightProbability(scene.nbLights, scene.lightProbabilities, lightIndex);
-        
+
         // Combine all NEE conditions
         if (lightPdf > 0.f && cosTheta_nee > 0.f && ls.pdf > 0.f)
         {
             float3 f = mtl.evalLambertBSDF();
             float pdf_bsdf = mtl.lambertPDF(direction, normal, ls.direction);
             float w = powerHeuristic(lightPdf, pdf_bsdf);
-            
+
             contribution = throughput * f * ls.radiance * cosTheta_nee * w * (1.f / lightPdf);
             shadowDir = ls.direction;
             maxDist = ls.distance;
             neeAlive = true;
         }
     }
-    
+
     // BSDF continuation path
     if (alive)
     {
         float brdfScale = cosTheta_bsdf / bsdf_pdf;
-        
+
         if (depth > 2)
         {
             float p = fmaxf(throughput.x, fmaxf(throughput.y, throughput.z));
             p = clamp(p, 0.1f, 1.f);
-            
+
             if (rng.nextFloat() > p)
             {
                 alive = false;
@@ -248,7 +248,7 @@ __global__ void shadeLambertKernel(CudaScene scene, float3 *directions, float3 *
                 brdfScale /= p;
             }
         }
-        
+
         throughput *= mtl.color() * (brdfScale * GPUInvPIf);
     }
     // Queue compaction for active rays
@@ -290,7 +290,7 @@ __global__ void shadeLambertKernel(CudaScene scene, float3 *directions, float3 *
     warpBase = __shfl_sync(0xffffffff, warpBase, 0);
     if (!neeAlive)
         return;
-    
+
     float3 shadowOrigin = pos + normal * 1e-3f;
     shadowOrigins[warpBase + localRank] = shadowOrigin;
     shadowDirections[warpBase + localRank] = shadowDir;
@@ -339,30 +339,29 @@ __global__ void shadeMetalKernel(CudaScene scene, float3 *directions, float3 *th
     float3 contribution = make_float3(0.f);
     float3 shadowDir = make_float3(0.f);
     float maxDist = 0.f;
-    
+
     if (alive && scene.nbLights > 0)
     {
         int lightIndex = selectLightByImportance(scene.nbLights, scene.lightCumulativeWeights, rng);
         Light &light = scene.lights[lightIndex];
         LightSample ls = light.sample(pos, rng, scene);
-        
+
         float cosTheta_nee = fmaxf(dot(normal, ls.direction), 0.0f);
         float lightPdf = ls.pdf * getLightProbability(scene.nbLights, scene.lightProbabilities, lightIndex);
-        
+
         // Combine all NEE conditions
         if (lightPdf > 0.f && cosTheta_nee > 0.f && ls.pdf > 0.f)
         {
             float3 f = mtl.evalMetalBSDF(direction, normal, ls.direction);
             float pdf_bsdf = mtl.metalPDF(direction, normal, ls.direction);
             float w = powerHeuristic(lightPdf, pdf_bsdf);
-            
+
             contribution = throughput * f * ls.radiance * cosTheta_nee * w * (1.f / lightPdf);
             shadowDir = ls.direction;
             maxDist = ls.distance;
             neeAlive = true;
         }
     }
-    
 
     // ------------------------------------------------------------
     // UPDATE THROUGHPUT
@@ -921,7 +920,8 @@ __global__ void shadeTransparentKernel(CudaScene scene, float3 *directions, floa
 
 __global__ void shadeEmissiveKernel(CudaScene scene, float3 *origins, float3 *directions, float3 *throughputs,
                                     bool *lastBounceWasDelta, float *lastBsdfPdf, int *hitMaterialIndices,
-                                    int *pixelIndices, float3 *accumBuffer, int activeCount)
+                                    int *pixelIndices, float3 *accumBuffer, float *distances, int *types,
+                                    float3 *hitNormals, int *hitObjectIndex, int activeCount)
 {
     int qid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -949,12 +949,43 @@ __global__ void shadeEmissiveKernel(CudaScene scene, float3 *origins, float3 *di
     }
     else
     {
-        float lightPdf = scene.lightPdf(origins[qid], directions[qid]);
+        float3 hitPoint = origins[qid] + distances[qid] * directions[qid];
+        float lightPdf = 0.f;
+
+        float dist2 = distances[qid] * distances[qid];
+
+        float cosTheta = max(dot(hitNormals[qid], -directions[qid]), 0.f);
+        if (cosTheta <= 0.f)
+        {
+            return;
+        }
+        if (types[qid] == 0) // mesh
+        {
+
+            const MeshInstance &inst = scene.meshInstances[hitObjectIndex[qid]];
+
+            float areaPdf = 1.f / inst.worldArea;
+
+            lightPdf = getLightProbability(scene.nbLights, scene.lightProbabilities, inst.lightIndex) * areaPdf *
+                       dist2 / cosTheta;
+        }
+        else if (types[qid] == 1) // sdf
+        {
+            const SDF &sdf = scene.sdfGeometries.sdfs[hitObjectIndex[qid]];
+
+            float areaPdf = 1.f / sdf.getArea();
+            
+            lightPdf = getLightProbability(scene.nbLights, scene.lightProbabilities, sdf.lightIndex) * areaPdf * dist2 /
+                       cosTheta;
+        }
 
         float w = powerHeuristic(lastBsdfPdf[qid], lightPdf);
 
         accumBuffer[pixelIndices[qid]] += throughput * emission * w;
     }
+    /*float w = powerHeuristic(lastBsdfPdf[qid], 1.f); // Assuming lightPdf is 1 for simplicity
+    accumBuffer[pixelIndices[qid]] += throughput * emission * w;
+}*/
 
     return;
 }

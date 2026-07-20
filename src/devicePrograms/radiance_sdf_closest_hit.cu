@@ -46,4 +46,6 @@ extern "C" __global__ void __closesthit__radiance__sdf()
     payload->materialIndex = sdf.getMaterialIndex();
 
     payload->object_type = HIT_SDF;
+
+    payload->objectIndex = 28;
 }

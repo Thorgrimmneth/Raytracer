@@ -149,55 +149,11 @@ struct CudaScene
 
     HOST void uploadMaterials(CudaSceneHelper &helper);
 
-    D_FORCEINLINE bool intersect(const float3 &origin, const float3 &direction, const float p_tMin, const float p_tMax,
-                                 OptixHit &p_hitRecord) const
-    {
-        return false;
-        // float tMax = p_tMax;
-        // bool hit = false;
-    }
-
-    D_FORCEINLINE bool intersectAny(const float3 &origin, const float3 &direction, const float p_tMin,
-                                    const float p_tMax) const
-    {
-        return false;
-    }
-
 
     D_FORCEINLINE float lightPdf(const float3 &origin, const float3 &dir) const
     {
-        OptixHit hit;
 
-        if (!intersect(origin, dir, 1e-4f, 1e30f, hit))
-            return 0.0f;
-
-        const MaterialType matType = materials[hit.materialIndex].type();
-
-        if (matType != MaterialType::EMISSIVE)
-            return 0.0f;
-
-        const float dist2 = hit.t * hit.t;
-        float pdf = 0.0f;
-
-
-        if (hit.object_type == HIT_TRIANGLE_MESH)
-        {
-            const MeshInstance &inst = meshInstances[hit.objectIndex];
-            const MeshGeometry &geom = meshGeometries[inst.geometryIndex];
-
-            const float cosTheta = fmaxf(dot(hit.normal, -dir), 0.0f);
-
-            if (cosTheta <= 0.0f)
-                return 0.0f;
-
-            pdf = dist2 / (geom.meshArea * cosTheta);
-        }
-        else
-        {
-            return 0.0f;
-        }
-
-        return pdf * (1.0f / nbLights);
+        return 0.f;
     };
 };
 

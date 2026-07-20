@@ -519,6 +519,9 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
         impl->gpuScene.radiancePass.params.hitNormals = impl->hitBuffers.normals;
         impl->gpuScene.radiancePass.params.hitMaterialIndices = impl->hitBuffers.materialIndices;
         impl->gpuScene.radiancePass.params.hitMask = impl->hitBuffers.mask;
+        impl->gpuScene.radiancePass.params.hitT = impl->hitBuffers.distances;
+        impl->gpuScene.radiancePass.params.hitTypes = impl->hitBuffers.types;
+        impl->gpuScene.radiancePass.params.hitObjectIndices = impl->hitBuffers.objectIndices;
         impl->gpuScene.radiancePass.params.activeCount = h_activeCount;
 
         cudaMemcpy(reinterpret_cast<void *>(impl->gpuScene.radiancePass.d_params), &impl->gpuScene.radiancePass.params,
@@ -539,9 +542,9 @@ float Renderer::renderFrameWavefront(bool outputImage, bool convergence)
 
         cudaMemcpy(&ranges, impl->d_ranges, sizeof(MaterialRanges), cudaMemcpyDeviceToHost);
 
-        reorderPaths<<<gridForCount(h_activeCount), block1D>>>(impl->d_values, impl->currentQueue, impl->sortedQueue,
-                                                               impl->hitBuffers.positions, impl->hitBuffers.normals,
-                                                               impl->hitBuffers.materialIndices, h_activeCount);
+        reorderPaths<<<gridForCount(h_activeCount), block1D>>>(
+            impl->d_values, impl->currentQueue, impl->sortedQueue, impl->hitBuffers.positions, impl->hitBuffers.normals,
+            impl->hitBuffers.materialIndices, impl->hitBuffers.distances, impl->hitBuffers.objectIndices, impl->hitBuffers.types, h_activeCount);
         for (int i = 0; i < MATERIAL_TYPE_COUNT; i++)
         {
             int offset = ranges.offset[i];

@@ -13,6 +13,7 @@ struct Payload
 
     int objectIndex;
     int materialIndex;
+    float hitDistance;
 
     Hitobject_type object_type;
 };

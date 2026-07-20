@@ -30,6 +30,9 @@ struct LaunchRadianceParams
     float3* hitPositions = nullptr;
     float3* hitNormals = nullptr;
     int* hitMaterialIndices = nullptr;
+    float* hitT = nullptr;
+    int* hitTypes = nullptr;
+    int* hitObjectIndices = nullptr;
     
     int* hitMask = nullptr;
 

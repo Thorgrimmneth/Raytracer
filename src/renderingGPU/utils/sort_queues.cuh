@@ -14,7 +14,7 @@ void classifyPairs(Material *materials, int activeCount, int *keys, int *values,
 
 GLOBAL
 void reorderPaths(const int *permutation, RayQueue current, SortedRayQueue sorted, const float3 *hitPositions,
-                  const float3 *hitNormals, const int *hitMaterialIndices, int count);
+                  const float3 *hitNormals, const int *hitMaterialIndices, const float *hitDistances, const int *objectIndices, const int *hitTypes, int count);
 
 GLOBAL
 void reorderRays(const int *permutation, RayQueue current, RayQueue sorted, int count);

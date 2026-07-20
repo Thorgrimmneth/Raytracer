@@ -1,8 +1,7 @@
 #include "../scene/scene.cuh"
 #include "light.cuh"
 
-DEVICE 
-LightSample Light::sampleCylinder(const float3 &p_point, RNG&rng) const
+DEVICE LightSample Light::sampleCylinder(const float3 &p_point, RNG &rng) const
 {
     float u = rng.nextFloat();
     float v = rng.nextFloat();
@@ -22,7 +21,7 @@ LightSample Light::sampleCylinder(const float3 &p_point, RNG&rng) const
         uVec = uVec * (1.f / uLen);
     }
 
-    float3 vVec = cross(dir, uVec);  // Already normalized since dir and uVec are orthonormal
+    float3 vVec = cross(dir, uVec); // Already normalized since dir and uVec are orthonormal
 
     float z = u * getHeight();
     float cosPhi = cosf(v * 2.f * GPUPIf);
@@ -34,11 +33,11 @@ LightSample Light::sampleCylinder(const float3 &p_point, RNG&rng) const
     float3 pos = getPosition();
     float3 randomPos = pos + z * dir + pointOnCircle;
 
-    float3 normal = normalize(pointOnCircle);  // Normalize directly from pointOnCircle (no subtraction needed)
+    float3 normal = normalize(pointOnCircle); // Normalize directly from pointOnCircle (no subtraction needed)
 
     float3 diff = randomPos - p_point;
     float dist2 = length2(diff);
-    float3 lightDir = diff * (1.f / sqrtf(dist2));  // Compute sqrt once for both norm and distance
+    float3 lightDir = diff * (1.f / sqrtf(dist2)); // Compute sqrt once for both norm and distance
 
     float cosTheta = dot(normal, -lightDir);
 
@@ -62,8 +61,7 @@ LightSample Light::sampleCylinder(const float3 &p_point, RNG&rng) const
     return sample;
 }
 
-DEVICE 
-LightSample Light::sampleDirectionnal(const float3 &p_point) const
+DEVICE LightSample Light::sampleDirectionnal(const float3 &p_point) const
 {
     LightSample rep{};
 
@@ -76,13 +74,12 @@ LightSample Light::sampleDirectionnal(const float3 &p_point) const
     return rep;
 }
 
-DEVICE 
-LightSample Light::samplePoint(const float3 &p_point) const
+DEVICE LightSample Light::samplePoint(const float3 &p_point) const
 {
     float3 diff = getPosition() - p_point;
     float dist2 = length2(diff);
     float dist = sqrtf(dist2);
-    float3 radiance = getColorPower() * (1.f / dist2);  // Use dist2 directly instead of dist*dist
+    float3 radiance = getColorPower() * (1.f / dist2); // Use dist2 directly instead of dist*dist
 
     LightSample rep{};
 
@@ -90,18 +87,17 @@ LightSample Light::samplePoint(const float3 &p_point) const
     rep.pdf = 1.f;
     rep.power = getIntensity();
     rep.distance = dist;
-    rep.direction = diff * (1.f / dist);  // Normalize using pre-computed sqrt
+    rep.direction = diff * (1.f / dist); // Normalize using pre-computed sqrt
 
     return rep;
 }
 
-DEVICE 
-LightSample Light::sampleQuad(const float3 &p_point, RNG&rng) const
+DEVICE LightSample Light::sampleQuad(const float3 &p_point, RNG &rng) const
 {
     // Sample on quad plane
     float u_rand = rng.nextFloat();
     float v_rand = rng.nextFloat();
-    
+
     float3 dir = getDirection();
     float3 v_vec = getV();
     float3 randomPos = getPosition() + u_rand * dir + v_rand * v_vec;
@@ -109,7 +105,7 @@ LightSample Light::sampleQuad(const float3 &p_point, RNG&rng) const
     // Compute distance and direction to light
     float3 diff = randomPos - p_point;
     float dist2 = length2(diff);
-    float dist = rsqrtf(dist2);  // Use rsqrtf for reciprocal sqrt
+    float dist = rsqrtf(dist2); // Use rsqrtf for reciprocal sqrt
     float3 lightDir = diff * dist;
 
     // Compute area via cross product magnitude
@@ -126,19 +122,18 @@ LightSample Light::sampleQuad(const float3 &p_point, RNG&rng) const
         return s;
     }
 
-    // PDF: dist2 / (area * cosTheta) 
+    // PDF: dist2 / (area * cosTheta)
     LightSample rep{};
     rep.radiance = getColorPower();
     rep.pdf = dist2 / (area * cosTheta);
     rep.power = getIntensity();
-    rep.distance = 1.f / dist;  // Compute actual distance from rsqrtf result
+    rep.distance = 1.f / dist; // Compute actual distance from rsqrtf result
     rep.direction = lightDir;
 
     return rep;
 }
 
-DEVICE 
-LightSample Light::sampleCone(const float3 &p_point, RNG&rng) const
+DEVICE LightSample Light::sampleCone(const float3 &p_point, RNG &rng) const
 {
     float sunAngularRadius = 3.f * GPUPIf / 180.f;
     float cosMax = cosf(sunAngularRadius);
@@ -165,11 +160,9 @@ LightSample Light::sampleCone(const float3 &p_point, RNG&rng) const
 
     float3 v = cross(w, u);
 
-    float3 sampledDir = make_float3(
-        u.x * (cosPhi * sinTheta) + v.x * (sinPhi * sinTheta) + w.x * cosTheta,
-        u.y * (cosPhi * sinTheta) + v.y * (sinPhi * sinTheta) + w.y * cosTheta,
-        u.z * (cosPhi * sinTheta) + v.z * (sinPhi * sinTheta) + w.z * cosTheta
-    );
+    float3 sampledDir = make_float3(u.x * (cosPhi * sinTheta) + v.x * (sinPhi * sinTheta) + w.x * cosTheta,
+                                    u.y * (cosPhi * sinTheta) + v.y * (sinPhi * sinTheta) + w.y * cosTheta,
+                                    u.z * (cosPhi * sinTheta) + v.z * (sinPhi * sinTheta) + w.z * cosTheta);
 
     LightSample rep{};
     rep.direction = sampledDir;
@@ -181,11 +174,9 @@ LightSample Light::sampleCone(const float3 &p_point, RNG&rng) const
     return rep;
 }
 
-
-DEVICE 
-LightSample Light::sampleSDFGeom(const float3 &p_point, RNG&rng, const CudaScene &scene) const
+DEVICE LightSample Light::sampleSDFGeom(const float3 &p_point, RNG &rng, const CudaScene &scene) const
 {
-    const SDF &sdf = scene.sdfGeometries.sdfs[getMeshInstanceIndex()];
+    const SDF &sdf = scene.sdfGeometries.sdfs[getSDFIndex()];
     const Material &m = scene.materials[sdf.getMaterialIndex()];
 
     LightSample ls{};
@@ -196,7 +187,7 @@ LightSample Light::sampleSDFGeom(const float3 &p_point, RNG&rng, const CudaScene
     float3 diff = randomPos - p_point;
     float dist2 = length2(diff);
     float dist = sqrtf(dist2);
-    float3 wi = diff * (1.f / dist);  // Normalize using pre-computed sqrt
+    float3 wi = diff * (1.f / dist); // Normalize using pre-computed sqrt
 
     float cosThetaLight = max(dot(normal, -wi), 0.f);
 
@@ -214,8 +205,7 @@ LightSample Light::sampleSDFGeom(const float3 &p_point, RNG&rng, const CudaScene
     return ls;
 }
 
-DEVICE 
-LightSample Light::sampleMeshGeom(const float3 &p_point, RNG&rng, const CudaScene &scene) const
+DEVICE LightSample Light::sampleMeshGeom(const float3 &p_point, RNG &rng, const CudaScene &scene) const
 {
     const MeshInstance &inst = scene.meshInstances[getMeshInstanceIndex()];
     const MeshGeometry &geom = scene.meshGeometries[inst.geometryIndex];
@@ -224,32 +214,33 @@ LightSample Light::sampleMeshGeom(const float3 &p_point, RNG&rng, const CudaScen
     LightSample ls{};
 
     if (geom.triangleCount == 0 || geom.meshArea <= 0.f)
-    {
         return ls;
-    }
 
+    // Sample a triangle proportional to its area
     float sampleArea = rng.nextFloat() * geom.meshArea;
 
-    // Binary search CDF instead of linear
-    int triIndex = 0;
-    int lo = 0, hi = geom.triangleCount - 1;
-    while (lo < hi) {
-        int mid = (lo + hi) / 2;
-        if (geom.triangleAreaCdf[mid] < sampleArea) {
+    int lo = 0;
+    int hi = geom.triangleCount - 1;
+
+    while (lo < hi)
+    {
+        int mid = (lo + hi) >> 1;
+
+        if (geom.triangleAreaCdf[mid] < sampleArea)
             lo = mid + 1;
-        } else {
+        else
             hi = mid;
-        }
     }
-    triIndex = lo;
+
+    const int triIndex = lo;
 
     const uint3 &tri = geom.triangles[triIndex];
-    const float3 *vertices = geom.vertices;
 
-    float3 v0 = vertices[tri.x];
-    float3 v1 = vertices[tri.y];
-    float3 v2 = vertices[tri.z];
+    const float3 v0 = geom.vertices[tri.x];
+    const float3 v1 = geom.vertices[tri.y];
+    const float3 v2 = geom.vertices[tri.z];
 
+    // Uniform barycentric sampling
     float u = rng.nextFloat();
     float v = rng.nextFloat();
 
@@ -259,25 +250,34 @@ LightSample Light::sampleMeshGeom(const float3 &p_point, RNG&rng, const CudaScen
         v = 1.f - v;
     }
 
-    float3 p = v0 + u * (v1 - v0) + v * (v2 - v0);
+    // Object-space sample
+    float3 pObj = v0 + u * (v1 - v0) + v * (v2 - v0);
+
+    // World-space sample
+    float3 p = transformPoint(inst.transform, pObj);
 
     float3 diff = p - p_point;
     float dist2 = length2(diff);
-    float dist = sqrtf(dist2);
-    float3 wi = diff * (1.f / dist);  // Normalize using pre-computed sqrt
 
-    float3 edge1 = v1 - v0;
-    float3 edge2 = v2 - v0;
-    float3 crossVec = cross(edge1, edge2);
-    float3 n = crossVec * (1.f / length(crossVec));  // Normalize cross product
+    if (dist2 < 1e-12f)
+        return ls;
 
-    float cosThetaLight = max(dot(n, -wi), 0.f);
+    float invDist = rsqrtf(dist2);
+    float dist = dist2 * invDist;
+    float3 wi = diff * invDist;
+
+    // Transform edges to world space and compute world normal
+    float3 e1 = transformVector(inst.transform, v1 - v0);
+    float3 e2 = transformVector(inst.transform, v2 - v0);
+
+    float3 n = normalize(cross(e1, e2));
+
+    float cosThetaLight = dot(n, -wi);
 
     if (cosThetaLight <= 0.f)
         return ls;
 
-    float pdf_area = 1.f / geom.meshArea;
-    float pdf = pdf_area * dist2 / cosThetaLight;
+    float pdf = dist2 / (inst.worldArea * cosThetaLight);
 
     ls.direction = wi;
     ls.distance = dist;
@@ -287,8 +287,7 @@ LightSample Light::sampleMeshGeom(const float3 &p_point, RNG&rng, const CudaScen
     return ls;
 }
 
-DEVICE 
-LightSample Light::sample(const float3 &p_point, RNG&rng, const CudaScene &scene) const
+DEVICE LightSample Light::sample(const float3 &p_point, RNG &rng, const CudaScene &scene) const
 {
     switch (getType())
     {
@@ -303,8 +302,7 @@ LightSample Light::sample(const float3 &p_point, RNG&rng, const CudaScene &scene
     }
 }
 
-DEVICE 
-LightSample Light::sample(const float3 &p_point, RNG&rng) const
+DEVICE LightSample Light::sample(const float3 &p_point, RNG &rng) const
 {
     switch (getType())
     {
@@ -322,8 +320,7 @@ LightSample Light::sample(const float3 &p_point, RNG&rng) const
     }
 }
 
-DEVICE 
-LightSample Light::sample(const float3 &p_point) const
+DEVICE LightSample Light::sample(const float3 &p_point) const
 {
     switch (getType())
     {
