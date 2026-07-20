@@ -60,6 +60,34 @@ struct SDF
         }
     }
 
+    D_FORCEINLINE void samplePoint(float3 &p_point, float3 &p_normal, RNG &rng) const
+    {
+        switch (type)
+        {
+        case SDFType::Sphere:
+            sphere.sampleSurfacePoint(p_point, p_normal, rng);
+            break;
+        case SDFType::Tore:
+            tore.sampleSurfacePoint(p_point, p_normal, rng);
+            break;
+        default:
+            break; // Should not happen
+        }
+    }
+
+    D_FORCEINLINE float getArea() const
+    {
+        switch (type)
+        {
+        case SDFType::Sphere:
+            return 4.f * M_PIf * sphere.radius * sphere.radius;
+        case SDFType::Tore:
+            return 4.f * M_PIf * M_PIf * tore.radiusExter * tore.radiusInter;
+        default:
+            return 0.f; // Should not happen
+        }
+    }
+    
     HD_FORCEINLINE OptixAabb getAABB() const
     {
         switch (type)

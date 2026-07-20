@@ -8,13 +8,9 @@
 #include "../lights/light.cuh"
 #include "../materials/material.cuh"
 
-#include "../objects/implicit_sphere.cuh"
 #include "../objects/plane.cuh"
 #include "../objects/sphere.cuh"
 #include "../objects/triangle_mesh.cuh"
-
-#include "../objectsUtils/aabb.cuh"
-#include "../objectsUtils/bvh_scene.cuh"
 
 #include "../raytracingUtils/ray.cuh"
 
@@ -71,9 +67,7 @@ struct CudaScene
     Plane *planes;
     MeshGeometry *meshGeometries; // Shared geometry data (loaded once per file)
     MeshInstance *meshInstances;  // Per-instance data (transform, material)
-    ImplicitSphere *implicitSpheres;
     Material *materials;
-    BaseObject *primitives;
     Light *lights;
     float *lightProbabilities;
     float *lightCumulativeWeights;
@@ -92,7 +86,6 @@ struct CudaScene
     int nbMeshInstances;  // Number of mesh instances
     int nbMaterials;
     int nbLights;
-    int nbImplicitSpheres;
 
     inline HOST void destroy()
     {
@@ -117,11 +110,8 @@ struct CudaScene
 
         CUDA_CHECK(cudaFree(spheres));
         CUDA_CHECK(cudaFree(planes));
-        CUDA_CHECK(cudaFree(implicitSpheres));
 
         CUDA_CHECK(cudaFree(materials));
-
-        CUDA_CHECK(cudaFree(primitives));
 
         CUDA_CHECK(cudaFree(lights));
         CUDA_CHECK(cudaFree(lightProbabilities));
@@ -139,9 +129,7 @@ struct CudaScene
         meshInstances = nullptr;
         spheres = nullptr;
         planes = nullptr;
-        implicitSpheres = nullptr;
         materials = nullptr;
-        primitives = nullptr;
         lights = nullptr;
         lightProbabilities = nullptr;
         lightCumulativeWeights = nullptr;
@@ -151,7 +139,6 @@ struct CudaScene
         nbMeshes = 0;
         nbSpheres = 0;
         nbPlanes = 0;
-        nbImplicitSpheres = 0;
         nbMaterials = 0;
         nbLights = 0;
     }
@@ -214,10 +201,7 @@ struct CudaScene
     };
 };
 
-CudaScene spheresScene(float4 sunDir);
-
-CudaScene implicitSpheresScene(float4 sunDir);
-
+void sortLights(CudaSceneHelper &helper);
 CudaScene singleObject(float4 sunDir, int rngmanip = 0);
 
 void addGround(CudaSceneHelper &helper);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../utils/rng_cpu.hpp"
+#include "../utils/rng.cuh"
 #include "../utils/op.cuh"
 #include <optix.h>
 #include <optix_stubs.h>
@@ -28,6 +29,21 @@ struct Sphere
         aabb.maxY = translation.y + radius;
         aabb.maxZ = translation.z + radius;
         return aabb;
+    }
+
+    D_FORCEINLINE void sampleSurfacePoint(float3 &p_point, float3 &p_normal, RNG &rng) const
+    {
+        float u = rng.nextFloat();
+        float v = rng.nextFloat();
+
+        float theta = 2.0f * M_PIf * u;
+        float phi = acosf(2.0f * v - 1.0f);
+
+        p_normal.x = sinf(phi) * cosf(theta);
+        p_normal.y = sinf(phi) * sinf(theta);
+        p_normal.z = cosf(phi);
+
+        p_point = p_normal * radius;
     }
 
     HD_FORCEINLINE OptixAabb computeAABB() const

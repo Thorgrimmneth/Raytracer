@@ -50,6 +50,28 @@ void reorderPaths(const int *permutation, RayQueue current, SortedRayQueue sorte
     sorted.rng[tid] = current.rng[src];
 }
 
+GLOBAL
+void reorderRays(const int *permutation, RayQueue current, RayQueue next, int count)
+{
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (tid >= count)
+        return;
+
+    int src = permutation[tid];
+
+    next.origins[tid] = current.origins[src];
+    next.directions[tid] = current.directions[src];
+    next.throughputs[tid] = current.throughputs[src];
+
+    next.pixelIndices[tid] = current.pixelIndices[src];
+
+    next.lastBounceWasDelta[tid] = current.lastBounceWasDelta[src];
+    next.lastBsdfPdf[tid] = current.lastBsdfPdf[src];
+    next.isInside[tid] = current.isInside[src];
+    next.rng[tid] = current.rng[src];
+}
+
 __global__ void computeMaterialRanges(const int *keys, int activeCount, MaterialRanges *ranges)
 {
     int mat = threadIdx.x;

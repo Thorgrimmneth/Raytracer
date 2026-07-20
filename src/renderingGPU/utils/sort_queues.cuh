@@ -16,6 +16,9 @@ GLOBAL
 void reorderPaths(const int *permutation, RayQueue current, SortedRayQueue sorted, const float3 *hitPositions,
                   const float3 *hitNormals, const int *hitMaterialIndices, int count);
 
+GLOBAL
+void reorderRays(const int *permutation, RayQueue current, RayQueue sorted, int count);
+
 __global__ void computeMaterialRanges(const int *keys, int activeCount, MaterialRanges *ranges);
 
 __global__ void buildOctantKeys(const float3 *directions, int count, unsigned int *keys, int *values);

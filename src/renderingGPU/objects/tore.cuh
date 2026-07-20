@@ -1,5 +1,7 @@
 #pragma once
 #include "../../utils/rng_cpu.hpp"
+#include "../utils/rng.cuh"
+#include "../utils/defines.cuh"
 #include "../utils/op.cuh"
 #include <optix.h>
 #include <optix_stubs.h>
@@ -79,5 +81,39 @@ struct Tore
         float3 p = point;
         float3 q = make_float3(length(make_float3(p.x, 0.f, p.z)) - radiusExter, p.y, 0.f);
         return length(q) - radiusInter;
+    }
+
+    D_FORCEINLINE float getMajorRadius() const { return radiusExter; }
+    D_FORCEINLINE float getMinorRadius() const { return radiusInter; }
+
+    // Sample a random point on the torus surface
+    D_FORCEINLINE void sampleSurfacePoint(float3 &p_point, float3 &p_normal, RNG &rng) const
+    {
+        // Sample position on the torus: major angle and minor angle
+        float majorAngle = 2.f * GPUPIf * rng.nextFloat();
+        float minorAngle = 2.f * GPUPIf * rng.nextFloat();
+            
+        // Parametric torus surface
+        float cosMajor = cosf(majorAngle);
+        float sinMajor = sinf(majorAngle);
+        float cosMinor = cosf(minorAngle);
+        float sinMinor = sinf(minorAngle);
+        
+        // Distance from major circle to current point
+        float distFromMajor = radiusExter + radiusInter * cosMinor;
+        
+        // Surface position
+        p_point = make_float3(
+            distFromMajor * cosMajor,
+            radiusInter * sinMinor,
+            distFromMajor * sinMajor
+        );
+        
+        // Surface normal (pointing outward)
+        p_normal = normalize(make_float3(
+            cosMinor * cosMajor,
+            sinMinor,
+            cosMinor * sinMajor
+        ));
     }
 };

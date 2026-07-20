@@ -1,24 +1,20 @@
 #pragma once
 
 #include "../objects/sphere.cuh"
-#include "../objects/implicit_sphere.cuh"
 #include "../objects/plane.cuh"
 #include "../objects/triangle_mesh.cuh"
 #include "../materials/material.cuh"
 #include "../lights/light.cuh"
-#include "../objects/base_object.cuh"
 #include "../objects/sdf.cuh"
 
 struct CudaSceneHelper
 {
     std::vector<SDF> sdfsGPU = std::vector<SDF>();
     std::vector<Sphere> spheresGPU = std::vector<Sphere>();
-    std::vector<ImplicitSphere> implicitSpheresGPU = std::vector<ImplicitSphere>();
     std::vector<Plane> planesGPU = std::vector<Plane>();
     std::vector<MeshGeometry> meshGeometriesGPU = std::vector<MeshGeometry>();  // Shared geometry data
     std::vector<MeshInstance> meshInstancesGPU = std::vector<MeshInstance>();    // Per-instance data
     std::vector<float3> verticesGPU = std::vector<float3>();
-    std::vector<BaseObject> primitivesGPU = std::vector<BaseObject>();
     std::vector<Material> materialsGPU = std::vector<Material>();
     std::vector<Light> lightsGPU = std::vector<Light>();
 

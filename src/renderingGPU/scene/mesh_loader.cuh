@@ -9,7 +9,6 @@
 #include "../utils/quaternion.cuh"
 #include <vector>
 
-#include "../objects/base_object.cuh"
 #include "../objects/triangle_mesh.cuh"
 #include "../objects/plane.cuh"
 #include <iostream>

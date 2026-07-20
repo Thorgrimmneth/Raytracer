@@ -42,6 +42,8 @@ extern "C" __global__ void __intersection__sdf()
             optixReportIntersection(tMin, 0);
             return;
         }
+        if(d > 1e20f)
+            return;
 
         tMin += d;
 

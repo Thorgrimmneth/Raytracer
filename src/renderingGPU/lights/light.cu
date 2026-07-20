@@ -98,14 +98,26 @@ LightSample Light::samplePoint(const float3 &p_point) const
 DEVICE 
 LightSample Light::sampleQuad(const float3 &p_point, RNG&rng) const
 {
-    float3 randomPos = getPosition() + rng.nextFloat() * getDirection() + rng.nextFloat() * getV();
+    // Sample on quad plane
+    float u_rand = rng.nextFloat();
+    float v_rand = rng.nextFloat();
+    
+    float3 dir = getDirection();
+    float3 v_vec = getV();
+    float3 randomPos = getPosition() + u_rand * dir + v_rand * v_vec;
 
+    // Compute distance and direction to light
     float3 diff = randomPos - p_point;
     float dist2 = length2(diff);
-    float dist = sqrtf(dist2);
-    float3 lightDir = diff * (1.f / dist);  // Normalize using pre-computed sqrt
+    float dist = rsqrtf(dist2);  // Use rsqrtf for reciprocal sqrt
+    float3 lightDir = diff * dist;
 
-    float cosTheta = dot(getNormal(), -lightDir);
+    // Compute area via cross product magnitude
+    float3 crossVec = cross(dir, v_vec);
+    float area = length(crossVec);
+
+    float3 normal = getNormal();
+    float cosTheta = dot(normal, -lightDir);
 
     if (cosTheta <= 0.f)
     {
@@ -114,16 +126,12 @@ LightSample Light::sampleQuad(const float3 &p_point, RNG&rng) const
         return s;
     }
 
-    float3 crossVec = cross(getDirection(), getV());
-    float area = length(crossVec);  // Compute area from cross product magnitude
-
+    // PDF: dist2 / (area * cosTheta) 
     LightSample rep{};
-
     rep.radiance = getColorPower();
-    rep.pdf = dist2 / (area * cosTheta);  // Use dist2 to avoid redundant multiplication
-
+    rep.pdf = dist2 / (area * cosTheta);
     rep.power = getIntensity();
-    rep.distance = dist;
+    rep.distance = 1.f / dist;  // Compute actual distance from rsqrtf result
     rep.direction = lightDir;
 
     return rep;
@@ -134,117 +142,68 @@ LightSample Light::sampleCone(const float3 &p_point, RNG&rng) const
 {
     float sunAngularRadius = 3.f * GPUPIf / 180.f;
     float cosMax = cosf(sunAngularRadius);
+    float invCosNorm = 1.0f / (2.0f * GPUPIf * (1.0f - cosMax));
 
     float u1 = rng.nextFloat();
     float u2 = rng.nextFloat();
 
+    // Pre-compute trig for sampling angles
+    float phi_u2 = 2.0f * GPUPIf * u2;
+    float cosPhi = cosf(phi_u2);
+    float sinPhi = sinf(phi_u2);
+
     float cosTheta = 1.0f - u1 * (1.0f - cosMax);
-    float sinTheta = sqrtf(max(0.f, 1.0f - cosTheta * cosTheta));  // Add max() for numerical safety
+    float sinTheta_sq = max(0.f, 1.0f - cosTheta * cosTheta);
+    float sinTheta = sqrtf(sinTheta_sq);
 
-    float phi = 2.0f * GPUPIf * u2;
-    float cosPhi = cosf(phi);
-    float sinPhi = sinf(phi);
-
-    float3 w = normalize(getDirection());
-
-    // Compute up vector - use ternary for better instruction pipelining
+    float3 w = getDirection(); // getDirection() should already be normalized
     float3 up = fabs(w.y) < 0.99f ? make_float3(0, 1, 0) : make_float3(1, 0, 0);
 
-    float3 u = cross(up, w);
-    float uLen = length(u);
-    u = u * (1.f / uLen);  // Normalize
+    float3 u_cross = cross(up, w);
+    float u_len_inv = rsqrtf(max(1e-6f, length2(u_cross)));
+    float3 u = u_cross * u_len_inv;
 
-    float3 v = cross(w, u);  // Already normalized
+    float3 v = cross(w, u);
 
-    float3 sampledDir = u * (cosPhi * sinTheta) + v * (sinPhi * sinTheta) + w * cosTheta;
-    // sampledDir is already normalized due to sin²θ + cos²θ = 1
+    float3 sampledDir = make_float3(
+        u.x * (cosPhi * sinTheta) + v.x * (sinPhi * sinTheta) + w.x * cosTheta,
+        u.y * (cosPhi * sinTheta) + v.y * (sinPhi * sinTheta) + w.y * cosTheta,
+        u.z * (cosPhi * sinTheta) + v.z * (sinPhi * sinTheta) + w.z * cosTheta
+    );
 
     LightSample rep{};
-
-    rep.direction = sampledDir;  // Safe normalization just in case
+    rep.direction = sampledDir;
     rep.distance = 1e20f;
     rep.radiance = getColorPower();
-
-    rep.pdf = 1.0f / (2.0f * GPUPIf * (1.0f - cosMax));
-
+    rep.pdf = invCosNorm;
     rep.power = getIntensity();
 
     return rep;
 }
 
-/*
+
 DEVICE 
-LightSample Light::sampleSphereGeom(const float3 &p_point, RNG&rng, const CudaScene &scene) const
+LightSample Light::sampleSDFGeom(const float3 &p_point, RNG&rng, const CudaScene &scene) const
 {
-    const Sphere &s = scene.spheres[getMeshInstanceIndex()];
-    const Material &m = scene.materials[s.materialIndex];
+    const SDF &sdf = scene.sdfGeometries.sdfs[getMeshInstanceIndex()];
+    const Material &m = scene.materials[sdf.getMaterialIndex()];
 
-    float z = 1.f - 2.f * rng.nextFloat();
-    float r = sqrtf(max(0.f, 1.f - z * z));  // Clamp to avoid NaN
+    LightSample ls{};
 
-    float phi = 2.f * GPUPIf * rng.nextFloat();
-    float cosPhi = cosf(phi);
-    float sinPhi = sinf(phi);
+    float3 randomPos, normal;
+    sdf.samplePoint(randomPos, normal, rng);
 
-    float3 n = make_float3(r * cosPhi, r * sinPhi, z);
-    float radius = s.radius;
-    float3 p = s.center1 + radius * n;
-
-    float3 diff = p - p_point;
+    float3 diff = randomPos - p_point;
     float dist2 = length2(diff);
     float dist = sqrtf(dist2);
     float3 wi = diff * (1.f / dist);  // Normalize using pre-computed sqrt
 
-    LightSample ls{};
-
-    float cosThetaLight = max(dot(n, -wi), 0.f);
+    float cosThetaLight = max(dot(normal, -wi), 0.f);
 
     if (cosThetaLight <= 0.f)
         return ls;
 
-    float area = 4.f * GPUPIf * radius * radius;
-    float pdf_area = 1.f / area;
-    float pdf = pdf_area * dist2 / cosThetaLight;
-
-    ls.direction = wi;
-    ls.distance = dist;
-    ls.radiance = m.color() * m.intensity();
-    ls.pdf = pdf;
-
-    return ls;
-}*/
-
-DEVICE 
-LightSample Light::sampleImplicitSphereGeom(const float3 &p_point, RNG&rng, const CudaScene &scene) const
-{
-    const ImplicitSphere &s = scene.implicitSpheres[getMeshInstanceIndex()];
-    const Material &m = scene.materials[s.getMaterialIndex()];
-
-    float z = 1.f - 2.f * rng.nextFloat();
-    float r = sqrtf(max(0.f, 1.f - z * z));  // Clamp to avoid NaN
-
-    float phi = 2.f * GPUPIf * rng.nextFloat();
-    float cosPhi = cosf(phi);
-    float sinPhi = sinf(phi);
-
-    float3 n = make_float3(r * cosPhi, r * sinPhi, z);
-    float radius = s.getRadius();
-    float3 p = s.getCenter1() + radius * n;
-
-    float3 diff = p - p_point;
-    float dist2 = length2(diff);
-    float dist = sqrtf(dist2);
-    float3 wi = diff * (1.f / dist);  // Normalize using pre-computed sqrt
-
-    LightSample ls{};
-
-    float cosThetaLight = max(dot(n, -wi), 0.f);
-
-    if (cosThetaLight <= 0.f)
-        return ls;
-
-    float area = 4.f * GPUPIf * radius * radius;
-    float pdf_area = 1.f / area;
+    float pdf_area = 1.f / sdf.getArea();
     float pdf = pdf_area * dist2 / cosThetaLight;
 
     ls.direction = wi;
@@ -271,12 +230,18 @@ LightSample Light::sampleMeshGeom(const float3 &p_point, RNG&rng, const CudaScen
 
     float sampleArea = rng.nextFloat() * geom.meshArea;
 
+    // Binary search CDF instead of linear
     int triIndex = 0;
-
-    while (triIndex < geom.triangleCount - 1 && geom.triangleAreaCdf[triIndex] < sampleArea)
-    {
-        ++triIndex;
+    int lo = 0, hi = geom.triangleCount - 1;
+    while (lo < hi) {
+        int mid = (lo + hi) / 2;
+        if (geom.triangleAreaCdf[mid] < sampleArea) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
     }
+    triIndex = lo;
 
     const uint3 &tri = geom.triangles[triIndex];
     const float3 *vertices = geom.vertices;
@@ -327,11 +292,8 @@ LightSample Light::sample(const float3 &p_point, RNG&rng, const CudaScene &scene
 {
     switch (getType())
     {
-    /*case SPHERE_GEOM:
-        return sampleSphereGeom(p_point, rng, scene);
-        */
-    case IMPLICIT_SPHERE_GEOM:
-        return sampleImplicitSphereGeom(p_point, rng, scene);
+    case SDF_GEOM:
+        return sampleSDFGeom(p_point, rng, scene);
 
     case MESH_GEOM:
         return sampleMeshGeom(p_point, rng, scene);
