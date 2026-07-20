@@ -8,7 +8,7 @@
 #include "../objects/sdf.cuh"
 #include "../objects/triangle_mesh.cuh"
 #include "../src/renderingGPU/utils/op.cuh"
-#include "optixRayType.h"
+#include "optix_ray_type.h"
 #include "optix_program_group_manager.h"
 
 template <typename T> struct alignas(OPTIX_SBT_RECORD_ALIGNMENT) SbtRecord

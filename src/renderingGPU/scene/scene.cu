@@ -307,7 +307,7 @@ CudaScene implicitSpheresScene(float4 sunDir)
             float3 r = make_float3(s.getRadius());
 
             helper.primitivesGPU.push_back(
-                BaseObject{center - r, center + r, ObjectType::IMPLICIT_SPHERE, (int)helper.implicitSpheresGPU.size()});
+                BaseObject{center - r, center + r, object_type::IMPLICIT_SPHERE, (int)helper.implicitSpheresGPU.size()});
             helper.implicitSpheresGPU.push_back(s);
         }
     }
@@ -319,7 +319,7 @@ CudaScene implicitSpheresScene(float4 sunDir)
         float3 r = make_float3(s.getRadius());
 
         helper.primitivesGPU.push_back(
-            BaseObject{center - r, center + r, ObjectType::IMPLICIT_SPHERE, (int)helper.implicitSpheresGPU.size()});
+            BaseObject{center - r, center + r, object_type::IMPLICIT_SPHERE, (int)helper.implicitSpheresGPU.size()});
 
         helper.implicitSpheresGPU.push_back(s);
         helper.sphereType.push_back(sphereTypeValue);
@@ -474,13 +474,13 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
     OptixProgramGroupManager programGroupManagerRadiance;
     OptixPipelineManager pipelineManagerRadiance;
     OptixLaunchParamsManager<LaunchRadianceParams> launchParamsManagerRadiance;
-    programGroupManagerRadiance.addRaygenProgram(context, "build/radianceRaygen.ptx", "__raygen__radiance");
-    programGroupManagerRadiance.addMissProgram(context, "build/radianceMiss.ptx", "__miss__radiance");
-    programGroupManagerRadiance.addMeshHitProgram(context, "build/radianceClosestHit.ptx", "__closesthit__radiance", "",
+    programGroupManagerRadiance.addRaygenProgram(context, "build/radiance_raygen.ptx", "__raygen__radiance");
+    programGroupManagerRadiance.addMissProgram(context, "build/radiance_miss.ptx", "__miss__radiance");
+    programGroupManagerRadiance.addMeshHitProgram(context, "build/radiance_closest_hit.ptx", "__closesthit__radiance", "",
                                                   "", "", "");
-    programGroupManagerRadiance.addSdfHitProgram(context, "build/radianceSdfClosestHit.ptx",
+    programGroupManagerRadiance.addSdfHitProgram(context, "build/radiance_sdf_closest_hit.ptx",
                                                  "__closesthit__radiance__sdf", "", "",
-                                                 "build/radianceSdfIntersection.ptx", "__intersection__sdf");
+                                                 "build/radiance_sdf_intersection.ptx", "__intersection__sdf");
 
     initOptix(context, programGroupManagerRadiance, pipelineManagerRadiance, launchParamsManagerRadiance);
 
@@ -490,11 +490,11 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
     OptixProgramGroupManager programGroupManagerShadow;
     OptixPipelineManager pipelineManagerShadow;
     OptixLaunchParamsManager<LaunchShadowParams> launchParamsManagerShadow;
-    programGroupManagerShadow.addRaygenProgram(context, "build/shadowRaygen.ptx", "__raygen__shadow");
-    programGroupManagerShadow.addMissProgram(context, "build/shadowMiss.ptx", "__miss__shadow");
-    programGroupManagerShadow.addMeshHitProgram(context, "", "", "build/shadowAnyHit.ptx", "__anyhit__shadow", "", "");
-    programGroupManagerShadow.addSdfHitProgram(context, "", "", "build/shadowSdfAnyHit.ptx", "__anyhit__shadow__sdf",
-                                               "build/shadowSdfIntersection.ptx", "__intersection__sdf__shadow");
+    programGroupManagerShadow.addRaygenProgram(context, "build/shadow_raygen.ptx", "__raygen__shadow");
+    programGroupManagerShadow.addMissProgram(context, "build/shadow_miss.ptx", "__miss__shadow");
+    programGroupManagerShadow.addMeshHitProgram(context, "", "", "build/shadow_any_hit.ptx", "__anyhit__shadow", "", "");
+    programGroupManagerShadow.addSdfHitProgram(context, "", "", "build/shadow_sdf_any_hit.ptx", "__anyhit__shadow__sdf",
+                                               "build/shadow_sdf_intersection.ptx", "__intersection__sdf__shadow");
     initOptix(context, programGroupManagerShadow, pipelineManagerShadow, launchParamsManagerShadow);
 
     OptixSBTManager sbtManagerShadow;

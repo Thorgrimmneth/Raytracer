@@ -1,18 +1,18 @@
-#include "../src/renderingGPU/optix/optix_payload.h"
-#include "../src/renderingGPU/optix/optix_sbt_manager.h"
-#include "../src/renderingGPU/utils/op.cuh"
-#include "../src/renderingGPU/utils/packing.h"
+#include "../renderingGPU/optix/optix_payload.h"
+#include "../renderingGPU/optix/optix_sbt_manager.h"
+#include "../renderingGPU/utils/op.cuh"
+#include "../renderingGPU/utils/packing.h"
 
 #include <optix.h>
 #include <optix_device.h>
 
-#include "launch_shadow_params.cuh"
+#include "launch_radiance_params.cuh"
 
 extern "C" {
-__constant__ LaunchShadowParams params;
+__constant__ LaunchRadianceParams params;
 }
 
-extern "C" __global__ void __intersection__sdf__shadow()
+extern "C" __global__ void __intersection__sdf()
 {
     const HitData *data = reinterpret_cast<const HitData *>(optixGetSbtDataPointer());
 
@@ -24,11 +24,13 @@ extern "C" __global__ void __intersection__sdf__shadow()
     float3 rayDirection = optixGetWorldRayDirection();
     float3 rayOriginLocal = transform(sdf.rotation, rayOrigin - sdf.translation);
     float3 rayDirectionLocal = transform(sdf.rotation, rayDirection);
-
     float tMin = optixGetRayTmin();
     float tMax = optixGetRayTmax();
-    if(!intersectAABB(rayOriginLocal, rayDirectionLocal, sdf.getAABB(), tMin, tMax))
-         return;
+
+    if (!intersectAABB(rayOriginLocal, rayDirectionLocal, sdf.getAABB(), tMin, tMax))
+    
+        return;
+    
 
     for (int i = 0; i < 128; i++)
     {

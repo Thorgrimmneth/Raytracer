@@ -1,6 +1,6 @@
 #pragma once
 
-enum HitObjectType
+enum Hitobject_type
 {
     HIT_TRIANGLE_MESH,
     HIT_SDF

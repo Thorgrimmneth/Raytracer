@@ -4,7 +4,7 @@
 #include <limits>
 #include <vector>
 
-#include "../utils/simplifiedDef.cuh"
+#include "../utils/simplified_def.cuh"
 
 #include "aabb.cuh"
 
@@ -16,7 +16,7 @@
 
 #include "../materials/material.cuh"
 
-#include "../../../devicePrograms/launch_radiance_params.cuh"
+#include "../../devicePrograms/launch_radiance_params.cuh"
 
 struct Current
 {
@@ -116,25 +116,25 @@ struct BVHScene
 
                     switch (prim.getType())
                     {
-                    case ObjectType::SPHERE: {
+                    case object_type::SPHERE: {
 
                         if (d_spheres[objectIndex].intersect(origin, direction, tMin, tMax, hit))
                         {
                             tMax = hit.t;
                             hitSomething = true;
-                            hit.objectType = HIT_SPHERE;
+                            hit.object_type = HIT_SPHERE;
                             hit.objectIndex = objectIndex;
                         }
                         break;
                     }
 
-                    case ObjectType::IMPLICIT_SPHERE: {
+                    case object_type::IMPLICIT_SPHERE: {
 
                         if (d_implicitSpheres[objectIndex].intersect(origin, direction, tMin, tMax, hit))
                         {
                             tMax = hit.t;
                             hitSomething = true;
-                            hit.objectType = HIT_SPHERE_IMPLICIT;
+                            hit.object_type = HIT_SPHERE_IMPLICIT;
                             hit.objectIndex = objectIndex;
                         }
                         break;
@@ -232,7 +232,7 @@ struct BVHScene
 
                     switch (prim.getType())
                     {
-                    case ObjectType::SPHERE: {
+                    case object_type::SPHERE: {
 
                         const int matIdx = d_spheres[objectIndex].getMaterialIndex();
 
@@ -247,7 +247,7 @@ struct BVHScene
                         break;
                     }
 
-                    case ObjectType::IMPLICIT_SPHERE: {
+                    case object_type::IMPLICIT_SPHERE: {
 
                         const int matIdx = d_implicitSpheres[objectIndex].getMaterialIndex();
 

@@ -222,7 +222,7 @@ void normalizeKernel(float3 *accum, float3 *normalized, int sampleCount, int wid
 }
 
 GLOBAL
-void finalizeImage(float3 *hdr, cudaSurfaceObject_t surface, int width, int height, float exposure)
+void finalizeImage(float3 *hdr, cudaSurfaceObject_t surface, int width, int height, float EXPOSURE)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -235,7 +235,7 @@ void finalizeImage(float3 *hdr, cudaSurfaceObject_t surface, int width, int heig
     float3 &c = hdr[idx];
 
     // Reinhard tonemap
-    c = (c * exposure) / (make_float3(1.f) + c * exposure);
+    c = (c * EXPOSURE) / (make_float3(1.f) + c * EXPOSURE);
 
     // Gamma correction
     c = make_float3(sqrtf(fmaxf(c.x, 0.f)), sqrtf(fmaxf(c.y, 0.f)), sqrtf(fmaxf(c.z, 0.f)));
@@ -247,7 +247,7 @@ void finalizeImage(float3 *hdr, cudaSurfaceObject_t surface, int width, int heig
 }
 
 GLOBAL
-void finalizeImageV2(float3 *hdr, float3 *bloom, float3 *outCompare, cudaSurfaceObject_t surface, int width, int height, float exposure, float bloomStrength)
+void finalizeImageV2(float3 *hdr, float3 *bloom, float3 *outCompare, cudaSurfaceObject_t surface, int width, int height, float EXPOSURE, float bloomStrength)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -265,7 +265,7 @@ void finalizeImageV2(float3 *hdr, float3 *bloom, float3 *outCompare, cudaSurface
     float3 &c = hdr[idx];
     c = hdrBloom;
     // Reinhard tonemap
-    c = (c * exposure) / (make_float3(1.f) + c * exposure);
+    c = (c * EXPOSURE) / (make_float3(1.f) + c * EXPOSURE);
 
     // Gamma correction
     c = make_float3(sqrtf(fmaxf(c.x, 0.f)), sqrtf(fmaxf(c.y, 0.f)), sqrtf(fmaxf(c.z, 0.f)));
@@ -277,7 +277,7 @@ void finalizeImageV2(float3 *hdr, float3 *bloom, float3 *outCompare, cudaSurface
 }
 
 GLOBAL
-void finalizeImageV2NoRender(float3 *hdr, float3 *bloom, float3 *outCompare, int width, int height, float exposure, float bloomStrength)
+void finalizeImageV2NoRender(float3 *hdr, float3 *bloom, float3 *outCompare, int width, int height, float EXPOSURE, float bloomStrength)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -295,7 +295,7 @@ void finalizeImageV2NoRender(float3 *hdr, float3 *bloom, float3 *outCompare, int
     float3 &c = hdr[idx];
     c = hdrBloom;
     // Reinhard tonemap
-    c = (c * exposure) / (make_float3(1.f) + c * exposure);
+    c = (c * EXPOSURE) / (make_float3(1.f) + c * EXPOSURE);
 
     // Gamma correction
     c = make_float3(sqrtf(fmaxf(c.x, 0.f)), sqrtf(fmaxf(c.y, 0.f)), sqrtf(fmaxf(c.z, 0.f)));

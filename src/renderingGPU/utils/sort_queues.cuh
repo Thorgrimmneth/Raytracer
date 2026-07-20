@@ -1,6 +1,6 @@
 #pragma once
 #include "../materials/material.cuh"
-#include "shadingData.cuh"
+#include "shading_data.cuh"
 
 struct MaterialRanges
 {

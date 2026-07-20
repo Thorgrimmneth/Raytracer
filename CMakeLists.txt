@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CUDA_STANDARD 17)
 set(OPTIX_ROOT "/home/ejouenne/Downloads/NVIDIA-OptiX-SDK-8.1.0-linux64-x86_64")
 set(PTX_OUTPUT_DIR "${CMAKE_BINARY_DIR}/ptx")
-set(OPTIX_DEVICE_DIR ${CMAKE_SOURCE_DIR}/devicePrograms)
+set(OPTIX_DEVICE_DIR ${CMAKE_SOURCE_DIR}/src/devicePrograms)
 
 file(MAKE_DIRECTORY ${PTX_OUTPUT_DIR})
 
@@ -19,9 +19,11 @@ find_package(assimp REQUIRED)
 
 file(GLOB_RECURSE SOURCES
     src/*.cpp
-    src/*.cu
-    ${OPTIX_DEVICE_DIR}/optix*.cpp
+    src/**/*.cu
 )
+
+# Exclude OptiX device programs from main compilation (they're compiled to PTX separately)
+list(FILTER SOURCES EXCLUDE REGEX "src/devicePrograms/.*")
 
 add_executable(mon_projet
     ${SOURCES}
@@ -84,6 +86,7 @@ foreach(CUDA_FILE ${OPTIX_DEVICE_SOURCES})
             -std=c++17
             -I${OPTIX_ROOT}/include
             -I${OPTIX_DEVICE_DIR}
+            -I${CMAKE_SOURCE_DIR}/src
             ${CUDA_FILE}
             -o ${PTX_FILE}
 

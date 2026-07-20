@@ -1,6 +1,6 @@
 #include "optix_gas.h"
 
-#include "../utils/simplifiedDef.cuh"
+#include "../utils/simplified_def.cuh"
 
 void OptixGAS::build(OptixDeviceContext context, CUstream stream, const float3 *d_vertices, uint32_t vertexCount,
                      const uint3 *d_indices, uint32_t triangleCount)

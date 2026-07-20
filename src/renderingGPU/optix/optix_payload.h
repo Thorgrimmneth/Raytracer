@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../utils/objectType.h"
+#include "../utils/object_type.h"
 
 struct Payload
 {
@@ -14,7 +14,7 @@ struct Payload
     int objectIndex;
     int materialIndex;
 
-    HitObjectType objectType;
+    Hitobject_type object_type;
 };
 
 struct ShadowPayload

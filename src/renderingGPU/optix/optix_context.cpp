@@ -1,4 +1,6 @@
 #include "optix_context.h"
+#include <iostream>
+#include "../utils/check.cuh"
 
 #define STRINGIFY2(x) #x
 #define STRINGIFY(x) STRINGIFY2(x)
@@ -23,7 +25,7 @@ void OptixContext::initialize()
 
     pipelineCompileOptions.numPayloadValues = 2;
 
-    pipelineCompileOptions.numAttributeValues = 2;
+    pipelineCompileOptions.numAttributeValues = 1;
 
     pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
 

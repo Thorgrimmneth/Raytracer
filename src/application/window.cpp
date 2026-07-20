@@ -131,7 +131,7 @@ void Window::draw()
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
-unsigned char *Window::cumulativeRendering(Vec3f sunDir, int width, int height, bool convergence, float threshold, int rngManip)
+unsigned char *Window::cumulativeRendering(float3 sunDir, int width, int height, bool convergence, float threshold, int rngManip)
 {
     if (!glfwInit())
     {

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../materials/material.cuh"
-#include "../../../devicePrograms/launch_radiance_params.cuh"
+#include "../../devicePrograms/launch_radiance_params.cuh"
 struct Plane
 {
     float4 normal; // xyz = normal, w = delta

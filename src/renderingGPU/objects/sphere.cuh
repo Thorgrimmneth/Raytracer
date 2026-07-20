@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../utils/rngCPU.hpp"
+#include "../../utils/rng_cpu.hpp"
 #include "../utils/op.cuh"
 #include <optix.h>
 #include <optix_stubs.h>

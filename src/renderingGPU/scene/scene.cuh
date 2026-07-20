@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../utils/simplifiedDef.cuh"
+#include "../utils/simplified_def.cuh"
 #include "mesh_loader.cuh"
 
 #include <vector>
@@ -18,9 +18,9 @@
 
 #include "../raytracingUtils/ray.cuh"
 
-#include "../../../devicePrograms/launch_radiance_params.cuh"
-#include "../../../devicePrograms/launch_shadow_params.cuh"
-#include "../../../devicePrograms/optix_launch_params_manager.h"
+#include "../../devicePrograms/launch_radiance_params.cuh"
+#include "../../devicePrograms/launch_shadow_params.cuh"
+#include "../../devicePrograms/optix_launch_params_manager.h"
 #include "../optix/optix_context.h"
 #include "../optix/optix_gas.h"
 #include "../optix/optix_ias.h"
@@ -28,7 +28,7 @@
 #include "../optix/optix_pipeline_manager.h"
 #include "../optix/optix_program_group_manager.h"
 #include "../optix/optix_sbt_manager.h"
-#include "../utils/computeTransform.cuh"
+#include "../utils/compute_transform.cuh"
 #include "init_optix.cuh"
 #include "scene_helper.cuh"
 #include "sun_helper.h"
@@ -193,7 +193,7 @@ struct CudaScene
         float pdf = 0.0f;
 
 
-        if (hit.objectType == HIT_TRIANGLE_MESH)
+        if (hit.object_type == HIT_TRIANGLE_MESH)
         {
             const MeshInstance &inst = meshInstances[hit.objectIndex];
             const MeshGeometry &geom = meshGeometries[inst.geometryIndex];

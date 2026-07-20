@@ -17,13 +17,13 @@ __global__ void shadeMissKernel(float3 *origins, float3 *directions, float3 *thr
 
     const float horizonFade = smoothstep(-0.05f, 0.02f, direction.y);
 
-    const float segmentLength = sizeAtmosphere / skyColorSamples;
+    const float segmentLength = ATMOSPHERE_SIZE / NB_SKY_SAMPLES;
 
     //------------------------------------------------------------------
     // Phases
     //------------------------------------------------------------------
 
-    const float mu = dot(direction, sunDirection);
+    const float mu = dot(direction, SUN_DIRECTION);
     const float mu2Term = 1.0f + mu * mu;
 
     const float phaseR = 0.0596831f * mu2Term;
@@ -38,9 +38,9 @@ __global__ void shadeMissKernel(float3 *origins, float3 *directions, float3 *thr
 
     const float sunSegmentLength = 15000.0f;
 
-    const float qR = __expf(-hr * sunDirection.y * sunSegmentLength);
+    const float qR = __expf(-hr * SUN_DIRECTION.y * sunSegmentLength);
 
-    const float qM = __expf(-hm * sunDirection.y * sunSegmentLength);
+    const float qM = __expf(-hm * SUN_DIRECTION.y * sunSegmentLength);
 
     const float invOneMinusQR = 1.0f / (1.0f - qR);
 
@@ -78,7 +78,7 @@ __global__ void shadeMissKernel(float3 *origins, float3 *directions, float3 *thr
 
     const float rM = __expf(-hm * direction.y * segmentLength);
 
-    for (int i = 0; i < skyColorSamples; ++i)
+    for (int i = 0; i < NB_SKY_SAMPLES; ++i)
     {
         opticalDepthR = fmaf(hrLocal, segmentLength, opticalDepthR);
 
@@ -101,7 +101,7 @@ __global__ void shadeMissKernel(float3 *origins, float3 *directions, float3 *thr
         //--------------------------------------------------------------
 
         const float3 tau =
-            -(betaR * (opticalDepthR + opticalDepthLightR) + betaM * (opticalDepthM + opticalDepthLightM));
+            -(BETA_R * (opticalDepthR + opticalDepthLightR) + BETA_M * (opticalDepthM + opticalDepthLightM));
 
         const float3 attenuation = make_float3(__expf(tau.x), __expf(tau.y), __expf(tau.z));
 
@@ -120,17 +120,17 @@ __global__ void shadeMissKernel(float3 *origins, float3 *directions, float3 *thr
     // Couleur du ciel
     //------------------------------------------------------------------
 
-    float3 sky = sumR * betaR * phaseR + sumM * betaM * phaseM * 0.3f;
+    float3 sky = sumR * BETA_R * phaseR + sumM * BETA_M * phaseM * 0.3f;
 
     //------------------------------------------------------------------
     // Disque solaire
     //------------------------------------------------------------------
 
-    const float cosTheta = dot(direction, sunDirection);
+    const float cosTheta = dot(direction, SUN_DIRECTION);
 
-    const float sunDisk = smoothstep(cosSunAngularRadius, cosSunAngularRadiusHalf, cosTheta);
+    const float sunDisk = smoothstep(SUN_ANGULAR_RADIUS, SUN_HALF_ANGULAR_RADIUS, cosTheta);
 
-    const float t = clamp((sunDirection.y + 0.4f) / 1.4f, 0.0f, 1.0f);
+    const float t = clamp((SUN_DIRECTION.y + 0.4f) / 1.4f, 0.0f, 1.0f);
 
     const float sunset = (1.0f - t) * (1.0f - t);
 

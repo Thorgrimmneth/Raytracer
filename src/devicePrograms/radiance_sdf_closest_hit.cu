@@ -1,8 +1,8 @@
-#include "../src/renderingGPU/optix/optix_payload.h"
-#include "../src/renderingGPU/optix/optix_sbt_manager.h"
-#include "../src/renderingGPU/utils/objectType.h"
-#include "../src/renderingGPU/utils/op.cuh"
-#include "../src/renderingGPU/utils/packing.h"
+#include "../renderingGPU/optix/optix_payload.h"
+#include "../renderingGPU/optix/optix_sbt_manager.h"
+#include "../renderingGPU/utils/object_type.h"
+#include "../renderingGPU/utils/op.cuh"
+#include "../renderingGPU/utils/packing.h"
 #include "launch_radiance_params.cuh"
 #include <optix.h>
 #include <optix_device.h>
@@ -45,5 +45,5 @@ extern "C" __global__ void __closesthit__radiance__sdf()
 
     payload->materialIndex = sdf.getMaterialIndex();
 
-    payload->objectType = HIT_SDF;
+    payload->object_type = HIT_SDF;
 }

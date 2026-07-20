@@ -65,13 +65,13 @@ int Application::initParameters(int argc, char **argv)
     return 0;
 }
 
-Vec3f Application::computeSunDir(float t)
+float3 Application::computeSunDir(float t)
 {
     float theta = 1.1 * PIf * t;
     float az = 20.f * PIf / 180.f;
-    Vec3f base = Vec3f(cos(theta), sin(theta), 0.0f);
-    Vec3f sunDirection = normalize(Vec3f(base.x * cos(az) - base.z * sin(az), base.y, base.x * sin(az) + base.z * cos(az)));
-    return sunDirection;
+    float3 base = make_float3(cos(theta), sin(theta), 0.0f);
+    float3 sun_direction = normalize(make_float3(base.x * cos(az) - base.z * sin(az), base.y, base.x * sin(az) + base.z * cos(az)));
+    return sun_direction;
 }
 
 int Application::launchApp(int argc, char **argv)

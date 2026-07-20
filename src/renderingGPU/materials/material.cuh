@@ -1,9 +1,9 @@
 #pragma once
 
-#include "../../utils/rngCPU.hpp"
+#include "../../utils/rng_cpu.hpp"
 #include "../utils/op.cuh"
 #include "../utils/defines.cuh"
-#include "../utils/simplifiedDef.cuh"
+#include "../utils/simplified_def.cuh"
 #include "../utils/rng.cuh"
 
 enum MaterialType : int

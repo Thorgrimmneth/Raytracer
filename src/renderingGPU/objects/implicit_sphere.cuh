@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../utils/objectType.h"
-#include "../../../devicePrograms/launch_radiance_params.cuh"
+#include "../utils/object_type.h"
+#include "../../devicePrograms/launch_radiance_params.cuh"
 
 struct ImplicitSphere
 {

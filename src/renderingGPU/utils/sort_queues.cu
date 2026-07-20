@@ -1,4 +1,4 @@
-#include "sortQueues.cuh"
+#include "sort_queues.cuh"
 
 GLOBAL
 void classifyPairs(Material *materials, int activeCount, int *keys, int *values, const int *hitMask,

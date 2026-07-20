@@ -5,7 +5,7 @@
 // Version conservative : garde le comportement du fichier original
 // ============================================================
 
-#include "simplifiedDef.cuh"
+#include "simplified_def.cuh"
 #include <cuda_runtime.h>
 #include <math.h>
 // ============================================================

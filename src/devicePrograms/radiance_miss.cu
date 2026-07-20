@@ -1,5 +1,5 @@
-#include "../src/renderingGPU/utils/packing.h"
-#include "../src/renderingGPU/optix/optix_payload.h"
+#include "../renderingGPU/utils/packing.h"
+#include "../renderingGPU/optix/optix_payload.h"
 #include <optix.h>
 #include <optix_device.h>
 

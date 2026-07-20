@@ -4,11 +4,11 @@
 #include <cuda_runtime.h>
 #include <stdint.h>
 
-#include "../src/renderingGPU/utils/objectType.h"
-#include "../src/renderingGPU/raytracingUtils/ray.cuh"
-#include "../src/renderingGPU/utils/op.cuh"
-#include "../src/renderingGPU/objects/triangle_mesh.cuh"
-#include "../src/renderingGPU/materials/material.cuh"
+#include "../renderingGPU/utils/object_type.h"
+#include "../renderingGPU/raytracingUtils/ray.cuh"
+#include "../renderingGPU/utils/op.cuh"
+#include "../renderingGPU/objects/triangle_mesh.cuh"
+#include "../renderingGPU/materials/material.cuh"
 
 struct LaunchShadowParams
 {

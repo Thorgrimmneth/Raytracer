@@ -25,12 +25,12 @@ class Application {
     float threshold = 0.001f;
     bool convergence = false;
     float maxElevation = 90.0f;
-    Vec3f sunDir = Vec3f(0.f, 1.f, 0.f);
+    float3 sunDir = make_float3(0.f, 1.f, 0.f);
     Texture image;
 
     int launchApp(int argc, char **argv);
 
   private:
     int initParameters(int argc, char **argv);
-    Vec3f computeSunDir(float t);
+    float3 computeSunDir(float t);
 };

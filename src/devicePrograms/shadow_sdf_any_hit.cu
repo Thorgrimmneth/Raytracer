@@ -1,7 +1,7 @@
-#include "../src/renderingGPU/objects/sdf.cuh"
-#include "../src/renderingGPU/optix/optix_payload.h"
-#include "../src/renderingGPU/optix/optix_sbt_manager.h"
-#include "../src/renderingGPU/utils/packing.h"
+#include "../renderingGPU/objects/sdf.cuh"
+#include "../renderingGPU/optix/optix_payload.h"
+#include "../renderingGPU/optix/optix_sbt_manager.h"
+#include "../renderingGPU/utils/packing.h"
 #include "launch_shadow_params.cuh"
 #include <optix.h>
 #include <optix_device.h>

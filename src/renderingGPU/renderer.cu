@@ -1,41 +1,41 @@
 #include "renderer.hpp"
 
-#include "../../../devicePrograms/launch_radiance_params.cuh"
-#include "../../../devicePrograms/launch_shadow_params.cuh"
+#include "../devicePrograms/launch_radiance_params.cuh"
+#include "../devicePrograms/launch_shadow_params.cuh"
 #include "camera/camera.cuh"
 #include "scene/scene.cuh"
 
 #include "integrators/pathtracer_integrator.cuh"
 
-#include "../utils/definesCPU.hpp"
+#include "../utils/defines_cpu.hpp"
 #include "renderingUtils/post_treatment.cuh"
 #include "renderingUtils/shading_kernels.cuh"
 #include "utils/constant.cuh"
-#include "utils/fillBuffers.cuh"
-#include "utils/shadingData.cuh"
-#include "utils/shadingLaunch.cuh"
-#include "utils/shadowData.cuh"
-#include "utils/simplifiedDef.cuh"
-#include "utils/sortQueues.cuh"
+#include "utils/fill_buffers.cuh"
+#include "utils/shading_data.cuh"
+#include "utils/shading_launch.cuh"
+#include "utils/shadow_data.cuh"
+#include "utils/simplified_def.cuh"
+#include "utils/sort_queues.cuh"
 #include <cstdio>
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
 #include <fstream>
 #include <thrust/sort.h>
 
-__constant__ int nbBounces;
-__constant__ float earthRadius;
-__constant__ float3 sunDirection;
-__constant__ int skyColorSamples;
+__constant__ int NB_BOUNCES;
+__constant__ float EARTH_RADIUS;
+__constant__ float3 SUN_DIRECTION;
+__constant__ int NB_SKY_SAMPLES;
 __constant__ float hr;
 __constant__ float hm;
-__constant__ float3 betaR;
-__constant__ float3 betaM;
-__constant__ float exposure;
+__constant__ float3 BETA_R;
+__constant__ float3 BETA_M;
+__constant__ float EXPOSURE;
 __constant__ Camera camera;
-__constant__ float sizeAtmosphere;
-__constant__ float cosSunAngularRadius;
-__constant__ float cosSunAngularRadiusHalf;
+__constant__ float ATMOSPHERE_SIZE;
+__constant__ float SUN_ANGULAR_RADIUS;
+__constant__ float SUN_HALF_ANGULAR_RADIUS;
 
 enum class RenderMode
 {
@@ -187,19 +187,19 @@ HOST void initConstant(int width, int height, Camera c_camera, float4 sunDir)
     float sunAngularRadius = 2.1f * GPUPIf / 180.f;
     float c_sunAngularRadius = cosf(sunAngularRadius);
     float c_sunAngularRadiusHalf = cosf(sunAngularRadius * 0.5f);
-    cudaMemcpyToSymbol(nbBounces, &c_nbBounces, sizeof(int));
-    cudaMemcpyToSymbol(earthRadius, &c_earthRadius, sizeof(float));
-    cudaMemcpyToSymbol(sunDirection, &c_sunDirection, sizeof(float3));
-    cudaMemcpyToSymbol(skyColorSamples, &c_skyColorSamples, sizeof(int));
+    cudaMemcpyToSymbol(NB_BOUNCES, &c_nbBounces, sizeof(int));
+    cudaMemcpyToSymbol(EARTH_RADIUS, &c_earthRadius, sizeof(float));
+    cudaMemcpyToSymbol(SUN_DIRECTION, &c_sunDirection, sizeof(float3));
+    cudaMemcpyToSymbol(NB_SKY_SAMPLES, &c_skyColorSamples, sizeof(int));
     cudaMemcpyToSymbol(hr, &c_hr, sizeof(float));
     cudaMemcpyToSymbol(hm, &c_hm, sizeof(float));
-    cudaMemcpyToSymbol(betaR, &c_betaR, sizeof(float3));
-    cudaMemcpyToSymbol(betaM, &c_betaM, sizeof(float3));
-    cudaMemcpyToSymbol(exposure, &c_exposure, sizeof(float));
+    cudaMemcpyToSymbol(BETA_R, &c_betaR, sizeof(float3));
+    cudaMemcpyToSymbol(BETA_M, &c_betaM, sizeof(float3));
+    cudaMemcpyToSymbol(EXPOSURE, &c_exposure, sizeof(float));
     cudaMemcpyToSymbol(camera, &c_camera, sizeof(Camera));
-    cudaMemcpyToSymbol(sizeAtmosphere, &c_sizeAtmosphere, sizeof(float));
-    cudaMemcpyToSymbol(cosSunAngularRadius, &c_sunAngularRadius, sizeof(float));
-    cudaMemcpyToSymbol(cosSunAngularRadiusHalf, &c_sunAngularRadiusHalf, sizeof(float));
+    cudaMemcpyToSymbol(ATMOSPHERE_SIZE, &c_sizeAtmosphere, sizeof(float));
+    cudaMemcpyToSymbol(SUN_ANGULAR_RADIUS, &c_sunAngularRadius, sizeof(float));
+    cudaMemcpyToSymbol(SUN_HALF_ANGULAR_RADIUS, &c_sunAngularRadiusHalf, sizeof(float));
 }
 
 void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, float sunDirz, int rngManip)

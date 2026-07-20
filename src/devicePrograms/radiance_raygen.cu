@@ -1,7 +1,7 @@
-#include "../src/renderingGPU/optix/optix_payload.h"
-#include "../src/renderingGPU/utils/op.cuh"
+#include "../renderingGPU/optix/optix_payload.h"
+#include "../renderingGPU/utils/op.cuh"
 
-#include "../src/renderingGPU/utils/packing.h"
+#include "../renderingGPU/utils/packing.h"
 
 #include <optix.h>
 #include <optix_device.h>

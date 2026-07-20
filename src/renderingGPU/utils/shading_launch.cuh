@@ -2,8 +2,8 @@
 
 #include "../materials/material.cuh"
 #include "../scene/scene.cuh"
-#include "shadingData.cuh"
-#include "shadowData.cuh"
+#include "shading_data.cuh"
+#include "shadow_data.cuh"
 
 dim3 block1D(256);
 

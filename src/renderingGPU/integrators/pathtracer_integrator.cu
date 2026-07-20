@@ -18,7 +18,7 @@ float3 PathtracerIntegrator::lighting(const CudaScene &scene, const float3 &orig
     bool lastBounceWasDelta = true;
     float lastBsdfPdf = 1.f;
     
-    for (int depth = 0; depth < nbBounces; depth++)
+    for (int depth = 0; depth < NB_BOUNCES; depth++)
     {
         OptixHit hit;
         if (!scene.intersect(primOrigin, primDirection, tMin, tMax, hit))
@@ -116,7 +116,7 @@ float3 PathtracerIntegrator::getSkyColor(const float3 &origin, const float3 &dir
 {
     float3 rayDir = direction;
     // float mult = lerp(1.f, 20.f, (max(-0.4f,sunDir.y) + 0.4)/1.4f);
-    float t = clamp((sunDirection.y + 0.4f) / 1.4f, 0.0f, 1.0f);
+    float t = clamp((SUN_DIRECTION.y + 0.4f) / 1.4f, 0.0f, 1.0f);
 
     float mult = 1.0f + 19.0f * t * t * t;
 
@@ -127,7 +127,7 @@ float3 PathtracerIntegrator::getSkyColor(const float3 &origin, const float3 &dir
         return make_float3(0.0f);
     }
 
-    float segmentLength = sizeAtmosphere / skyColorSamples;
+    float segmentLength = ATMOSPHERE_SIZE / NB_SKY_SAMPLES;
     float tCurrent = 0.0f;
 
     float3 sumR = make_float3(0.f);
@@ -136,7 +136,7 @@ float3 PathtracerIntegrator::getSkyColor(const float3 &origin, const float3 &dir
     float opticalDepthR = 0.0f;
     float opticalDepthM = 0.0f;
 
-    float mu = dot(direction, sunDirection);
+    float mu = dot(direction, SUN_DIRECTION);
 
     //float g = 0.76f;
 
@@ -154,7 +154,7 @@ float3 PathtracerIntegrator::getSkyColor(const float3 &origin, const float3 &dir
     const int sunSamples = 4;
     float sunSegmentLength = 15000.f;
 
-    for (int i = 0; i < skyColorSamples; ++i)
+    for (int i = 0; i < NB_SKY_SAMPLES; ++i)
     {
         float3 samplePosition = origin + rayDir * (tCurrent + segmentLength * 0.5f);
 
@@ -173,7 +173,7 @@ float3 PathtracerIntegrator::getSkyColor(const float3 &origin, const float3 &dir
 
         for (int j = 0; j < sunSamples; ++j)
         {
-            sunSamplePosition += sunDirection * sunSegmentLength;
+            sunSamplePosition += SUN_DIRECTION * sunSegmentLength;
 
             float heightLight = fmaxf(sunSamplePosition.y, 0.0f);
 
@@ -181,7 +181,7 @@ float3 PathtracerIntegrator::getSkyColor(const float3 &origin, const float3 &dir
             opticalDepthLightM += __expf(-heightLight / hm) * sunSegmentLength;
         }
 
-        float3 tau = betaR * (opticalDepthR + opticalDepthLightR) + betaM * (opticalDepthM + opticalDepthLightM);
+        float3 tau = BETA_R * (opticalDepthR + opticalDepthLightR) + BETA_M * (opticalDepthM + opticalDepthLightM);
 
         float3 attenuation = make_float3(__expf(-tau.x), __expf(-tau.y), __expf(-tau.z));
 
@@ -191,10 +191,10 @@ float3 PathtracerIntegrator::getSkyColor(const float3 &origin, const float3 &dir
         tCurrent += segmentLength;
     }
 
-    float3 sky = sumR * betaR * phaseR + sumM * betaM * phaseM * 0.3f;
+    float3 sky = sumR * BETA_R * phaseR + sumM * BETA_M * phaseM * 0.3f;
 
     float sunAngularRadius = 2.1f * GPUPIf / 180.f;
-    float cosTheta = dot(direction, sunDirection);
+    float cosTheta = dot(direction, SUN_DIRECTION);
 
     float sunDisk =
         smoothstep(cos(sunAngularRadius),

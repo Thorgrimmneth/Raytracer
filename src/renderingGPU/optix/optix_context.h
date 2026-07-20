@@ -1,11 +1,7 @@
 #pragma once
 
-#include <cuda.h>
 #include <cuda_runtime.h>
-#include <optix.h>
 #include <optix_stubs.h>
-#include <iostream>
-#include "../utils/check.cuh"
 
 class OptixContext
 {

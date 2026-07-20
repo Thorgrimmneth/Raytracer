@@ -4,7 +4,7 @@
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 
-#include "../utils/simplifiedDef.cuh"
+#include "../utils/simplified_def.cuh"
 #include "../utils/op.cuh"
 #include "../utils/quaternion.cuh"
 #include <vector>

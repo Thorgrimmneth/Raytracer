@@ -1,4 +1,4 @@
-#include "fillBuffers.cuh"
+#include "fill_buffers.cuh"
 
 GLOBAL
 void initFloat3Buffer(float3* buffer, int count, float3 value)

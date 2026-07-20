@@ -2,7 +2,7 @@
 
 #include <curand_kernel.h>
 
-#include "../utils/simplifiedDef.cuh"
+#include "../utils/simplified_def.cuh"
 #include "../utils/op.cuh"
 
 
@@ -26,10 +26,10 @@ GLOBAL
 void normalizeKernel(float3 *accum, float3 *normalized, int sampleCount, int width, int height);
 
 GLOBAL
-void finalizeImage(float3 *hdr, cudaSurfaceObject_t surface, int width, int height, float exposure);
+void finalizeImage(float3 *hdr, cudaSurfaceObject_t surface, int width, int height, float EXPOSURE);
 
 GLOBAL
-void finalizeImageV2(float3 *hdr, float3 *bloom, float3 *outCompare, cudaSurfaceObject_t surface, int width, int height, float exposure, float bloomStrength);
+void finalizeImageV2(float3 *hdr, float3 *bloom, float3 *outCompare, cudaSurfaceObject_t surface, int width, int height, float EXPOSURE, float bloomStrength);
 
 GLOBAL
-void finalizeImageV2NoRender(float3 *hdr, float3 *bloom, float3 *outCompare, int width, int height, float exposure, float bloomStrength);
+void finalizeImageV2NoRender(float3 *hdr, float3 *bloom, float3 *outCompare, int width, int height, float EXPOSURE, float bloomStrength);

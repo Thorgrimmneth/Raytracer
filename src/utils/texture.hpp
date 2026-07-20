@@ -1,7 +1,8 @@
 #ifndef __RT_ISICG_IMAGE__
 #define __RT_ISICG_IMAGE__
 
-#include "utils/definesCPU.hpp"
+#include "utils/defines_cpu.hpp"
+#include "renderingGPU/utils/op.cuh"
 #include <string>
 #include <vector>
 
@@ -20,23 +21,21 @@ class Texture {
     inline std::vector<unsigned char> &getPixels() { return _pixels; }
     inline const std::vector<unsigned char> &getPixels() const { return _pixels; }
 
-    void setPixel(const int p_i, const int p_j, const Vec3f &p_color)
+    void setPixel(const int p_i, const int p_j, const float3 &p_color)
     {
-        assert(_nbChannels == 3);
         const int pixelId = (p_i + p_j * _width) * _nbChannels;
-        _pixels[pixelId] = static_cast<unsigned char>(p_color.r * 255);
-        _pixels[pixelId + 1] = static_cast<unsigned char>(p_color.g * 255);
-        _pixels[pixelId + 2] = static_cast<unsigned char>(p_color.b * 255);
+        _pixels[pixelId] = static_cast<unsigned char>(p_color.x * 255);
+        _pixels[pixelId + 1] = static_cast<unsigned char>(p_color.y * 255);
+        _pixels[pixelId + 2] = static_cast<unsigned char>(p_color.z * 255);
     }
 
-    void setPixel(const int p_i, const int p_j, const Vec4f &p_color)
+    void setPixel(const int p_i, const int p_j, const float4 &p_color)
     {
-        assert(_nbChannels == 4);
         const int pixelId = (p_i + p_j * _width) * _nbChannels;
-        _pixels[pixelId] = static_cast<unsigned char>(p_color.r * 255);
-        _pixels[pixelId + 1] = static_cast<unsigned char>(p_color.g * 255);
-        _pixels[pixelId + 2] = static_cast<unsigned char>(p_color.b * 255);
-        _pixels[pixelId + 3] = static_cast<unsigned char>(p_color.b * 255);
+        _pixels[pixelId] = static_cast<unsigned char>(p_color.x * 255);
+        _pixels[pixelId + 1] = static_cast<unsigned char>(p_color.y * 255);
+        _pixels[pixelId + 2] = static_cast<unsigned char>(p_color.z * 255);
+        _pixels[pixelId + 3] = static_cast<unsigned char>(p_color.w * 255);
     }
 
     void saveJPG(const std::string &p_path, const int p_quality = 100);
@@ -48,7 +47,7 @@ class Texture {
             for (int i = 0; i < width; i++)
             {
                 int index = (j * width + i) * 3;
-                Vec3f color(p_img[index] / 255.f, p_img[index + 1] / 255.f, p_img[index + 2] / 255.f);
+                float3 color = make_float3(p_img[index] / 255.f, p_img[index + 1] / 255.f, p_img[index + 2] / 255.f);
                 setPixel(i, j, color);
             }
         }
