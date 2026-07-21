@@ -18,7 +18,7 @@ extern "C" __global__ void __raygen__radiance()
 
     uint qid = launchIndex.x;
 
-    if (qid >= params.activeCount)
+    if (qid >= params.active_count)
         return;
 
     Payload payload;
@@ -33,7 +33,7 @@ extern "C" __global__ void __raygen__radiance()
     optixTrace(params.traversable, params.origins[qid], params.directions[qid], 0.001f, 1e20f, 0.0f, OptixVisibilityMask(255),
                OPTIX_RAY_FLAG_DISABLE_ANYHIT, 0, 1, 0, p0, p1);
 
-    params.hitMask[qid] = payload.hit;
+    params.hit_buffers.mask[qid] = payload.hit;
 
     if (payload.hit)
     {
@@ -42,11 +42,11 @@ extern "C" __global__ void __raygen__radiance()
                payload.normal.x, payload.normal.y, payload.normal.z,
                payload.materialIndex);*/
         // Store hit data in SoA format
-        params.hitPositions[qid] = payload.position;
-        params.hitNormals[qid] = payload.normal;
-        params.hitMaterialIndices[qid] = payload.materialIndex;
-        params.hitT[qid] = payload.t;
-        params.hitTypes[qid] = payload.object_type;
-        params.hitObjectIndices[qid] = payload.objectIndex;
+        params.hit_buffers.positions[qid] = payload.position;
+        params.hit_buffers.normals[qid] = payload.normal;
+        params.hit_buffers.materialIndices[qid] = payload.materialIndex;
+        params.hit_buffers.distances[qid] = payload.t;
+        params.hit_buffers.types[qid] = payload.object_type;
+        params.hit_buffers.objectIndices[qid] = payload.objectIndex;
     }
 }

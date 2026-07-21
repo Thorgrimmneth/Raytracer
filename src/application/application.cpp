@@ -128,7 +128,7 @@ int Application::launchApp(int argc, char **argv)
         }
 
         // Get finalized image from GPU and save to texture
-        float3 *d_finalizedImage = renderer.getFinalizedImage();
+        float3 *d_finalizedImage = renderer.get_finalized_image();
         if (d_finalizedImage)
         {
             unsigned char *img_data = (unsigned char *)malloc(width * height * 3);
@@ -139,13 +139,13 @@ int Application::launchApp(int argc, char **argv)
                 img_data[i * 3 + 1] = static_cast<unsigned char>(d_finalizedImage[i].y * 255.0f);
                 img_data[i * 3 + 2] = static_cast<unsigned char>(d_finalizedImage[i].z * 255.0f);
             }
-            std::cout << "converged after " << renderer.getFrameNumber() << " with " << value << " error" << std::endl;
+            std::cout << "converged after " << renderer.get_frame_number() << " with " << value << " error" << std::endl;
             image.createFromRaw(img_data, width, height);
             const std::string imageName = "performance.jpg";
             image.saveJPG(RESULTS_PATH + imageName);
             std::cout << "saved : " + imageName << std::endl;
             chrono.stop();
-            std::cout << "avg : " << renderer.getFrameNumber() / (chrono.elapsedTime()) << " spp/s" << std::endl;
+            std::cout << "avg : " << renderer.get_frame_number() / (chrono.elapsedTime()) << " spp/s" << std::endl;
             free(img_data);
             free(d_finalizedImage);
         }
@@ -171,11 +171,11 @@ int Application::launchApp(int argc, char **argv)
             }
 
             // Get finalized image from GPU and save to texture
-            float3 *d_finalizedImage = renderer.getFinalizedImage();
+            float3 *d_finalizedImage = renderer.get_finalized_image();
             if (d_finalizedImage)
             {
                 chrono.stop();
-                printf("image %d : converged after %d samples with %f error in %fs (around %f spp/s)\n", i, renderer.getFrameNumber(), value, chrono.elapsedTime(), renderer.getFrameNumber() / chrono.elapsedTime());
+                printf("image %d : converged after %d samples with %f error in %fs (around %f spp/s)\n", i, renderer.get_frame_number(), value, chrono.elapsedTime(), renderer.get_frame_number() / chrono.elapsedTime());
                 unsigned char *img_data = (unsigned char *)malloc(width * height * 3);
                 for (int k = 0; k < width * height; k++)
                 {

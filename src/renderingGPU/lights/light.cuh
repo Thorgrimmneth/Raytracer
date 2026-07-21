@@ -2,6 +2,9 @@
 
 #include <stdint.h>
 
+#include "../materials/material.cuh"
+#include "../objects/sdf.cuh"
+#include "../objects/triangle_mesh.cuh"
 #include "../utils/defines.cuh"
 #include "../utils/op.cuh"
 #include "../utils/rng.cuh"
@@ -9,7 +12,7 @@
 
 #include "lightsample.cuh"
 
-struct CudaScene;
+struct Scene;
 
 enum LightType : uint8_t
 {
@@ -85,13 +88,15 @@ struct alignas(16) Light
     // SAMPLING
     //
 
-    DEVICE LightSample sampleSphereGeom(const float3 &p_point, RNG &rng, const CudaScene &scene) const;
+    DEVICE LightSample sampleSphereGeom(const float3 &p_point, RNG &rng, const Scene &scene) const;
 
-    DEVICE LightSample samplePlaneGeom(const float3 &p_point, RNG &rng, const CudaScene &scene) const;
+    DEVICE LightSample samplePlaneGeom(const float3 &p_point, RNG &rng, const Scene &scene) const;
 
-    DEVICE LightSample sampleSDFGeom(const float3 &p_point, RNG &rng, const CudaScene &scene) const;
+    DEVICE LightSample sampleSDFGeom(const float3 &p_point, RNG &rng, const SDF *scene_sdfs,
+                                     const Material *scene_materials) const;
 
-    DEVICE LightSample sampleMeshGeom(const float3 &p_point, RNG &rng, const CudaScene &scene) const;
+    DEVICE LightSample sampleMeshGeom(const float3 &p_point, RNG &rng, const MeshInstance *scene_mesh_instances,
+                                      const MeshGeometry *scene_mesh_geometries, const Material *scene_materials) const;
 
     DEVICE LightSample sampleCylinder(const float3 &p_point, RNG &rng) const;
 
@@ -103,7 +108,7 @@ struct alignas(16) Light
 
     DEVICE LightSample sampleQuad(const float3 &p_point, RNG &rng) const;
 
-    DEVICE LightSample sample(const float3 &p_point, RNG &rng, const CudaScene &scene) const;
+    DEVICE LightSample sample(const float3 &p_point, RNG &rng, const Scene &scene) const;
 
     DEVICE LightSample sample(const float3 &p_point, RNG &rng) const;
 

@@ -1,6 +1,7 @@
 #include "scene.cuh"
+#include "../utils/optix_pass_data.cuh"
 
-HOST void CudaScene::uploadObjects(CudaSceneHelper &helper)
+HOST void Scene::uploadObjects(SceneHelper &helper)
 {
     // =========================
     // Upload spheres
@@ -61,7 +62,7 @@ HOST void CudaScene::uploadObjects(CudaSceneHelper &helper)
     }
 }
 
-HOST void CudaScene::uploadLights(CudaSceneHelper &helper)
+HOST void Scene::uploadLights(SceneHelper &helper)
 {
     nbLights = helper.lightsGPU.size();
 
@@ -114,7 +115,7 @@ HOST void CudaScene::uploadLights(CudaSceneHelper &helper)
     cudaMemcpy(lightProbabilities, probabilities.data(), nbLights * sizeof(float), cudaMemcpyHostToDevice);
 }
 
-HOST void CudaScene::uploadMaterials(CudaSceneHelper &helper)
+HOST void Scene::uploadMaterials(SceneHelper &helper)
 {
     nbMaterials = helper.materialsGPU.size();
 
@@ -130,7 +131,7 @@ HOST void CudaScene::uploadMaterials(CudaSceneHelper &helper)
     }
 }
 
-void sortMaterials(CudaSceneHelper &helper)
+void sortMaterials(SceneHelper &helper)
 {
     int padding[6];
     padding[0] = 0; // Account for ground plane at index 0
@@ -159,10 +160,10 @@ void sortMaterials(CudaSceneHelper &helper)
     }
 }
 
-CudaScene singleObject(float4 sunDir, int rngmanip)
+Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass, OptixPassData<LaunchShadowParams> &shadow_pass, int rngmanip)
 {
-    CudaScene gpuScene;
-    CudaSceneHelper helper;
+    Scene gpuScene;
+    SceneHelper helper;
     Light sun = createSun(sunDir, helper);
     helper.lightsGPU.push_back(sun);
 
@@ -281,20 +282,7 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
         }
         helper.sdfsGPU.push_back(sdf);
     }
-    /*for (size_t i = 0; i < helper.meshInstancesGPU.size(); ++i)
-    {
-        if (helper.meshInstancesGPU[i].lightIndex != -1)
-        {
-            printf("instance %zu -> light %d\n", i, helper.meshInstancesGPU[i].lightIndex);
-        }
-    }
-    for(size_t i = 0; i < helper.sdfsGPU.size(); ++i)
-    {
-        if (helper.sdfsGPU[i].lightIndex != -1)
-        {
-            printf("sdf %zu -> light %d\n", i, helper.sdfsGPU[i].lightIndex);
-        }
-    }*/
+
     sortLights(helper);
     gpuScene.uploadLights(helper);
     gpuScene.uploadMaterials(helper);
@@ -435,18 +423,18 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
     }
 
     // Radiance
-    gpuScene.radiancePass.pipeline = pipelineManagerRadiance.pipeline;
-    gpuScene.radiancePass.sbt = sbtManagerRadiance.sbt;
+    radiance_pass.pipeline = pipelineManagerRadiance.pipeline;
+    radiance_pass.sbt = sbtManagerRadiance.sbt;
 
-    gpuScene.radiancePass.params = launchParamsManagerRadiance.params;
-    gpuScene.radiancePass.d_params = launchParamsManagerRadiance.d_params;
+    radiance_pass.params = launchParamsManagerRadiance.params;
+    radiance_pass.d_params = launchParamsManagerRadiance.d_params;
 
     // Shadow
-    gpuScene.shadowPass.pipeline = pipelineManagerShadow.pipeline;
-    gpuScene.shadowPass.sbt = sbtManagerShadow.sbt;
+    shadow_pass.pipeline = pipelineManagerShadow.pipeline;
+    shadow_pass.sbt = sbtManagerShadow.sbt;
 
-    gpuScene.shadowPass.params = launchParamsManagerShadow.params;
-    gpuScene.shadowPass.d_params = launchParamsManagerShadow.d_params;
+    shadow_pass.params = launchParamsManagerShadow.params;
+    shadow_pass.d_params = launchParamsManagerShadow.d_params;
     // Transfer ownership of radiance resources
     pipelineManagerRadiance.pipeline = nullptr;
     sbtManagerRadiance.sbt = {};
@@ -460,7 +448,7 @@ CudaScene singleObject(float4 sunDir, int rngmanip)
     return gpuScene;
 }
 
-void addGround(CudaSceneHelper &helper)
+void addGround(SceneHelper &helper)
 {
     Plane p = Plane(make_float3(0.f, 0.f, 0.f), make_float3(0.f, 1.f, 0.f));
     Material ground = Material::makeMaterial(make_float3(0.5f), LAMBERT, 1.0f);
@@ -470,7 +458,7 @@ void addGround(CudaSceneHelper &helper)
     helper.meshInstancesGPU.push_back(createMeshInstance(helper, helper.meshGeometriesGPU.size() - 1, p.materialIndex));
 }
 
-void sortLights(CudaSceneHelper &helper)
+void sortLights(SceneHelper &helper)
 {
     std::sort(helper.lightsGPU.begin(), helper.lightsGPU.end(), [](const Light &a, const Light &b) {
         return a.getColorPower().x + a.getColorPower().y + a.getColorPower().z >

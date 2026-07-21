@@ -38,9 +38,9 @@ __global__ void shadeMissKernel(float3 *origins, float3 *directions, float3 *thr
 
     const float sunSegmentLength = 15000.0f;
 
-    const float qR = __expf(-hr * SUN_DIRECTION.y * sunSegmentLength);
+    const float qR = __expf(-HR * SUN_DIRECTION.y * sunSegmentLength);
 
-    const float qM = __expf(-hm * SUN_DIRECTION.y * sunSegmentLength);
+    const float qM = __expf(-HM * SUN_DIRECTION.y * sunSegmentLength);
 
     const float invOneMinusQR = 1.0f / (1.0f - qR);
 
@@ -70,13 +70,13 @@ __global__ void shadeMissKernel(float3 *origins, float3 *directions, float3 *thr
 
     float height = fmaxf(samplePosition.y, 0.0f);
 
-    float hrLocal = __expf(-height * hr);
+    float hrLocal = __expf(-height * HR);
 
-    float hmLocal = __expf(-height * hm);
+    float hmLocal = __expf(-height * HM);
 
-    const float rR = __expf(-hr * direction.y * segmentLength);
+    const float rR = __expf(-HR * direction.y * segmentLength);
 
-    const float rM = __expf(-hm * direction.y * segmentLength);
+    const float rM = __expf(-HM * direction.y * segmentLength);
 
     for (int i = 0; i < NB_SKY_SAMPLES; ++i)
     {
@@ -158,7 +158,7 @@ __global__ void shadeMissKernel(float3 *origins, float3 *directions, float3 *thr
     accumBuffer[pixelIndices[qid]] += throughput[qid] * sky;
 }
 
-__global__ void shadeLambertKernel(CudaScene scene, float3 *directions, float3 *throughputs, RNG *p_rng,
+__global__ void shadeLambertKernel(Scene scene, float3 *directions, float3 *throughputs, RNG *p_rng,
                                    float3 *hitPositions, float3 *hitNormals, int *hitMaterialIndices, int *pixelIndices,
                                    float3 *nextOrigins, float3 *nextDirections, float3 *nextThroughput,
                                    int *nextPixelIndices, bool *nextLastBounceWasDelta, float *nextLastBsdfPdf,
@@ -299,7 +299,7 @@ __global__ void shadeLambertKernel(CudaScene scene, float3 *directions, float3 *
     shadowMaxDistances[warpBase + localRank] = maxDist;
 }
 
-__global__ void shadeMetalKernel(CudaScene scene, float3 *directions, float3 *throughputs, RNG *rngs,
+__global__ void shadeMetalKernel(Scene scene, float3 *directions, float3 *throughputs, RNG *rngs,
                                  float3 *hitPositions, float3 *hitNormals, int *hitMaterialIndices, int *pixelIndices,
                                  float3 *accumBuffer, float3 *nextOrigins, float3 *nextDirections,
                                  float3 *nextThroughput, int *nextPixelIndices, bool *nextLastBounceWasDelta,
@@ -451,7 +451,7 @@ __global__ void shadeMetalKernel(CudaScene scene, float3 *directions, float3 *th
     // ------------------------------------------------------------
 }
 
-__global__ void shadePlasticNEEKernel(CudaScene scene, float3 *directions, float3 *throughputs, RNG *rngs,
+__global__ void shadePlasticNEEKernel(Scene scene, float3 *directions, float3 *throughputs, RNG *rngs,
                                       float3 *hitPositions, float3 *hitNormals, int *hitMaterialIndices,
                                       int *pixelIndices, float3 *accumBuffer, int nbLights, float *lightWeights,
                                       int activeCount, float3 *shadowOrigins, float3 *shadowDirections,
@@ -731,7 +731,7 @@ __global__ void shadePlasticKernel(Material *materials, float3 *directions, floa
     // === QUEUE DISPATCH ===
 }
 
-__global__ void shadeMirrorKernel(CudaScene scene, float3 *directions, float3 *throughputs, RNG *rngs,
+__global__ void shadeMirrorKernel(Scene scene, float3 *directions, float3 *throughputs, RNG *rngs,
                                   float3 *hitPositions, float3 *hitNormals, int *hitMaterialIndices, int *pixelIndices,
                                   float3 *accumBuffer, float3 *nextOrigins, float3 *nextDirections,
                                   float3 *nextThroughput, int *nextPixelIndices, bool *nextLastBounceWasDelta,
@@ -826,7 +826,7 @@ __global__ void shadeMirrorKernel(CudaScene scene, float3 *directions, float3 *t
     // ------------------------------------------------------------
 }
 
-__global__ void shadeTransparentKernel(CudaScene scene, float3 *directions, float3 *throughputs, RNG *rngs,
+__global__ void shadeTransparentKernel(Scene scene, float3 *directions, float3 *throughputs, RNG *rngs,
                                        bool *isInsides, float3 *hitPositions, float3 *hitNormals,
                                        int *hitMaterialIndices, int *pixelIndices, float3 *accumBuffer,
                                        float3 *nextOrigins, float3 *nextDirections, float3 *nextThroughput,
@@ -918,7 +918,7 @@ __global__ void shadeTransparentKernel(CudaScene scene, float3 *directions, floa
     nextRng[dst] = rngs[qid];
 }
 
-__global__ void shadeEmissiveKernel(CudaScene scene, float3 *origins, float3 *directions, float3 *throughputs,
+__global__ void shadeEmissiveKernel(Scene scene, float3 *origins, float3 *directions, float3 *throughputs,
                                     bool *lastBounceWasDelta, float *lastBsdfPdf, int *hitMaterialIndices,
                                     int *pixelIndices, float3 *accumBuffer, float *distances, int *types,
                                     float3 *hitNormals, int *hitObjectIndex, int activeCount)

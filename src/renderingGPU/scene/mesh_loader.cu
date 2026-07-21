@@ -327,7 +327,7 @@ HOST void buildTransformMatrix(float *out_transform, float3 scale, Quaternion ro
 }
 
 // Create an instance from a loaded geometry
-HOST MeshInstance createMeshInstance(CudaSceneHelper &sceneHelper, int geometryIndex, int materialIndex, float3 scale, Quaternion rotation,
+HOST MeshInstance createMeshInstance(SceneHelper &sceneHelper, int geometryIndex, int materialIndex, float3 scale, Quaternion rotation,
                                      float3 translation)
 {
     MeshInstance instance;

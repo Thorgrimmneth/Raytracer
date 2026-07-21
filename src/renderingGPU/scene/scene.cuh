@@ -14,59 +14,24 @@
 
 #include "../raytracingUtils/ray.cuh"
 
-#include "../../devicePrograms/launch_radiance_params.cuh"
-#include "../../devicePrograms/launch_shadow_params.cuh"
-#include "../../devicePrograms/optix_launch_params_manager.h"
-#include "../optix/optix_context.h"
 #include "../optix/optix_gas.h"
 #include "../optix/optix_ias.h"
-#include "../optix/optix_module_manager.h"
-#include "../optix/optix_pipeline_manager.h"
-#include "../optix/optix_program_group_manager.h"
+#include "../optix/optix_context.h"
 #include "../optix/optix_sbt_manager.h"
 #include "../utils/compute_transform.cuh"
+#include "../utils/optix_pass_data.cuh"
 #include "init_optix.cuh"
 #include "scene_helper.cuh"
 #include "sun_helper.h"
 
 struct Light;
 
-template <typename LaunchParamsT> struct OptixPassData
-{
-    OptixPipeline pipeline = nullptr;
-
-    OptixShaderBindingTable sbt{};
-
-    CUdeviceptr d_params = 0;
-
-    LaunchParamsT params{};
-
-    void destroy()
-    {
-        if (d_params)
-        {
-            CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_params)));
-            d_params = 0;
-        }
-
-        sbt = {};
-
-        if (pipeline)
-        {
-            OPTIX_CHECK(optixPipelineDestroy(pipeline));
-            pipeline = nullptr;
-        }
-
-        params = LaunchParamsT{};
-    }
-};
-
-struct CudaScene
+struct Scene
 {
     Sphere *spheres;
     Plane *planes;
-    MeshGeometry *meshGeometries; // Shared geometry data (loaded once per file)
-    MeshInstance *meshInstances;  // Per-instance data (transform, material)
+    MeshGeometry *meshGeometries;
+    MeshInstance *meshInstances;
     Material *materials;
     Light *lights;
     float *lightProbabilities;
@@ -75,9 +40,6 @@ struct CudaScene
     OptixTraversableHandle iasHandle = 0;
     CUdeviceptr d_iasBuffer = 0;
     std::vector<OptixGAS> gasList;
-
-    OptixPassData<LaunchRadianceParams> radiancePass;
-    OptixPassData<LaunchShadowParams> shadowPass;
 
     int nbSpheres;
     int nbPlanes;
@@ -89,8 +51,7 @@ struct CudaScene
 
     inline HOST void destroy()
     {
-        std::cout << "Destroying CudaScene..." << std::endl;
-        // Libération des géométries
+        std::cout << "Destroying Scene..." << std::endl;
         if (meshGeometries)
         {
             for (int i = 0; i < nbMeshGeometries; ++i)
@@ -117,13 +78,6 @@ struct CudaScene
         CUDA_CHECK(cudaFree(lightProbabilities));
         CUDA_CHECK(cudaFree(lightCumulativeWeights));
 
-        std::cout << "Destroyed buffers" << std::endl;
-
-        radiancePass.destroy();
-        std::cout << "Destroyed radiance pass" << std::endl;
-        shadowPass.destroy();
-        std::cout << "Destroyed shadow pass" << std::endl;
-
         // Remise à zéro
         meshGeometries = nullptr;
         meshInstances = nullptr;
@@ -143,11 +97,11 @@ struct CudaScene
         nbLights = 0;
     }
 
-    HOST void uploadObjects(CudaSceneHelper &helper);
+    HOST void uploadObjects(SceneHelper &helper);
 
-    HOST void uploadLights(CudaSceneHelper &helper);
+    HOST void uploadLights(SceneHelper &helper);
 
-    HOST void uploadMaterials(CudaSceneHelper &helper);
+    HOST void uploadMaterials(SceneHelper &helper);
 
 
     D_FORCEINLINE float lightPdf(const float3 &origin, const float3 &dir) const
@@ -157,7 +111,7 @@ struct CudaScene
     };
 };
 
-void sortLights(CudaSceneHelper &helper);
-CudaScene singleObject(float4 sunDir, int rngmanip = 0);
+void sortLights(SceneHelper &helper);
+Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass, OptixPassData<LaunchShadowParams> &shadow_pass, int rngmanip = 0);
 
-void addGround(CudaSceneHelper &helper);
+void addGround(SceneHelper &helper);

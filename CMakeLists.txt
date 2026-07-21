@@ -19,7 +19,7 @@ find_package(assimp REQUIRED)
 
 file(GLOB_RECURSE SOURCES
     src/*.cpp
-    src/**/*.cu
+    src/*.cu
 )
 
 # Exclude OptiX device programs from main compilation (they're compiled to PTX separately)

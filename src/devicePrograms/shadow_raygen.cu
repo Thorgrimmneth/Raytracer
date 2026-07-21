@@ -18,7 +18,7 @@ extern "C" __global__ void __raygen__shadow()
 
     uint qid = launchIndex.x;
 
-    if (qid >= params.activeCount)
+    if (qid >= params.active_count)
         return;
 
     ShadowPayload payload;

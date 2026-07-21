@@ -174,10 +174,11 @@ DEVICE LightSample Light::sampleCone(const float3 &p_point, RNG &rng) const
     return rep;
 }
 
-DEVICE LightSample Light::sampleSDFGeom(const float3 &p_point, RNG &rng, const CudaScene &scene) const
+DEVICE LightSample Light::sampleSDFGeom(const float3 &p_point, RNG &rng, const SDF *scene_sdfs,
+                                        const Material *scene_materials) const
 {
-    const SDF &sdf = scene.sdfGeometries.sdfs[getSDFIndex()];
-    const Material &m = scene.materials[sdf.getMaterialIndex()];
+    const SDF &sdf = scene_sdfs[getSDFIndex()];
+    const Material &m = scene_materials[sdf.getMaterialIndex()];
 
     LightSample ls{};
 
@@ -205,11 +206,13 @@ DEVICE LightSample Light::sampleSDFGeom(const float3 &p_point, RNG &rng, const C
     return ls;
 }
 
-DEVICE LightSample Light::sampleMeshGeom(const float3 &p_point, RNG &rng, const CudaScene &scene) const
+DEVICE LightSample Light::sampleMeshGeom(const float3 &p_point, RNG &rng, const MeshInstance *scene_mesh_instances,
+                                         const MeshGeometry *scene_mesh_geometries,
+                                         const Material *scene_materials) const
 {
-    const MeshInstance &inst = scene.meshInstances[getMeshInstanceIndex()];
-    const MeshGeometry &geom = scene.meshGeometries[inst.geometryIndex];
-    const Material &m = scene.materials[inst.materialIndex];
+    const MeshInstance &inst = scene_mesh_instances[getMeshInstanceIndex()];
+    const MeshGeometry &geom = scene_mesh_geometries[inst.geometryIndex];
+    const Material &m = scene_materials[inst.materialIndex];
 
     LightSample ls{};
 
@@ -287,15 +290,15 @@ DEVICE LightSample Light::sampleMeshGeom(const float3 &p_point, RNG &rng, const 
     return ls;
 }
 
-DEVICE LightSample Light::sample(const float3 &p_point, RNG &rng, const CudaScene &scene) const
+DEVICE LightSample Light::sample(const float3 &p_point, RNG &rng, const Scene &scene) const
 {
     switch (getType())
     {
     case SDF_GEOM:
-        return sampleSDFGeom(p_point, rng, scene);
+        return sampleSDFGeom(p_point, rng, scene.sdfGeometries.sdfs, scene.materials);
 
     case MESH_GEOM:
-        return sampleMeshGeom(p_point, rng, scene);
+        return sampleMeshGeom(p_point, rng, scene.meshInstances, scene.meshGeometries, scene.materials);
 
     default:
         return sample(p_point, rng);

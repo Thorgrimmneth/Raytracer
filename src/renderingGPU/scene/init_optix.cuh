@@ -4,7 +4,7 @@
 #include "../optix/optix_module_manager.h"
 #include "../optix/optix_pipeline_manager.h"
 #include "../optix/optix_program_group_manager.h"
-
+#include "../../devicePrograms/optix_launch_params_manager.h"
 #include <optional>
 #include <optix_stack_size.h>
 #include <string>

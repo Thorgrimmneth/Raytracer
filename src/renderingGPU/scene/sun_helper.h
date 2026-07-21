@@ -3,7 +3,7 @@
 #include "../lights/light.cuh"
 #include "scene_helper.cuh"
 
-inline Light createSun(float4 sunDir, CudaSceneHelper sceneHelper)
+inline Light createSun(float3 sunDir, SceneHelper sceneHelper)
 {
     Light l;
     l.color_power = make_float4(1.f, 0.95f, 0.9f, 100.f);

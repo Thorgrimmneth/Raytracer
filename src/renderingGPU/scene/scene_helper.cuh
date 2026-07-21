@@ -8,7 +8,7 @@
 #include "../lights/light.cuh"
 #include "../objects/sdf.cuh"
 
-struct CudaSceneHelper
+struct SceneHelper
 {
     std::vector<SDF> sdfsGPU = std::vector<SDF>();
     std::vector<Sphere> spheresGPU = std::vector<Sphere>();

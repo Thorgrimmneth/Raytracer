@@ -1,6 +1,8 @@
 #pragma once
 
 #include "../scene/scene.cuh"
+#include "../utils/op.cuh"
+
 
 D_FORCEINLINE
 int selectLightByImportance(const int &nbLights, const float *lightCumulativeWeights, RNG &rng)

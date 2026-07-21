@@ -83,7 +83,7 @@ void Window::initTexture(int width, int height)
 
     cudaGraphicsGLRegisterImage(&cudaTextureResource, texture, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsWriteDiscard);
 
-    renderer.setInteropResource(cudaTextureResource);
+    renderer.set_interop_resource(cudaTextureResource);
 }
 
 void Window::initQuad()
@@ -258,19 +258,9 @@ unsigned char *Window::cumulativeRendering(float3 sunDir, int width, int height,
         }
         if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS)
         {
-            renderer.resetAccumulation();
+            renderer.reset_accumulation();
         }
-        static bool cWasPressed = false;
-
-        bool cIsPressed = glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS;
-
-        if (cIsPressed && !cWasPressed)
-        {
-            renderer.changeMode();
-            renderer.resetAccumulation();
-        }
-
-        cWasPressed = cIsPressed;
+    
         value = renderer.render(true, convergence);
             
         draw();
@@ -286,7 +276,7 @@ unsigned char *Window::cumulativeRendering(float3 sunDir, int width, int height,
             double fps = frames / (currentTime - lastTime);
 
             std::string title = "Path Tracer | FPS: " + std::to_string((int)fps) +
-                                " | SPP: " + std::to_string(renderer.getFrameNumber()) + " | Diff: " + std::to_string(value);
+                                " | SPP: " + std::to_string(renderer.get_frame_number()) + " | Diff: " + std::to_string(value);
             glfwSetWindowTitle(window, title.c_str());
 
             frames = 0;
@@ -295,7 +285,7 @@ unsigned char *Window::cumulativeRendering(float3 sunDir, int width, int height,
         }
     }
     if(value < threshold){
-        std::cout << "Convergence reached at sample " << renderer.getFrameNumber() << std::endl;
+        std::cout << "Convergence reached at sample " << renderer.get_frame_number() << std::endl;
     }
     // Read the final rendered image from the texture
     glBindTexture(GL_TEXTURE_2D, texture);

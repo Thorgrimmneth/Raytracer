@@ -8,35 +8,17 @@
 #include "../renderingGPU/raytracingUtils/ray.cuh"
 #include "../renderingGPU/utils/op.cuh"
 #include "../renderingGPU/objects/triangle_mesh.cuh"
-#include "../renderingGPU/materials/material.cuh"
-
+#include "../renderingGPU/utils/shading_data.cuh"
 // Minimal hit record for internal scene queries (lightPdf, etc)
-struct OptixHit
-{
-    float3 position;
-    float3 normal;
-    float t;
-    int materialIndex;
-    int objectIndex;
-    Hitobject_type object_type;
-};
 
 struct LaunchRadianceParams
 {
     float3* origins = nullptr;
     float3* directions = nullptr;
 
-    // Hit data in SoA format (only relevant fields for active kernels)
-    float3* hitPositions = nullptr;
-    float3* hitNormals = nullptr;
-    int* hitMaterialIndices = nullptr;
-    float* hitT = nullptr;
-    int* hitTypes = nullptr;
-    int* hitObjectIndices = nullptr;
-    
-    int* hitMask = nullptr;
+    HitBuffers hit_buffers;
 
-    int activeCount = 0;
+    int active_count = 0;
 
     OptixTraversableHandle traversable = 0;
     

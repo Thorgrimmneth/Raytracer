@@ -4,17 +4,18 @@
 #include "../scene/scene.cuh"
 #include "shading_data.cuh"
 #include "shadow_data.cuh"
+#include "../renderingUtils/shading_kernels.cuh"
 
 dim3 block1D(256);
 
 inline dim3 gridForCount(int count, int blockSize = 256) { return dim3((count + blockSize - 1) / blockSize); }
 
 template <MaterialType T>
-void launchShadeKernel(SortedRayQueue &in, RayQueue &out, CudaScene scene, float3 *accumBuffer, int offset,
+void launchShadeKernel(SortedRayQueue &in, RayQueue &out, Scene scene, float3 *accumBuffer, int offset,
                        int activeCount, ShadowRayQueue &shadowQueue, int *d_shadowCount, int depth);
 
 template <>
-void launchShadeKernel<MaterialType::MISS>(SortedRayQueue &in, RayQueue &out, CudaScene scene, float3 *accumBuffer,
+void launchShadeKernel<MaterialType::MISS>(SortedRayQueue &in, RayQueue &out, Scene scene, float3 *accumBuffer,
                                            int offset, int activeCount, ShadowRayQueue &shadowQueue, int *d_shadowCount,
                                            int depth)
 {
@@ -24,7 +25,7 @@ void launchShadeKernel<MaterialType::MISS>(SortedRayQueue &in, RayQueue &out, Cu
 }
 
 template <>
-void launchShadeKernel<MaterialType::LAMBERT>(SortedRayQueue &in, RayQueue &out, CudaScene scene, float3 *accumBuffer,
+void launchShadeKernel<MaterialType::LAMBERT>(SortedRayQueue &in, RayQueue &out, Scene scene, float3 *accumBuffer,
                                               int offset, int activeCount, ShadowRayQueue &shadowQueue,
                                               int *d_shadowCount, int depth)
 {
@@ -32,12 +33,12 @@ void launchShadeKernel<MaterialType::LAMBERT>(SortedRayQueue &in, RayQueue &out,
         scene, in.directions + offset, in.throughputs + offset, in.rng + offset, in.hitPositions + offset,
         in.hitNormals + offset, in.hitMaterialIndices + offset, in.pixelIndices + offset, out.origins, out.directions,
         out.throughputs, out.pixelIndices, out.lastBounceWasDelta, out.lastBsdfPdf, out.isInside, out.rng,
-        out.activeCount, activeCount, shadowQueue.origins, shadowQueue.directions, shadowQueue.contributions,
+        out.active_count, activeCount, shadowQueue.origins, shadowQueue.directions, shadowQueue.contributions,
         shadowQueue.pixelIndices, shadowQueue.maxDistances, d_shadowCount, depth);
 }
 
 template <>
-void launchShadeKernel<MaterialType::METAL>(SortedRayQueue &in, RayQueue &out, CudaScene scene, float3 *accumBuffer,
+void launchShadeKernel<MaterialType::METAL>(SortedRayQueue &in, RayQueue &out, Scene scene, float3 *accumBuffer,
                                             int offset, int activeCount, ShadowRayQueue &shadowQueue,
                                             int *d_shadowCount, int depth)
 {
@@ -45,12 +46,12 @@ void launchShadeKernel<MaterialType::METAL>(SortedRayQueue &in, RayQueue &out, C
         scene, in.directions + offset, in.throughputs + offset, in.rng + offset, in.hitPositions + offset,
         in.hitNormals + offset, in.hitMaterialIndices + offset, in.pixelIndices + offset, accumBuffer, out.origins,
         out.directions, out.throughputs, out.pixelIndices, out.lastBounceWasDelta, out.lastBsdfPdf, out.isInside,
-        out.rng, out.activeCount, activeCount, shadowQueue.origins, shadowQueue.directions, shadowQueue.contributions,
+        out.rng, out.active_count, activeCount, shadowQueue.origins, shadowQueue.directions, shadowQueue.contributions,
         shadowQueue.pixelIndices, shadowQueue.maxDistances, d_shadowCount, depth);
 }
 
 template <>
-void launchShadeKernel<MaterialType::PLASTIC>(SortedRayQueue &in, RayQueue &out, CudaScene scene, float3 *accumBuffer,
+void launchShadeKernel<MaterialType::PLASTIC>(SortedRayQueue &in, RayQueue &out, Scene scene, float3 *accumBuffer,
                                               int offset, int activeCount, ShadowRayQueue &shadowQueue,
                                               int *d_shadowCount, int depth)
 {
@@ -64,11 +65,11 @@ void launchShadeKernel<MaterialType::PLASTIC>(SortedRayQueue &in, RayQueue &out,
         scene.materials, in.directions + offset, in.throughputs + offset, in.rng + offset, in.hitPositions + offset,
         in.hitNormals + offset, in.hitMaterialIndices + offset, in.pixelIndices + offset, accumBuffer, out.origins,
         out.directions, out.throughputs, out.pixelIndices, out.lastBounceWasDelta, out.lastBsdfPdf, out.isInside,
-        out.rng, out.activeCount, activeCount, depth);
+        out.rng, out.active_count, activeCount, depth);
 }
 
 template <>
-void launchShadeKernel<MaterialType::MIRROR>(SortedRayQueue &in, RayQueue &out, CudaScene scene, float3 *accumBuffer,
+void launchShadeKernel<MaterialType::MIRROR>(SortedRayQueue &in, RayQueue &out, Scene scene, float3 *accumBuffer,
                                              int offset, int activeCount, ShadowRayQueue &shadowQueue,
                                              int *d_shadowCount, int depth)
 {
@@ -76,11 +77,11 @@ void launchShadeKernel<MaterialType::MIRROR>(SortedRayQueue &in, RayQueue &out, 
         scene, in.directions + offset, in.throughputs + offset, in.rng + offset, in.hitPositions + offset,
         in.hitNormals + offset, in.hitMaterialIndices + offset, in.pixelIndices + offset, accumBuffer, out.origins,
         out.directions, out.throughputs, out.pixelIndices, out.lastBounceWasDelta, out.lastBsdfPdf, out.isInside,
-        out.rng, out.activeCount, activeCount, depth);
+        out.rng, out.active_count, activeCount, depth);
 }
 
 template <>
-void launchShadeKernel<MaterialType::TRANSPARENT>(SortedRayQueue &in, RayQueue &out, CudaScene scene,
+void launchShadeKernel<MaterialType::TRANSPARENT>(SortedRayQueue &in, RayQueue &out, Scene scene,
                                                   float3 *accumBuffer, int offset, int activeCount,
                                                   ShadowRayQueue &shadowQueue, int *d_shadowCount, int depth)
 {
@@ -88,11 +89,11 @@ void launchShadeKernel<MaterialType::TRANSPARENT>(SortedRayQueue &in, RayQueue &
         scene, in.directions + offset, in.throughputs + offset, in.rng + offset, in.isInside + offset,
         in.hitPositions + offset, in.hitNormals + offset, in.hitMaterialIndices + offset, in.pixelIndices + offset,
         accumBuffer, out.origins, out.directions, out.throughputs, out.pixelIndices, out.lastBounceWasDelta,
-        out.lastBsdfPdf, out.isInside, out.rng, out.activeCount, activeCount, depth);
+        out.lastBsdfPdf, out.isInside, out.rng, out.active_count, activeCount, depth);
 }
 
 template <>
-void launchShadeKernel<MaterialType::EMISSIVE>(SortedRayQueue &in, RayQueue &out, CudaScene scene, float3 *accumBuffer,
+void launchShadeKernel<MaterialType::EMISSIVE>(SortedRayQueue &in, RayQueue &out, Scene scene, float3 *accumBuffer,
                                                int offset, int activeCount, ShadowRayQueue &shadowQueue,
                                                int *d_shadowCount, int depth)
 {
@@ -102,7 +103,7 @@ void launchShadeKernel<MaterialType::EMISSIVE>(SortedRayQueue &in, RayQueue &out
         in.hitTypes + offset, in.hitNormals + offset, in.hitObjectIndices + offset, activeCount);
 }
 
-void launchShadeKernel(MaterialType type, SortedRayQueue &in, RayQueue &out, CudaScene scene, float3 *accumBuffer,
+void launchShadeKernel(MaterialType type, SortedRayQueue &in, RayQueue &out, Scene scene, float3 *accumBuffer,
                        int offset, int activeCount, ShadowRayQueue &shadowQueue, int *d_shadowCount, int depth)
 {
     switch (type)

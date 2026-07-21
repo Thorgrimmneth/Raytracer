@@ -15,7 +15,7 @@ struct LaunchShadowParams
     float3* origins = nullptr;
     float3* directions = nullptr;
 
-    int activeCount = 0;
+    int active_count = 0;
 
     OptixTraversableHandle traversable = 0;
     

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "../scene/scene.cuh"
 #include "rng.cuh"
 #include "check.cuh"
 
@@ -17,7 +16,7 @@ struct RayQueue
     RNG *rng = nullptr;
     int *pixelIndices = nullptr;
 
-    int *activeCount = nullptr;
+    int *active_count = nullptr;
 
     void destroy()
     {
@@ -53,9 +52,9 @@ struct RayQueue
             CUDA_CHECK(cudaFree(pixelIndices));
             pixelIndices = nullptr;
         }
-        if(activeCount){
-            CUDA_CHECK(cudaFree(activeCount));
-            activeCount = nullptr;
+        if(active_count){
+            CUDA_CHECK(cudaFree(active_count));
+            active_count = nullptr;
         }
     }
 
@@ -72,7 +71,7 @@ struct RayQueue
         cudaMalloc(&rng, maxSize * sizeof(RNG));
         cudaMalloc(&pixelIndices, maxSize * sizeof(int));
 
-        cudaMalloc(&activeCount, sizeof(int));
+        cudaMalloc(&active_count, sizeof(int));
     }
 };
 
