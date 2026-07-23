@@ -21,7 +21,7 @@ struct Tore
 
     static Tore create(float rInter, float rExter, int m) { return {rInter, rExter, m}; }
 
-    inline OptixAabb computeWorldAABB(const Matrix3x3 &rotation, const float3 &translation) const
+    H_INLINE OptixAabb computeWorldAABB(const Matrix3x3 &rotation, const float3 &translation) const
     {
         // Conservative bounding box by transforming all 8 corners of the local AABB
         float3 extents = make_float3(radiusExter + radiusInter, radiusInter, radiusExter + radiusInter);
@@ -55,25 +55,18 @@ struct Tore
         return aabb;
     }
 
-    HD_FORCEINLINE OptixAabb computeAABB(const Matrix3x3 &rotation) const
+    HD_FORCEINLINE OptixAabb computeAABB() const
     {
         float e = radiusExter + radiusInter;
 
         return {-e, -radiusInter, -e, e, radiusInter, e};
     }
 
-    D_FORCEINLINE float3 getNormal(const float3 &point, const Matrix3x3 &rotation) const
+    D_FORCEINLINE float3 getNormal(const float3 &point) const
     {
-        // Transform the point to local space
-        float3 localPoint = transform(rotation, point);
-        float3 q = make_float3(length(make_float3(localPoint.x, 0.f, localPoint.z)) - radiusExter, localPoint.y, 0.f);
-        float l = length(q);
-        if (l == 0.f)
-            return make_float3(0.f, 1.f, 0.f); // Arbitrary normal if on the surface
-        float4 normal = make_float4(l - radiusInter, q / l);
-        // Transform the normal back to world space
-        float3 worldNormal = transform(rotation.transpose(), make_float3(normal.y, normal.z, normal.w));
-        return normalize(worldNormal);
+        float h = length(make_float3(point.x, 0.f, point.z));
+        float4 q = make_float4(length(make_float2(h - radiusExter, point.y)) - radiusInter, normalize(point * make_float3(h - radiusExter, h, h - radiusExter)));
+        return normalize(make_float3(q.y, q.z, q.w));
     }
 
     __device__ float sdf(const float3 &point) const

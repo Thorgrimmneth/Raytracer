@@ -2,13 +2,16 @@
 
 #include "../utils/check.cuh"
 #include "../utils/op.cuh"
+#include "csg_tree.cuh"
 #include "sphere.cuh"
 #include "tore.cuh"
+#include <vector>
 
 enum class SDFType : uint8_t
 {
     Sphere,
-    Tore
+    Tore,
+    CSGTree
 };
 
 struct SDF
@@ -16,13 +19,18 @@ struct SDF
     SDFType type;
     float3 translation = make_float3(0.f);
     Matrix3x3 rotation = Matrix3x3::identity();
+    OptixAabb aabb;
     int lightIndex = -1; // Index into the lights array, if this instance is emissive
     union {
         Sphere sphere;
         Tore tore;
+        CSGTree csgTree;
     };
 
-    __device__ float sdf(const float3 &point) const
+    // Default constructor
+    HD SDF() : type(SDFType::Sphere), sphere({0.f, 0}) {}
+
+    DEVICE inline float sdf(const float3 &point) const
     {
         switch (type)
         {
@@ -30,12 +38,14 @@ struct SDF
             return sphere.sdf(point);
         case SDFType::Tore:
             return tore.sdf(point);
+        case SDFType::CSGTree:
+            return csgTree.sdf(point);
         default:
             return 0.0f; // Should not happen
         }
     }
 
-    __device__ int getMaterialIndex() const
+    DEVICE int getMaterialIndex() const
     {
         switch (type)
         {
@@ -43,12 +53,14 @@ struct SDF
             return sphere.materialIndex;
         case SDFType::Tore:
             return tore.materialIndex;
+        case SDFType::CSGTree:
+            return csgTree.materialIndex;
         default:
             return 0; // Should not happen
         }
     }
 
-    inline OptixAabb getWorldAABB() const
+    HOST OptixAabb getWorldAABB(const std::vector<PrimitiveData> &primitives = {}, const std::vector<CSGNode> &nodes = {}) const
     {
         switch (type)
         {
@@ -56,12 +68,15 @@ struct SDF
             return sphere.computeWorldAABB(translation);
         case SDFType::Tore:
             return tore.computeWorldAABB(rotation, translation);
+        case SDFType::CSGTree:
+            // Note: CSGTree requires full SDF array, use getWorldAABBWithContext() instead
+            return csgTree.computeWorldAABB(rotation, translation, primitives, nodes);
         default:
             return OptixAabb(); // Should not happen
         }
     }
 
-    D_FORCEINLINE void samplePoint(float3 &p_point, float3 &p_normal, RNG &rng) const
+    DEVICE void samplePoint(float3 &p_point, float3 &p_normal, RNG &rng) const
     {
         switch (type)
         {
@@ -71,12 +86,15 @@ struct SDF
         case SDFType::Tore:
             tore.sampleSurfacePoint(p_point, p_normal, rng);
             break;
+        case SDFType::CSGTree:
+            csgTree.sampleSurfacePoint(p_point, p_normal, rng);
+            break;
         default:
             break; // Should not happen
         }
     }
 
-    D_FORCEINLINE float getArea() const
+    DEVICE float getArea() const
     {
         switch (type)
         {
@@ -84,32 +102,38 @@ struct SDF
             return 4.f * M_PIf * sphere.radius * sphere.radius;
         case SDFType::Tore:
             return 4.f * M_PIf * M_PIf * tore.radiusExter * tore.radiusInter;
+        case SDFType::CSGTree:
+            return csgTree.getArea();
         default:
             return 0.f; // Should not happen
         }
     }
-    
-    HD_FORCEINLINE OptixAabb getAABB() const
+
+    HOST OptixAabb getAABB(const std::vector<PrimitiveData> &primitives = {}, const std::vector<CSGNode> &nodes = {}) const
     {
         switch (type)
         {
         case SDFType::Sphere:
             return sphere.computeAABB();
         case SDFType::Tore:
-            return tore.computeAABB(rotation);
+            return tore.computeAABB();
+        case SDFType::CSGTree:
+            return csgTree.computeAABB(primitives, nodes);
         default:
             return OptixAabb(); // Should not happen
         }
     }
 
-    D_FORCEINLINE float3 getNormal(const float3 &point) const
+    DEVICE float3 getNormal(const float3 &point) const
     {
         switch (type)
         {
         case SDFType::Sphere:
             return sphere.getNormal(point);
         case SDFType::Tore:
-            return tore.getNormal(point, rotation);
+            return tore.getNormal(point);
+        case SDFType::CSGTree:
+            return csgTree.getNormal(point);
         default:
             return make_float3(0.f); // Should not happen
         }
@@ -131,6 +155,7 @@ struct SDF
         return sdf;
     }
 };
+
 
 struct SDFGeometry
 {

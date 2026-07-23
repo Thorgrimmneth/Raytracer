@@ -180,6 +180,7 @@ HD_INLINE float4 operator*(const float a, const float4 &b) { return make_float4(
 // ============================================================
 
 HD_FORCEINLINE float dot(const float3 &a, const float3 &b) { return fmaf(a.x, b.x, fmaf(a.y, b.y, a.z * b.z)); }
+HD_FORCEINLINE float dot(const float2 &a, const float2 &b) { return fmaf(a.x, b.x, a.y * b.y); }
 HD_FORCEINLINE float dot4f3(const float4 &a, const float3 &b) { return fmaf(a.x, b.x, fmaf(a.y, b.y, a.z * b.z)); }
 HD_FORCEINLINE float dot(const float4 &a, const float4 &b) { return fmaf(a.x, b.x, fmaf(a.y, b.y, a.z * b.z)); }
 
@@ -209,6 +210,8 @@ HD_FORCEINLINE float3 normalize(const float3 &a)
 HD_FORCEINLINE float length2(const float3 &a) { return dot(a, a); }
 
 HD_FORCEINLINE float length(const float3 &a) { return sqrtf(length2(a)); }
+
+HD_FORCEINLINE float length(const float2 &a) { return sqrtf(dot(a, a)); }
 
 HD_FORCEINLINE float length(const float4 &a) { return sqrtf(fmaf(a.x, a.x, fmaf(a.y, a.y, a.z * a.z))); }
 
@@ -416,4 +419,28 @@ D_FORCEINLINE float3 transformVector(const float transform[12], const float3& v)
         transform[4] * v.x + transform[5] * v.y + transform[6] * v.z,
         transform[8] * v.x + transform[9] * v.y + transform[10] * v.z
     );
+}
+
+HD_INLINE Matrix3x3 operator*(const Matrix3x3& a, const Matrix3x3& b)
+{
+    Matrix3x3 c;
+
+    Matrix3x3 bt = b.transpose();
+
+    c.row0 = make_float3(
+        dot(a.row0, bt.row0),
+        dot(a.row0, bt.row1),
+        dot(a.row0, bt.row2));
+
+    c.row1 = make_float3(
+        dot(a.row1, bt.row0),
+        dot(a.row1, bt.row1),
+        dot(a.row1, bt.row2));
+
+    c.row2 = make_float3(
+        dot(a.row2, bt.row0),
+        dot(a.row2, bt.row1),
+        dot(a.row2, bt.row2));
+
+    return c;
 }

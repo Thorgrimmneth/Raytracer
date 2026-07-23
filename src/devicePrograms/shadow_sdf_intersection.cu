@@ -27,7 +27,7 @@ extern "C" __global__ void __intersection__sdf__shadow()
 
     float tMin = optixGetRayTmin();
     float tMax = optixGetRayTmax();
-    if(!intersectAABB(rayOriginLocal, rayDirectionLocal, sdf.getAABB(), tMin, tMax))
+    if(!intersectAABB(rayOriginLocal, rayDirectionLocal, sdf.aabb, tMin, tMax))
          return;
 
     for (int i = 0; i < 128; i++)

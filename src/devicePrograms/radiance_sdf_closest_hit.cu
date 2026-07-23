@@ -20,14 +20,9 @@ extern "C" __global__ void __closesthit__radiance__sdf()
 
     const SDF& sdf = data->sdf.sdfs[primIdx];
 
-    float h = 1e-4f;
     float3 p = optixGetWorldRayOrigin() + optixGetRayTmax() * optixGetWorldRayDirection();
     float3 pLocal = transform(sdf.rotation, p - sdf.translation);
-    float nx = sdf.sdf(pLocal + make_float3(h, 0, 0)) - sdf.sdf(pLocal - make_float3(h, 0, 0));
-    float ny = sdf.sdf(pLocal + make_float3(0, h, 0)) - sdf.sdf(pLocal - make_float3(0, h, 0));
-    float nz = sdf.sdf(pLocal + make_float3(0, 0, h)) - sdf.sdf(pLocal - make_float3(0, 0, h));
-    float3 N = normalize(make_float3(nx, ny, nz));
-
+    float3 N = sdf.getNormal(pLocal);
     
     float3 NWorld = normalize(transform(sdf.rotation.transpose(), N));
     payload->hit = 1;

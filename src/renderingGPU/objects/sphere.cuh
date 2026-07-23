@@ -13,13 +13,14 @@ struct Sphere
 
     static Sphere createRandomSphere(int materialIndex)
     {
-        float radius = randomFloat() * 2.f + 0.1f;
+        //float radius = randomFloat() * 2.f + 0.1f;
+        float radius = 1.f;
         return create(radius, materialIndex);
     }
 
     static Sphere create(float r, int m) { return {r, m}; }
 
-    inline OptixAabb computeWorldAABB(const float3 &translation) const
+    H_INLINE OptixAabb computeWorldAABB(const float3 &translation) const
     {
         OptixAabb aabb;
         aabb.minX = translation.x - radius;
