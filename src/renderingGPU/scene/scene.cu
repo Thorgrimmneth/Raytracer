@@ -291,25 +291,21 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
     CSGTree csgTree;
     csgTree.materialIndex = materialIndex;
     std::vector<PrimitiveData> primitives;
-    primitives.push_back(PrimitiveData::createSpherePrimitive(make_float3(0.f, 2.f, 0.f), materialIndex));
-    primitives.push_back(PrimitiveData::createSpherePrimitive(make_float3(0.f, 1.f, 0.f), materialIndex));
+    primitives.push_back(PrimitiveData::createSpherePrimitive(make_float3(-0.5f, 2.f, 0.f), materialIndex, 1.f));
+    primitives.push_back(PrimitiveData::createSpherePrimitive(make_float3(0.5f, 2.f, 0.f), materialIndex, 1.f));
     /*Quaternion rotation = quaternionFromAxisAngle(
         make_float3(1.f,0.f,0.f), 90.f);
     Matrix3x3 rotationMatrix = quaternionToMatrix(rotation);
     primitives.push_back(PrimitiveData::createTorePrimitive(rotationMatrix.transpose(), make_float3(0.f, 1.f, 0.f), materialIndex));*/
     std::vector<CSGNode> nodes;
-    nodes.push_back(CSGNode(CSGOp::Union, 0 | 0x80000000u, 1 | 0x80000000u));
-    csgTree.nbNodes = nodes.size();
+    nodes.push_back(CSGNode(InstructionOp::Union, 0 | 0x80000000u, 1 | 0x80000000u));
+    csgTree.compile(nodes);
 
     // Allocate and upload primitives to GPU
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&csgTree.primArray), primitives.size() * sizeof(PrimitiveData)));
     CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(csgTree.primArray), primitives.data(),
                           primitives.size() * sizeof(PrimitiveData), cudaMemcpyHostToDevice));
 
-    // Allocate and upload nodes to GPU
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&csgTree.nodes), nodes.size() * sizeof(CSGNode)));
-    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(csgTree.nodes), nodes.data(), nodes.size() * sizeof(CSGNode),
-                          cudaMemcpyHostToDevice));
     sdf.csgTree = csgTree;
     sdf.translation = make_float3(0.f, 0.f, 0.f);
     sdf.aabb = sdf.getAABB(primitives, nodes);

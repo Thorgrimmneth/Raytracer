@@ -71,12 +71,15 @@ struct PrimitiveData
 
         return OptixAabb();
     }
-    static PrimitiveData createSpherePrimitive(const float3 &translation, int materialIndex)
+    static PrimitiveData createSpherePrimitive(const float3 &translation, int materialIndex, float radius = -1.f)
     {
         PrimitiveData pd;
         pd.type = PrimitiveType::Sphere;
         pd.translation = translation;
-        pd.sphere = Sphere::createRandomSphere(materialIndex);
+        if (radius < 0.f)
+            pd.sphere = Sphere::createRandomSphere(materialIndex);
+        else
+            pd.sphere = Sphere::create(radius, materialIndex);
         return pd;
     }
 
@@ -91,22 +94,42 @@ struct PrimitiveData
     }
 };
 
-enum class CSGOp : uint8_t
+enum class InstructionOp : uint8_t
 {
+    Primitive, // only used for leaf
     Union,
     Intersection,
-    Difference
+    Difference,
+    SmoothUnion,
+    SmoothIntersection,
+    SmoothDifference 
 };
+
+D_FORCEINLINE float smoothUnion(float d1, float d2, float k)
+{
+    k *= 4.f;
+    float h = fmaxf(k - fabsf(d1 - d2), 0.f);
+    return fminf(d1, d2) - h * h * 0.25 / k;
+}
+D_FORCEINLINE float smoothIntersection(float d1, float d2, float k)
+{
+    return -smoothUnion(-d1, -d2, k);
+}
+
+D_FORCEINLINE float smoothDifference(float d1, float d2, float k)
+{
+    return -smoothUnion(d1, -d2, k);
+}
 
 struct CSGNode
 {
-    CSGOp operation;
+    InstructionOp operation;
     uint32_t left;  // 4 bytes (bit 31 = leaf flag, bits 0-30 = left index)
     uint32_t right; // 4 bytes (bit 31 = leaf flag, bits 0-30 = right index)
 
-    CSGNode() : operation(CSGOp::Union), left(0), right(0) {}
-    CSGNode(CSGOp op, uint32_t leftIndex, uint32_t rightIndex) : operation(op), left(leftIndex), right(rightIndex) {}
-    CSGNode(uint32_t leftIndex, uint32_t rightIndex) : operation(CSGOp::Union), left(leftIndex), right(rightIndex) {}
+    CSGNode() : operation(InstructionOp::Union), left(0), right(0) {}
+    CSGNode(InstructionOp op, uint32_t leftIndex, uint32_t rightIndex) : operation(op), left(leftIndex), right(rightIndex) {}
+    CSGNode(uint32_t leftIndex, uint32_t rightIndex) : operation(InstructionOp::Union), left(leftIndex), right(rightIndex) {}
 
     HD_FORCEINLINE bool leftIsLeaf() const { return (left & 0x80000000u) != 0; }
 
@@ -115,107 +138,89 @@ struct CSGNode
     HD_FORCEINLINE uint32_t getRightIndex() const { return right & 0x7FFFFFFFu; }
 };
 
-struct Frame
+struct Instruction
 {
-    uint32_t node;
-    uint8_t state;
+    InstructionOp op;
+    uint32_t operand;  // Primitive index if op == Primitive, unused otherwise
 
-    float leftValue;
-    float rightValue;
+    Instruction() : op(InstructionOp::Union), operand(0) {}
+    Instruction(InstructionOp operation, uint32_t value = 0) 
+        : op(operation), operand(value) {}
 };
 
 struct CSGTree
 {
     int materialIndex;
     PrimitiveData *primArray;
-    CSGNode *nodes;
-
-    int nbNodes;
     float area = 0.f;
+    
+    // Compiled post-order instruction sequence
+    Instruction *programArray;
+    int programSize;
 
     __device__ float sdf(const float3 &point) const
     {
-        Frame stack[64];
+        // Evaluate pre-compiled post-order instruction sequence
+        float stack[64];
         int sp = 0;
 
-        stack[sp++] = {0, 0, 0.f, 0.f}; // root node
-
-        float lastValue = 0.f;
-
-        while (sp)
+        for (int i = 0; i < programSize; ++i)
         {
-            Frame &f = stack[sp - 1];
-            const CSGNode &node = nodes[f.node];
-
-            switch (f.state)
+            const Instruction &instr = programArray[i];
+        
+            switch (instr.op)
             {
-            //-----------------------------------------
-            // Evaluate left child
-            //-----------------------------------------
-            case 0: {
-                if (node.leftIsLeaf())
-                {
-                    f.leftValue = primArray[node.getLeftIndex()].sdf(point);
-                    f.state = 1;
-                }
-                else
-                {
-                    f.state = 1;
-                    stack[sp++] = {node.getLeftIndex(), 0, 0.f, 0.f};
-                }
+            case InstructionOp::Primitive: {
+                // Push primitive SDF value onto stack
+                stack[sp++] = primArray[instr.operand].sdf(point);
                 break;
             }
-
-            //-----------------------------------------
-            // Evaluate right child
-            //-----------------------------------------
-            case 1: {
-                // If left child was a node, retrieve its result
-                if (!node.leftIsLeaf())
-                    f.leftValue = lastValue;
-
-                if (node.rightIsLeaf())
-                {
-                    f.rightValue = primArray[node.getRightIndex()].sdf(point);
-                    f.state = 2;
-                }
-                else
-                {
-                    f.state = 2;
-                    stack[sp++] = {node.getRightIndex(), 0, 0.f, 0.f};
-                }
+            case InstructionOp::Union: {
+                // Pop 2, push min(a, b)
+                float right = stack[--sp];
+                float left = stack[--sp];
+                stack[sp++] = fminf(left, right);
                 break;
             }
-
-            //-----------------------------------------
-            // Combine and return to parent
-            //-----------------------------------------
-            case 2: {
-                if (!node.rightIsLeaf())
-                    f.rightValue = lastValue;
-
-                switch (node.operation)
-                {
-                case CSGOp::Union:
-                    lastValue = fminf(f.leftValue, f.rightValue);
-                    break;
-
-                case CSGOp::Intersection:
-                    lastValue = fmaxf(f.leftValue, f.rightValue);
-                    break;
-
-                case CSGOp::Difference:
-                    lastValue = fmaxf(f.leftValue, -f.rightValue);
-                    break;
-                }
-
-                --sp;
+            case InstructionOp::Intersection: {
+                // Pop 2, push max(a, b)
+                float right = stack[--sp];
+                float left = stack[--sp];
+                stack[sp++] = fmaxf(left, right);
+                break;
+            }
+            case InstructionOp::Difference: {
+                // Pop 2, push max(a, -b)
+                float right = stack[--sp];
+                float left = stack[--sp];
+                stack[sp++] = fmaxf(left, -right);
+                break;
+            }
+            case InstructionOp::SmoothUnion: {
+                // Pop 2, push smooth union
+                float right = stack[--sp];
+                float left = stack[--sp];
+                stack[sp++] = smoothUnion(left, right, 0.1f);
+                break;
+            }
+            case InstructionOp::SmoothIntersection: {
+                // Pop 2, push smooth intersection
+                float right = stack[--sp];
+                float left = stack[--sp];
+                stack[sp++] = smoothIntersection(left, right, 0.1f);
+                break;
+            }
+            case InstructionOp::SmoothDifference: {
+                // Pop 2, push smooth difference
+                float right = stack[--sp];
+                float left = stack[--sp];
+                stack[sp++] = smoothDifference(left, right, 0.1f);
                 break;
             }
             }
         }
 
-        return lastValue;
+        return stack[0];
     }
 
     H_INLINE OptixAabb computeWorldAABB(const Matrix3x3 &rotation, const float3 &translation,
@@ -229,7 +234,7 @@ struct CSGTree
         aabb.maxX = -1e20f;
         aabb.maxY = -1e20f;
         aabb.maxZ = -1e20f;
-        for (int i = 0; i < nbNodes; ++i)
+        for (int i = 0; i < nodesCPU.size(); ++i)
         {
             const CSGNode &node = nodesCPU[i];
 
@@ -273,7 +278,7 @@ struct CSGTree
         aabb.maxX = -1e20f;
         aabb.maxY = -1e20f;
         aabb.maxZ = -1e20f;
-        for (int i = 0; i < nbNodes; ++i)
+        for (int i = 0; i < nodesCPU.size(); ++i)
         {
             const CSGNode &node = nodesCPU[i];
 
@@ -302,6 +307,47 @@ struct CSGTree
             }
         }
         return aabb;
+    }
+
+    // Compile the tree into post-order instruction sequence
+    void compileNode(uint32_t nodeIndex, std::vector<Instruction> &program, const std::vector<CSGNode> &p_nodes)
+    {
+        const CSGNode &node = p_nodes[nodeIndex];
+        //printf("leftIsLeaf: %d, rightIsLeaf: %d, leftIndex: %d, rightIndex: %d\n", node.leftIsLeaf(), node.rightIsLeaf(), node.getLeftIndex(), node.getRightIndex());
+        // Process left child
+        if (node.leftIsLeaf())
+        {
+            program.push_back(Instruction(InstructionOp::Primitive, node.getLeftIndex()));
+        }
+        else
+        {
+            compileNode(node.getLeftIndex(), program, p_nodes);
+        }
+
+        // Process right child
+        if (node.rightIsLeaf())
+        {
+            program.push_back(Instruction(InstructionOp::Primitive, node.getRightIndex()));
+        }
+        else
+        {
+            compileNode(node.getRightIndex(), program, p_nodes);
+        }
+        program.push_back(node.operation);
+    }
+
+    // Compile the entire tree (call this after constructing the tree)
+    void compile(const std::vector<CSGNode> &nodes)
+    {
+        std::vector<Instruction> program;
+        if (!nodes.empty())
+        {
+            compileNode(0, program, nodes);
+        }
+        programSize = program.size();
+        printf("Compiled CSGTree with %d instructions\n", programSize);
+        cudaMalloc(&programArray, programSize * sizeof(Instruction));
+        cudaMemcpy(programArray, program.data(), programSize * sizeof(Instruction), cudaMemcpyHostToDevice);
     }
 
     __device__ float3 sampleSurfacePoint(const float3 &p_point, const float3 &p_normal, const RNG &rng) const
