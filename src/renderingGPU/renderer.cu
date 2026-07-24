@@ -117,8 +117,8 @@ int Renderer::get_frame_number() { return impl->sample_count; }
 HOST Camera init_camera(int width, int height)
 {
     // ===== Camera =====
-    float3 cam_pos = make_float3(8.f, 2.f, 3.f);
-    float3 cam_target = make_float3(0.f, 0.f, 0.f);
+    float3 cam_pos = make_float3(0.f, 3.f, 8.f);
+    float3 cam_target = make_float3(0.f, 1.f, 0.f);
     float3 cam_up = make_float3(0.f, 1.f, 0.f);
 
     float fov = 60.f;
