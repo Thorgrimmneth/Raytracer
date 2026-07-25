@@ -32,12 +32,12 @@ struct Material
     float4 params;    // x=alpha, y=metalness, z=ior, w=emission/intensity/shininess
 
     HD_INLINE Material() : baseColor(make_float4(1.f, 1.f, 1.f, (float)MISS)), params(make_float4(1.f, 0.f, 1.5f, 0.f)) {}
-    HOST static Material makeMaterial(float3 color = make_float3(1.f), MaterialType type = LAMBERT, float rough = 0.5f,
+    HOST static Material makeMaterial(float3 color = make_float3(1.f), MaterialType type = LAMBERT, float alpha = 0.5f,
                                       float metal = 0.f, float ior = 1.5f, float emission = 0.f)
     {
         Material m;
         m.baseColor = make_float4(color.x, color.y, color.z, (float)type);
-        m.params = make_float4(rough, metal, ior, emission);
+        m.params = make_float4(alpha, metal, ior, emission);
         return m;
     }
 

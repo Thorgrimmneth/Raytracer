@@ -29,9 +29,12 @@ extern "C" __global__ void __raygen__radiance()
     uint32_t p1;
 
     packPointer(&payload, p0, p1);
-
-    optixTrace(params.traversable, params.origins[qid], params.directions[qid], 0.001f, 1e20f, 0.0f, OptixVisibilityMask(255),
-               OPTIX_RAY_FLAG_DISABLE_ANYHIT, 0, 1, 0, p0, p1);
+    optixTraverse(params.traversable, params.origins[qid], params.directions[qid], 0.001f, 1e20f, 0.0f,
+                  OptixVisibilityMask(255), OPTIX_RAY_FLAG_DISABLE_ANYHIT, 0, 1, 0, p0, p1);
+    optixReorder();
+    optixInvoke(p0, p1);
+    //optixTrace(params.traversable, params.origins[qid], params.directions[qid], 0.001f, 1e20f, 0.0f,
+    //   OptixVisibilityMask(255), OPTIX_RAY_FLAG_DISABLE_ANYHIT, 0, 1, 0, p0, p1);
 
     params.hit_buffers.mask[qid] = payload.hit;
 

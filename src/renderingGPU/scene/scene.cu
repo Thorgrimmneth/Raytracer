@@ -221,7 +221,7 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
     helper.meshGeometriesGPU.push_back(dragonGeometry);
 
     // Create 50 instances with different transforms and materials
-    /*for (int i = 0; i < 50; i++)
+    for (int i = 0; i < 0; i++)
     {
         Quaternion rotation = quaternionFromAxisAngle(
             make_float3(randomFloat() * 2.f, randomFloat() * 2.f, randomFloat() * 2.f), randomFloat() * 360.f);
@@ -243,7 +243,7 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
             instance.lightIndex = (int)helper.lightsGPU.size() - 1;
         }
         helper.meshInstancesGPU.push_back(instance);
-    }*/
+    }
 
     // Add ground plane
     addGround(helper);
@@ -285,20 +285,29 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
         }
         helper.sdfsGPU.push_back(sdf);
     }*/
-    int materialIndex = int(randomFloat() * helper.materialsGPU.size());
+    helper.materialsGPU.push_back(Material::makeMaterial(make_float3(1.f),
+                                                      TRANSPARENT, 0.f, 0.f, 1.5f));
+    int materialIndex = helper.materialsGPU.size() - 1;
     SDF sdf;
     sdf.type = SDFType::CSGTree;
     CSGTree csgTree;
     csgTree.materialIndex = materialIndex;
     std::vector<PrimitiveData> primitives;
-    primitives.push_back(PrimitiveData::createSpherePrimitive(make_float3(-0.5f, 2.f, 0.f), materialIndex, 1.f));
-    primitives.push_back(PrimitiveData::createSpherePrimitive(make_float3(0.5f, 2.f, 0.f), materialIndex, 1.f));
+    primitives.push_back(PrimitiveData::createSpherePrimitive(make_float3(-0.5f, 2.f, 1.f), materialIndex, 0.65f));
+    /*primitives.push_back(PrimitiveData::createSpherePrimitive(make_float3(0.5f, 2.f, 1.f), materialIndex, 0.65f));
+    Quaternion rotation = quaternionFromAxisAngle(
+        make_float3(0.f, 0.f, 1.f), 180.f);
+        Matrix3x3 rotationMatrix = quaternionToMatrix(rotation);
+    primitives.push_back(PrimitiveData::createConePrimitive(rotationMatrix, make_float3(0.f, 0.f, 0.5f), materialIndex, 1.6f, 35.f));*/
+
+
     /*Quaternion rotation = quaternionFromAxisAngle(
         make_float3(1.f,0.f,0.f), 90.f);
     Matrix3x3 rotationMatrix = quaternionToMatrix(rotation);
     primitives.push_back(PrimitiveData::createTorePrimitive(rotationMatrix.transpose(), make_float3(0.f, 1.f, 0.f), materialIndex));*/
     std::vector<CSGNode> nodes;
-    nodes.push_back(CSGNode(InstructionOp::Union, 0 | 0x80000000u, 1 | 0x80000000u));
+    nodes.push_back(CSGNode(InstructionOp::Union, 0 | 0x80000000u, 0 | 0x80000000u));
+    //nodes.push_back(CSGNode(InstructionOp::SmoothUnion, 1 | 0x80000000u, 2 | 0x80000000u));
     csgTree.compile(nodes);
 
     // Allocate and upload primitives to GPU

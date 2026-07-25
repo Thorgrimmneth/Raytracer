@@ -34,7 +34,7 @@ extern "C" __global__ void __intersection__sdf__shadow()
     {
         float3 p = rayOriginLocal + tMin * rayDirectionLocal;
 
-        float d = fabsf(sdf.sdf(p));
+        float d = sdf.sdf(p);
         if (d < 1e-4f)
         {
             optixReportIntersection(tMin, 0);

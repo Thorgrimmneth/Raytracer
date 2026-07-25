@@ -5,12 +5,14 @@
 #include "csg_tree.cuh"
 #include "sphere.cuh"
 #include "tore.cuh"
+#include "cone.cuh"
 #include <vector>
 
 enum class SDFType : uint8_t
 {
     Sphere,
     Tore,
+    Cone,
     CSGTree
 };
 
@@ -24,6 +26,7 @@ struct SDF
     union {
         Sphere sphere;
         Tore tore;
+        Cone cone;
         CSGTree csgTree;
     };
 
@@ -38,6 +41,8 @@ struct SDF
             return sphere.sdf(point);
         case SDFType::Tore:
             return tore.sdf(point);
+        case SDFType::Cone:
+            return cone.sdf(point);
         case SDFType::CSGTree:
             return csgTree.sdf(point);
         default:
@@ -53,6 +58,8 @@ struct SDF
             return sphere.materialIndex;
         case SDFType::Tore:
             return tore.materialIndex;
+        case SDFType::Cone:
+            return cone.materialIndex;
         case SDFType::CSGTree:
             return csgTree.materialIndex;
         default:
@@ -68,6 +75,8 @@ struct SDF
             return sphere.computeWorldAABB(translation);
         case SDFType::Tore:
             return tore.computeWorldAABB(rotation, translation);
+        case SDFType::Cone:
+            return cone.computeWorldAABB(rotation, translation);
         case SDFType::CSGTree:
             // Note: CSGTree requires full SDF array, use getWorldAABBWithContext() instead
             return csgTree.computeWorldAABB(rotation, translation, primitives, nodes);
@@ -85,6 +94,9 @@ struct SDF
             break;
         case SDFType::Tore:
             tore.sampleSurfacePoint(p_point, p_normal, rng);
+            break;
+        case SDFType::Cone:
+            cone.sampleSurfacePoint(p_point, p_normal, rng);
             break;
         case SDFType::CSGTree:
             csgTree.sampleSurfacePoint(p_point, p_normal, rng);
@@ -104,6 +116,8 @@ struct SDF
             return 4.f * M_PIf * M_PIf * tore.radiusExter * tore.radiusInter;
         case SDFType::CSGTree:
             return csgTree.getArea();
+        case SDFType::Cone:
+            return cone.getArea();
         default:
             return 0.f; // Should not happen
         }
@@ -117,6 +131,8 @@ struct SDF
             return sphere.computeAABB();
         case SDFType::Tore:
             return tore.computeAABB();
+        case SDFType::Cone:
+            return cone.computeAABB();
         case SDFType::CSGTree:
             return csgTree.computeAABB(primitives, nodes);
         default:
@@ -132,6 +148,8 @@ struct SDF
             return sphere.getNormal(point);
         case SDFType::Tore:
             return tore.getNormal(point);
+        case SDFType::Cone:
+            return cone.getNormal(point);
         case SDFType::CSGTree:
             return csgTree.getNormal(point);
         default:

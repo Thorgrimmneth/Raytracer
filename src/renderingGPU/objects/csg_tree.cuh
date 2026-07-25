@@ -7,6 +7,7 @@
 #include "../utils/rng.cuh"
 #include "sphere.cuh"
 #include "tore.cuh"
+#include "cone.cuh"
 #include <optix.h>
 #include <optix_stubs.h>
 
@@ -15,7 +16,8 @@
 enum class PrimitiveType : uint8_t
 {
     Sphere,
-    Tore
+    Tore,
+    Cone
 };
 
 struct PrimitiveData
@@ -26,6 +28,7 @@ struct PrimitiveData
     union {
         Sphere sphere;
         Tore torus;
+        Cone cone;
     };
 
     __device__ inline float sdf(const float3 &p) const
@@ -37,9 +40,10 @@ struct PrimitiveData
         {
         case PrimitiveType::Sphere:
             return sphere.sdf(pLocal);
-
         case PrimitiveType::Tore:
             return torus.sdf(pLocal);
+        case PrimitiveType::Cone:
+            return cone.sdf(pLocal);
         }
 
         return 1e20f;
@@ -51,9 +55,10 @@ struct PrimitiveData
         {
         case PrimitiveType::Sphere:
             return sphere.computeWorldAABB(p_translation);
-
         case PrimitiveType::Tore:
             return torus.computeWorldAABB(p_rotation, p_translation);
+        case PrimitiveType::Cone:
+            return cone.computeWorldAABB(p_rotation, p_translation);
         }
         return OptixAabb();
     }
@@ -67,8 +72,9 @@ struct PrimitiveData
 
         case PrimitiveType::Tore:
             return torus.computeAABB();
+        case PrimitiveType::Cone:
+            return cone.computeAABB();
         }
-
         return OptixAabb();
     }
     static PrimitiveData createSpherePrimitive(const float3 &translation, int materialIndex, float radius = -1.f)
@@ -92,6 +98,19 @@ struct PrimitiveData
         pd.torus = Tore::createRandomTore(materialIndex);
         return pd;
     }
+
+    static PrimitiveData createConePrimitive(const Matrix3x3 &rotation, const float3 &translation, int materialIndex, float height = -1.f, float angleDeg = -1.f)
+    {
+        PrimitiveData pd;
+        pd.type = PrimitiveType::Cone;
+        pd.rotation = rotation;
+        pd.translation = translation;
+        if (height < 0.f || angleDeg < 0.f)
+            pd.cone = Cone::createRandomCone(materialIndex);
+        else
+            pd.cone = Cone::create(height, angleDeg, materialIndex);
+        return pd;
+    }
 };
 
 enum class InstructionOp : uint8_t
@@ -111,6 +130,7 @@ D_FORCEINLINE float smoothUnion(float d1, float d2, float k)
     float h = fmaxf(k - fabsf(d1 - d2), 0.f);
     return fminf(d1, d2) - h * h * 0.25 / k;
 }
+
 D_FORCEINLINE float smoothIntersection(float d1, float d2, float k)
 {
     return -smoothUnion(-d1, -d2, k);
@@ -152,7 +172,7 @@ struct CSGTree
 {
     int materialIndex;
     PrimitiveData *primArray;
-    float area = 0.f;
+    float area = 1.f;
     
     // Compiled post-order instruction sequence
     Instruction *programArray;
@@ -340,6 +360,7 @@ struct CSGTree
     void compile(const std::vector<CSGNode> &nodes)
     {
         std::vector<Instruction> program;
+        printf("Compiling CSGTree with %zu nodes\n", nodes.size());
         if (!nodes.empty())
         {
             compileNode(0, program, nodes);

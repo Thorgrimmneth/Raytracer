@@ -2,7 +2,7 @@
 #include "../renderingGPU/optix/optix_sbt_manager.h"
 #include "../renderingGPU/utils/op.cuh"
 #include "../renderingGPU/utils/packing.h"
-
+#include "../renderingGPU/materials/material.cuh"
 #include <optix.h>
 #include <optix_device.h>
 
@@ -19,6 +19,11 @@ extern "C" __global__ void __intersection__sdf()
     const uint primIdx = optixGetPrimitiveIndex();
 
     const SDF &sdf = data->sdf.sdfs[primIdx];
+    int materialIdx = sdf.getMaterialIndex();
+    bool applyAbs = false;
+    // si on est à l'intérieur d'un objet transparent, on applique la valeur absolue de la SDF pour éviter les intersections négatives
+    if (materialIdx > 15 && materialIdx < 25 || materialIdx > 50) 
+        applyAbs = true;
 
     float3 rayOrigin = optixGetWorldRayOrigin();
     float3 rayDirection = optixGetWorldRayDirection();
@@ -31,12 +36,14 @@ extern "C" __global__ void __intersection__sdf()
     
         return;
     
-
+    
     for (int i = 0; i < 128; i++)
     {
         float3 p = rayOriginLocal + tMin * rayDirectionLocal;
 
-        float d = fabsf(sdf.sdf(p));
+        float d = sdf.sdf(p);
+        if(applyAbs)
+            d = fabsf(d);
         if (d < 1e-4f)
         {
             optixReportIntersection(tMin, 0);

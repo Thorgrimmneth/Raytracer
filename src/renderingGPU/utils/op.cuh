@@ -22,6 +22,11 @@ HD_INLINE float4 make_float4(const float b) { return make_float4(b, b, b, b); }
 
 HD_INLINE float4 make_float4(const float a, const float3 &b) { return make_float4(a, b.x, b.y, b.z); }
 
+HD_INLINE float sign(float x)
+{
+    return (x > 0.0f) ? 1.0f : (x < 0.0f) ? -1.0f : 0.0f;
+}
+
 // ============================================================
 // float3 operators
 // ============================================================
@@ -68,6 +73,12 @@ HD_FORCEINLINE float4 operator-(const float4 &a) { return make_float4(-a.x, -a.y
 
 // Garde l'overload original non-const pour ne pas changer la résolution d'overload.
 HD_FORCEINLINE float3 operator*(const float3 &a, float3 &b) { return make_float3(a.x * b.x, a.y * b.y, a.z * b.z); }
+
+HD_FORCEINLINE float2 operator*(const float &a, const float2 &b) { return make_float2(a * b.x, a * b.y); }
+HD_FORCEINLINE float2 operator-(const float2 &a, const float2 &b) { return make_float2(a.x - b.x, a.y - b.y); }
+HD_FORCEINLINE float2 operator*(const float2 &a, const float &b) { return make_float2(a.x * b, a.y * b); }
+HD_FORCEINLINE float2 operator*(const float2 &a, const float2 &b) { return make_float2(a.x * b.x, a.y * b.y); }
+
 
 HD_FORCEINLINE float3 &operator*=(float3 &a, const float3 &b)
 {

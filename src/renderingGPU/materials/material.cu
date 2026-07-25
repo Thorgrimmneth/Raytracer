@@ -169,6 +169,15 @@ DEVICE float Material::pdfGGX(const float3 n, const float3 wi, const float3 wo) 
 DEVICE BSDFVal Material::getMetalBSDF(const float3 &direction, const float3 &normal,
                                       RNG &rngStates) const
 {
+    if(alpha() < 1e-4f)
+    {
+        BSDFVal bsdf;
+        bsdf.direction = reflect(direction, normal);
+        bsdf.pdf = 1.f;
+        bsdf.brdf = color();
+        return bsdf;
+    }
+    
     float3 wo = -direction;
     BSDFVal bsdf;
 
