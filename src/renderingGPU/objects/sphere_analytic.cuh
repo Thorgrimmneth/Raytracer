@@ -6,18 +6,18 @@
 #include <optix.h>
 #include <optix_stubs.h>
 
-struct Sphere
+struct SphereAnalytic
 {
     float radius;
     int materialIndex;
 
-    static Sphere createRandomSphere(int materialIndex)
+    static SphereAnalytic createRandomSphere(int materialIndex)
     {
         float radius = randomFloat() * 2.f + 0.2f;
         return create(radius, materialIndex);
     }
 
-    static Sphere create(float r, int m) { return {r, m}; }
+    static SphereAnalytic create(float r, int m) { return {r, m}; }
 
     H_INLINE OptixAabb computeWorldAABB(const float3 &translation) const
     {
@@ -58,12 +58,35 @@ struct Sphere
         return aabb;
     }
 
-    D_FORCEINLINE float3 getNormal(const float3 &point) const
+    D_FORCEINLINE float3 getNormal(const float3 &point, const float3 &center) const
     {
-        float l = length(point);
-        float4 normal = make_float4(l - radius, point / l);
+        float3 localPoint = point - center;
+        float l = length(localPoint);
+        float4 normal = make_float4(l - radius, localPoint / l);
         return make_float3(normal.y, normal.z, normal.w);
     }
 
-    __device__ float sdf(const float3 &point) const { return length(point) - radius; }
+    __device__ float intersect(const float3 &center, const float3 &ray_origin, const float3 &ray_direction, float &tMin, const float tMax = 20000.f) const {
+        const float3 oc = ray_origin - center;
+        const float half_b = dot(ray_direction, oc);
+        const float c = dot(oc, oc) - radius * radius;
+
+        const float delta = half_b * half_b - c;
+        if (delta < 0.f)
+            return false;
+
+        const float sqrtDelta = sqrtf(delta);
+
+        float t = -half_b - sqrtDelta;
+        if (t < tMin || t > tMax)
+        {
+            t = -half_b + sqrtDelta;
+            if (t < tMin || t > tMax)
+                return false;
+        }
+
+        const float3 p = ray_origin + t * ray_direction;
+        tMin = t;
+        return true;
+    }
 };

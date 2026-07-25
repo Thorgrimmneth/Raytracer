@@ -9,7 +9,7 @@
 #include "../materials/material.cuh"
 
 #include "../objects/plane.cuh"
-#include "../objects/sphere.cuh"
+#include "../objects/sphere_sdf.cuh"
 #include "../objects/triangle_mesh.cuh"
 
 #include "../raytracingUtils/ray.cuh"
@@ -28,7 +28,7 @@ struct Light;
 
 struct Scene
 {
-    Sphere *spheres;
+    SphereSDF *spheres;
     Plane *planes;
     MeshGeometry *meshGeometries;
     MeshInstance *meshInstances;

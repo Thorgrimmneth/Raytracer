@@ -5,7 +5,7 @@
 #include "../../utils/rng_cpu.hpp"
 #include "../utils/op.cuh"
 #include "../utils/rng.cuh"
-#include "sphere.cuh"
+#include "sphere_sdf.cuh"
 #include "tore.cuh"
 #include "cone.cuh"
 #include <optix.h>
@@ -15,7 +15,7 @@
 
 enum class PrimitiveType : uint8_t
 {
-    Sphere,
+    SphereSDF,
     Tore,
     Cone
 };
@@ -26,7 +26,7 @@ struct PrimitiveData
     float3 translation = make_float3(0.f);
     Matrix3x3 rotation = Matrix3x3::identity();
     union {
-        Sphere sphere;
+        SphereSDF sphere;
         Tore torus;
         Cone cone;
     };
@@ -38,7 +38,7 @@ struct PrimitiveData
 
         switch (type)
         {
-        case PrimitiveType::Sphere:
+        case PrimitiveType::SphereSDF:
             return sphere.sdf(pLocal);
         case PrimitiveType::Tore:
             return torus.sdf(pLocal);
@@ -53,7 +53,7 @@ struct PrimitiveData
     {
         switch (type)
         {
-        case PrimitiveType::Sphere:
+        case PrimitiveType::SphereSDF:
             return sphere.computeWorldAABB(p_translation);
         case PrimitiveType::Tore:
             return torus.computeWorldAABB(p_rotation, p_translation);
@@ -67,7 +67,7 @@ struct PrimitiveData
     {
         switch (type)
         {
-        case PrimitiveType::Sphere:
+        case PrimitiveType::SphereSDF:
             return sphere.computeAABB();
 
         case PrimitiveType::Tore:
@@ -80,12 +80,12 @@ struct PrimitiveData
     static PrimitiveData createSpherePrimitive(const float3 &translation, int materialIndex, float radius = -1.f)
     {
         PrimitiveData pd;
-        pd.type = PrimitiveType::Sphere;
+        pd.type = PrimitiveType::SphereSDF;
         pd.translation = translation;
         if (radius < 0.f)
-            pd.sphere = Sphere::createRandomSphere(materialIndex);
+            pd.sphere = SphereSDF::createRandomSphere(materialIndex);
         else
-            pd.sphere = Sphere::create(radius, materialIndex);
+            pd.sphere = SphereSDF::create(radius, materialIndex);
         return pd;
     }
 

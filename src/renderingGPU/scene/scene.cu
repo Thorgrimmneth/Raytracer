@@ -9,8 +9,8 @@ HOST void Scene::uploadObjects(SceneHelper &helper)
     nbSpheres = helper.spheresGPU.size();
     if (nbSpheres > 0)
     {
-        cudaMalloc(&spheres, nbSpheres * sizeof(Sphere));
-        cudaMemcpy(spheres, helper.spheresGPU.data(), nbSpheres * sizeof(Sphere), cudaMemcpyHostToDevice);
+        cudaMalloc(&spheres, nbSpheres * sizeof(SphereSDF));
+        cudaMemcpy(spheres, helper.spheresGPU.data(), nbSpheres * sizeof(SphereSDF), cudaMemcpyHostToDevice);
     }
     else
     {
@@ -247,11 +247,11 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
 
     // Add ground plane
     addGround(helper);
-
-    /*for (int i = 0; i < 15; i++)
+    
+    for (int i = 0; i < 15; i++)
     {
-        int materialIndex = int(randomFloat() * helper.materialsGPU.size());
-        SDF sdf = SDF::createRandomSphereSDF(materialIndex);
+        int materialIndex = int(randomFloat() * 5);
+        SDF sdf = SDF::createRandomSphereAnalytic(materialIndex);
         sdf.translation =
             make_float3(randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f);
         sdf.aabb = sdf.getAABB();
@@ -264,7 +264,7 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
         }
         helper.sdfsGPU.push_back(sdf);
     }
-
+    /*
     for (int i = 0; i < 15; i++)
     {
         int materialIndex = int(randomFloat() * helper.materialsGPU.size());
@@ -285,8 +285,8 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
         }
         helper.sdfsGPU.push_back(sdf);
     }*/
-    helper.materialsGPU.push_back(Material::makeMaterial(make_float3(1.f),
-                                                      TRANSPARENT, 0.f, 0.f, 1.5f));
+
+    helper.materialsGPU.push_back(Material::makeMaterial(make_float3(1.f), TRANSPARENT, 0.f, 0.f, 1.5f));
     int materialIndex = helper.materialsGPU.size() - 1;
     SDF sdf;
     sdf.type = SDFType::CSGTree;
@@ -298,16 +298,17 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
     Quaternion rotation = quaternionFromAxisAngle(
         make_float3(0.f, 0.f, 1.f), 180.f);
         Matrix3x3 rotationMatrix = quaternionToMatrix(rotation);
-    primitives.push_back(PrimitiveData::createConePrimitive(rotationMatrix, make_float3(0.f, 0.f, 0.5f), materialIndex, 1.6f, 35.f));*/
-
+    primitives.push_back(PrimitiveData::createConePrimitive(rotationMatrix, make_float3(0.f, 0.f, 0.5f),
+    materialIndex, 1.6f, 35.f));*/
 
     /*Quaternion rotation = quaternionFromAxisAngle(
         make_float3(1.f,0.f,0.f), 90.f);
     Matrix3x3 rotationMatrix = quaternionToMatrix(rotation);
-    primitives.push_back(PrimitiveData::createTorePrimitive(rotationMatrix.transpose(), make_float3(0.f, 1.f, 0.f), materialIndex));*/
+    primitives.push_back(PrimitiveData::createTorePrimitive(rotationMatrix.transpose(), make_float3(0.f, 1.f, 0.f),
+    materialIndex));*/
     std::vector<CSGNode> nodes;
     nodes.push_back(CSGNode(InstructionOp::Union, 0 | 0x80000000u, 0 | 0x80000000u));
-    //nodes.push_back(CSGNode(InstructionOp::SmoothUnion, 1 | 0x80000000u, 2 | 0x80000000u));
+    // nodes.push_back(CSGNode(InstructionOp::SmoothUnion, 1 | 0x80000000u, 2 | 0x80000000u));
     csgTree.compile(nodes);
 
     // Allocate and upload primitives to GPU

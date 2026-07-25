@@ -18,13 +18,22 @@ extern "C" __global__ void __closesthit__radiance__sdf()
 
     const uint primIdx = optixGetPrimitiveIndex();
 
-    const SDF& sdf = data->sdf.sdfs[primIdx];
+    const SDF &sdf = data->sdf.sdfs[primIdx];
 
     float3 p = optixGetWorldRayOrigin() + optixGetRayTmax() * optixGetWorldRayDirection();
-    float3 pLocal = transform(sdf.rotation, p - sdf.translation);
-    float3 N = sdf.getNormal(pLocal);
-    
-    float3 NWorld = normalize(transform(sdf.rotation.transpose(), N));
+    float3 NWorld;
+    if (sdf.type == SDFType::SphereAnalytic)
+    {
+        NWorld = sdf.sphere.getNormal(p, sdf.translation);
+    }
+    else
+    {
+        float3 pLocal = transform(sdf.rotation, p - sdf.translation);
+        float3 N = sdf.getNormal(pLocal);
+
+        NWorld = normalize(transform(sdf.rotation.transpose(), N));
+    }
+
     payload->hit = 1;
 
     payload->t = optixGetRayTmax();

@@ -3,14 +3,14 @@
 #include "../utils/check.cuh"
 #include "../utils/op.cuh"
 #include "csg_tree.cuh"
-#include "sphere.cuh"
+#include "sphere_analytic.cuh"
 #include "tore.cuh"
 #include "cone.cuh"
 #include <vector>
 
 enum class SDFType : uint8_t
 {
-    Sphere,
+    SphereAnalytic,
     Tore,
     Cone,
     CSGTree
@@ -24,21 +24,19 @@ struct SDF
     OptixAabb aabb;
     int lightIndex = -1; // Index into the lights array, if this instance is emissive
     union {
-        Sphere sphere;
+        SphereAnalytic sphere;
         Tore tore;
         Cone cone;
         CSGTree csgTree;
     };
 
     // Default constructor
-    HD SDF() : type(SDFType::Sphere), sphere({0.f, 0}) {}
+    HD SDF() : type(SDFType::SphereAnalytic), sphere({0.f, 0}) {}
 
     DEVICE inline float sdf(const float3 &point) const
     {
         switch (type)
         {
-        case SDFType::Sphere:
-            return sphere.sdf(point);
         case SDFType::Tore:
             return tore.sdf(point);
         case SDFType::Cone:
@@ -54,7 +52,7 @@ struct SDF
     {
         switch (type)
         {
-        case SDFType::Sphere:
+        case SDFType::SphereAnalytic:
             return sphere.materialIndex;
         case SDFType::Tore:
             return tore.materialIndex;
@@ -71,7 +69,7 @@ struct SDF
     {
         switch (type)
         {
-        case SDFType::Sphere:
+        case SDFType::SphereAnalytic:
             return sphere.computeWorldAABB(translation);
         case SDFType::Tore:
             return tore.computeWorldAABB(rotation, translation);
@@ -89,7 +87,7 @@ struct SDF
     {
         switch (type)
         {
-        case SDFType::Sphere:
+        case SDFType::SphereAnalytic:
             sphere.sampleSurfacePoint(p_point, p_normal, rng);
             break;
         case SDFType::Tore:
@@ -110,7 +108,7 @@ struct SDF
     {
         switch (type)
         {
-        case SDFType::Sphere:
+        case SDFType::SphereAnalytic:
             return 4.f * M_PIf * sphere.radius * sphere.radius;
         case SDFType::Tore:
             return 4.f * M_PIf * M_PIf * tore.radiusExter * tore.radiusInter;
@@ -127,7 +125,7 @@ struct SDF
     {
         switch (type)
         {
-        case SDFType::Sphere:
+        case SDFType::SphereAnalytic:
             return sphere.computeAABB();
         case SDFType::Tore:
             return tore.computeAABB();
@@ -144,8 +142,6 @@ struct SDF
     {
         switch (type)
         {
-        case SDFType::Sphere:
-            return sphere.getNormal(point);
         case SDFType::Tore:
             return tore.getNormal(point);
         case SDFType::Cone:
@@ -157,11 +153,11 @@ struct SDF
         }
     }
 
-    static SDF createRandomSphereSDF(int materialIndex)
+    static SDF createRandomSphereAnalytic(int materialIndex)
     {
         SDF sdf;
-        sdf.type = SDFType::Sphere;
-        sdf.sphere = Sphere::createRandomSphere(materialIndex);
+        sdf.type = SDFType::SphereAnalytic;
+        sdf.sphere = SphereAnalytic::createRandomSphere(materialIndex);
         return sdf;
     }
 

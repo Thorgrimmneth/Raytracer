@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../utils/op.cuh"
-#include "../objects/sphere.cuh"
+#include "../objects/sphere_sdf.cuh"
 #include "../objects/plane.cuh"
 #include "../objects/triangle_mesh.cuh"
 #include "../materials/material.cuh"
@@ -11,7 +11,7 @@
 struct SceneHelper
 {
     std::vector<SDF> sdfsGPU = std::vector<SDF>();
-    std::vector<Sphere> spheresGPU = std::vector<Sphere>();
+    std::vector<SphereSDF> spheresGPU = std::vector<SphereSDF>();
     std::vector<Plane> planesGPU = std::vector<Plane>();
     std::vector<MeshGeometry> meshGeometriesGPU = std::vector<MeshGeometry>();  // Shared geometry data
     std::vector<MeshInstance> meshInstancesGPU = std::vector<MeshInstance>();    // Per-instance data

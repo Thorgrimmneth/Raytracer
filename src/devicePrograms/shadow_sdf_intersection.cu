@@ -22,13 +22,23 @@ extern "C" __global__ void __intersection__sdf__shadow()
 
     float3 rayOrigin = optixGetWorldRayOrigin();
     float3 rayDirection = optixGetWorldRayDirection();
-    float3 rayOriginLocal = transform(sdf.rotation, rayOrigin - sdf.translation);
-    float3 rayDirectionLocal = transform(sdf.rotation, rayDirection);
 
     float tMin = optixGetRayTmin();
     float tMax = optixGetRayTmax();
-    if(!intersectAABB(rayOriginLocal, rayDirectionLocal, sdf.aabb, tMin, tMax))
-         return;
+
+    if (sdf.type == SDFType::SphereAnalytic)
+    {
+        if (!sdf.sphere.intersect(sdf.translation, rayOrigin, rayDirection, tMin, tMax))
+            return;
+        optixReportIntersection(tMin, 0);
+        return;
+    }
+
+    float3 rayOriginLocal = transform(sdf.rotation, rayOrigin - sdf.translation);
+    float3 rayDirectionLocal = transform(sdf.rotation, rayDirection);
+    if (!intersectAABB(rayOriginLocal, rayDirectionLocal, sdf.aabb, tMin, tMax))
+
+        return;
 
     for (int i = 0; i < 128; i++)
     {
