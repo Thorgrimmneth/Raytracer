@@ -20,11 +20,9 @@ extern "C" __global__ void __intersection__sdf()
 
     const SDF &sdf = data->sdf.sdfs[primIdx];
     int materialIdx = sdf.getMaterialIndex();
-    bool applyAbs = false;
     // si on est à l'intérieur d'un objet transparent, on applique la valeur absolue de la SDF pour éviter les intersections négatives
-    if (materialIdx > 15 && materialIdx < 25 || materialIdx > 50) 
-        applyAbs = true;
-
+    bool applyAbs = params.materials[materialIdx].type() == MaterialType::TRANSPARENT;
+    
     float3 rayOrigin = optixGetWorldRayOrigin();
     float3 rayDirection = optixGetWorldRayDirection();
     float3 rayOriginLocal = transform(sdf.rotation, rayOrigin - sdf.translation);

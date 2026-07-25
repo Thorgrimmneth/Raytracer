@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "../renderingGPU/utils/object_type.h"
+#include "../renderingGPU/materials/material.cuh"
 #include "../renderingGPU/raytracingUtils/ray.cuh"
 #include "../renderingGPU/utils/op.cuh"
 #include "../renderingGPU/objects/triangle_mesh.cuh"
@@ -24,5 +25,7 @@ struct LaunchRadianceParams
     
     // Mesh instances for per-instance data lookup (material, geometry index, etc.)
     MeshInstance* meshInstances = nullptr;
+    Material* materials = nullptr;
     int nbMeshInstances = 0;
+    int nbMaterials = 0;
 };

@@ -447,6 +447,8 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
     {
         launchParamsManagerRadiance.params.meshInstances = gpuScene.meshInstances;
         launchParamsManagerRadiance.params.nbMeshInstances = gpuScene.nbMeshInstances;
+        launchParamsManagerRadiance.params.materials = gpuScene.materials;
+        launchParamsManagerRadiance.params.nbMaterials = gpuScene.nbMaterials;
         // Update launch params on GPU with mesh instance pointers
         CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerRadiance.d_params),
                               &launchParamsManagerRadiance.params, sizeof(LaunchRadianceParams),
