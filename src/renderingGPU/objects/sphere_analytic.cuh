@@ -13,7 +13,7 @@ struct SphereAnalytic
 
     static SphereAnalytic createRandomSphere(int materialIndex)
     {
-        float radius = randomFloat() * 2.f + 0.2f;
+        float radius = randomFloat() * 1.f + 0.2f;
         return create(radius, materialIndex);
     }
 

@@ -247,10 +247,11 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
 
     // Add ground plane
     addGround(helper);
-    
-    for (int i = 0; i < 15; i++)
+    helper.materialsGPU.push_back(Material::makeMaterial(make_float3(1.f), TRANSPARENT, 0.f, 0.f, 1.5f));
+    for (int i = 0; i < 10; i++)
     {
-        int materialIndex = int(randomFloat() * 5);
+        int materialIndex = int(randomFloat() * helper.materialsGPU.size());
+        materialIndex = helper.materialsGPU.size() - 1; // Use the last material (transparent) for all spheres
         SDF sdf = SDF::createRandomSphereAnalytic(materialIndex);
         sdf.translation =
             make_float3(randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f);
@@ -285,30 +286,26 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
         }
         helper.sdfsGPU.push_back(sdf);
     }*/
-
-    helper.materialsGPU.push_back(Material::makeMaterial(make_float3(1.f), TRANSPARENT, 0.f, 0.f, 1.5f));
+    
+    /*helper.materialsGPU.push_back(Material::makeMaterial(make_float3(1.f), TRANSPARENT, 0.f, 0.f, 1.5f));
     int materialIndex = helper.materialsGPU.size() - 1;
     SDF sdf;
     sdf.type = SDFType::CSGTree;
     CSGTree csgTree;
     csgTree.materialIndex = materialIndex;
     std::vector<PrimitiveData> primitives;
-    primitives.push_back(PrimitiveData::createSpherePrimitive(make_float3(-0.5f, 2.f, 1.f), materialIndex, 0.65f));
-    /*primitives.push_back(PrimitiveData::createSpherePrimitive(make_float3(0.5f, 2.f, 1.f), materialIndex, 0.65f));
-    Quaternion rotation = quaternionFromAxisAngle(
+    for(int i = 0; i < 400; i++)
+    {
+        primitives.push_back(PrimitiveData::createSpherePrimitive(make_float3(randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f), materialIndex, randomFloat() * 0.5f + 0.2f));
+    }
+    /*Quaternion rotation = quaternionFromAxisAngle(
         make_float3(0.f, 0.f, 1.f), 180.f);
         Matrix3x3 rotationMatrix = quaternionToMatrix(rotation);
     primitives.push_back(PrimitiveData::createConePrimitive(rotationMatrix, make_float3(0.f, 0.f, 0.5f),
-    materialIndex, 1.6f, 35.f));*/
+    materialIndex, 1.6f, 35.f));
 
-    /*Quaternion rotation = quaternionFromAxisAngle(
-        make_float3(1.f,0.f,0.f), 90.f);
-    Matrix3x3 rotationMatrix = quaternionToMatrix(rotation);
-    primitives.push_back(PrimitiveData::createTorePrimitive(rotationMatrix.transpose(), make_float3(0.f, 1.f, 0.f),
-    materialIndex));*/
     std::vector<CSGNode> nodes;
-    nodes.push_back(CSGNode(InstructionOp::Union, 0 | 0x80000000u, 0 | 0x80000000u));
-    // nodes.push_back(CSGNode(InstructionOp::SmoothUnion, 1 | 0x80000000u, 2 | 0x80000000u));
+    csgTree.buildTree(0, primitives.size() - 1, nodes);
     csgTree.compile(nodes);
 
     // Allocate and upload primitives to GPU
@@ -320,16 +317,16 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
     sdf.translation = make_float3(0.f, 0.f, 0.f);
     sdf.aabb = sdf.getAABB(primitives, nodes);
 
-    helper.sdfsGPU.push_back(sdf);
+    helper.sdfsGPU.push_back(sdf);*/
 
     sortLights(helper);
     gpuScene.uploadLights(helper);
     gpuScene.uploadMaterials(helper);
     std::vector<OptixAabb> aabbs;
-    printf("Number of SDFs: %zu\n", helper.sdfsGPU.size());
     for (const auto &sdf : helper.sdfsGPU)
     {
-        aabbs.push_back(sdf.getWorldAABB(primitives, nodes));
+        //aabbs.push_back(sdf.getWorldAABB(primitives, nodes));
+        aabbs.push_back(sdf.getWorldAABB());
     }
     CUDA_CHECK(
         cudaMalloc(reinterpret_cast<void **>(&gpuScene.sdfGeometries.d_aabbBuffer), aabbs.size() * sizeof(OptixAabb)));

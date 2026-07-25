@@ -5,9 +5,9 @@
 #include "../../utils/rng_cpu.hpp"
 #include "../utils/op.cuh"
 #include "../utils/rng.cuh"
+#include "cone.cuh"
 #include "sphere_sdf.cuh"
 #include "tore.cuh"
-#include "cone.cuh"
 #include <optix.h>
 #include <optix_stubs.h>
 
@@ -99,7 +99,8 @@ struct PrimitiveData
         return pd;
     }
 
-    static PrimitiveData createConePrimitive(const Matrix3x3 &rotation, const float3 &translation, int materialIndex, float height = -1.f, float angleDeg = -1.f)
+    static PrimitiveData createConePrimitive(const Matrix3x3 &rotation, const float3 &translation, int materialIndex,
+                                             float height = -1.f, float angleDeg = -1.f)
     {
         PrimitiveData pd;
         pd.type = PrimitiveType::Cone;
@@ -121,7 +122,7 @@ enum class InstructionOp : uint8_t
     Difference,
     SmoothUnion,
     SmoothIntersection,
-    SmoothDifference 
+    SmoothDifference
 };
 
 D_FORCEINLINE float smoothUnion(float d1, float d2, float k)
@@ -131,15 +132,9 @@ D_FORCEINLINE float smoothUnion(float d1, float d2, float k)
     return fminf(d1, d2) - h * h * 0.25 / k;
 }
 
-D_FORCEINLINE float smoothIntersection(float d1, float d2, float k)
-{
-    return -smoothUnion(-d1, -d2, k);
-}
+D_FORCEINLINE float smoothIntersection(float d1, float d2, float k) { return -smoothUnion(-d1, -d2, k); }
 
-D_FORCEINLINE float smoothDifference(float d1, float d2, float k)
-{
-    return -smoothUnion(d1, -d2, k);
-}
+D_FORCEINLINE float smoothDifference(float d1, float d2, float k) { return -smoothUnion(d1, -d2, k); }
 
 struct CSGNode
 {
@@ -148,8 +143,14 @@ struct CSGNode
     uint32_t right; // 4 bytes (bit 31 = leaf flag, bits 0-30 = right index)
 
     CSGNode() : operation(InstructionOp::Union), left(0), right(0) {}
-    CSGNode(InstructionOp op, uint32_t leftIndex, uint32_t rightIndex) : operation(op), left(leftIndex), right(rightIndex) {}
-    CSGNode(uint32_t leftIndex, uint32_t rightIndex) : operation(InstructionOp::Union), left(leftIndex), right(rightIndex) {}
+    CSGNode(InstructionOp op, uint32_t leftIndex, uint32_t rightIndex)
+        : operation(op), left(leftIndex), right(rightIndex)
+    {
+    }
+    CSGNode(uint32_t leftIndex, uint32_t rightIndex)
+        : operation(InstructionOp::Union), left(leftIndex), right(rightIndex)
+    {
+    }
 
     HD_FORCEINLINE bool leftIsLeaf() const { return (left & 0x80000000u) != 0; }
 
@@ -161,11 +162,10 @@ struct CSGNode
 struct Instruction
 {
     InstructionOp op;
-    uint32_t operand;  // Primitive index if op == Primitive, unused otherwise
+    uint32_t operand; // Primitive index if op == Primitive, unused otherwise
 
     Instruction() : op(InstructionOp::Union), operand(0) {}
-    Instruction(InstructionOp operation, uint32_t value = 0) 
-        : op(operation), operand(value) {}
+    Instruction(InstructionOp operation, uint32_t value = 0) : op(operation), operand(value) {}
 };
 
 struct CSGTree
@@ -173,7 +173,7 @@ struct CSGTree
     int materialIndex;
     PrimitiveData *primArray;
     float area = 1.f;
-    
+
     // Compiled post-order instruction sequence
     Instruction *programArray;
     int programSize;
@@ -187,7 +187,7 @@ struct CSGTree
         for (int i = 0; i < programSize; ++i)
         {
             const Instruction &instr = programArray[i];
-        
+
             switch (instr.op)
             {
             case InstructionOp::Primitive: {
@@ -333,8 +333,9 @@ struct CSGTree
     void compileNode(uint32_t nodeIndex, std::vector<Instruction> &program, const std::vector<CSGNode> &p_nodes)
     {
         const CSGNode &node = p_nodes[nodeIndex];
-        //printf("leftIsLeaf: %d, rightIsLeaf: %d, leftIndex: %d, rightIndex: %d\n", node.leftIsLeaf(), node.rightIsLeaf(), node.getLeftIndex(), node.getRightIndex());
-        // Process left child
+        // printf("leftIsLeaf: %d, rightIsLeaf: %d, leftIndex: %d, rightIndex: %d\n", node.leftIsLeaf(),
+        // node.rightIsLeaf(), node.getLeftIndex(), node.getRightIndex());
+        //  Process left child
         if (node.leftIsLeaf())
         {
             program.push_back(Instruction(InstructionOp::Primitive, node.getLeftIndex()));
@@ -386,4 +387,24 @@ struct CSGTree
     }
 
     __device__ float getArea() const { return area; }
+
+    uint32_t buildTree(uint32_t firstPrim, uint32_t lastPrim, std::vector<CSGNode> &nodes)
+    {
+        // Une seule primitive -> feuille
+        if (firstPrim == lastPrim)
+            return firstPrim | 0x80000000u;
+
+        // Réserver le parent
+        uint32_t nodeIndex = nodes.size();
+        nodes.emplace_back();
+
+        uint32_t mid = (firstPrim + lastPrim) / 2;
+
+        uint32_t left = buildTree(firstPrim, mid, nodes);
+        uint32_t right = buildTree(mid + 1, lastPrim, nodes);
+
+        nodes[nodeIndex] = CSGNode(InstructionOp::Union, left, right);
+
+        return nodeIndex;
+    }
 };
