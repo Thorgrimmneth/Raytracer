@@ -1,5 +1,6 @@
 #include "application.hpp"
 #include <nvtx3/nvToolsExt.h>
+#include <fstream>
 
 int Application::initParameters(int argc, char **argv)
 {
@@ -40,7 +41,7 @@ int Application::initParameters(int argc, char **argv)
             threshold = std::stof(argv[++i]);
             convergence = true;
         }
-        else if(arg == "-rng" && i + 1 < argc)
+        else if (arg == "-rng" && i + 1 < argc)
         {
             rngManip = std::stoi(argv[++i]);
         }
@@ -70,7 +71,8 @@ float3 Application::computeSunDir(float t)
     float theta = 1.1 * PIf * t;
     float az = 20.f * PIf / 180.f;
     float3 base = make_float3(cos(theta), sin(theta), 0.0f);
-    float3 sun_direction = normalize(make_float3(base.x * cos(az) - base.z * sin(az), base.y, base.x * sin(az) + base.z * cos(az)));
+    float3 sun_direction =
+        normalize(make_float3(base.x * cos(az) - base.z * sin(az), base.y, base.x * sin(az) + base.z * cos(az)));
     return sun_direction;
 }
 
@@ -87,6 +89,14 @@ int Application::launchApp(int argc, char **argv)
     chronoGlobal.start();
     Chrono chrono;
     float value = 1000.f;
+    std::string result_numbers = "nbRPP = " + std::to_string(nbRPP) + "; width = " + std::to_string(width) +
+                                 "; height = " + std::to_string(height) + "; t = " + std::to_string(t) +
+                                 "; convergence = " + std::to_string(convergence) +
+                                 "; threshold = " + std::to_string(threshold) + "\n";
+    result_numbers += "kernel name; kernel time (ms)";
+    std::ofstream csvFile(RESULTS_PATH + "../results.csv", std::ios::app);
+        csvFile << result_numbers << std::endl;
+        csvFile.close();
     // performance mode, no GUI. Used for profiling and creating final images
     if (mode == 0)
     {
@@ -96,9 +106,14 @@ int Application::launchApp(int argc, char **argv)
         renderer.init(width, height, sunDir.x, sunDir.y, sunDir.z);
         for (int i = 0; i < nbRPP && value > threshold; i++)
         {
-            value = renderer.render(false, convergence);
-            value = 0.f;
+            result_numbers = "";
+            value = renderer.render(false, convergence, true, &result_numbers);
+            std::ofstream csvFile(RESULTS_PATH + "../results.csv", std::ios::app);
+            csvFile << result_numbers << std::endl;
+            csvFile.close();
         }
+        // save result_numbers as csv file
+        
     }
     // cumulative mode. GUI, fps count. Allows to switch between megakernel and wavefront
     else if (mode == 1)
@@ -109,7 +124,7 @@ int Application::launchApp(int argc, char **argv)
         sunDir = computeSunDir(t);
 
         unsigned char *img_cuda_raw = win.cumulativeRendering(sunDir, width, height, convergence, threshold, rngManip);
-        
+
         // end of rendering
         image.createFromRaw(img_cuda_raw, width, height);
         const std::string imageName = "cumulative.jpg";
@@ -123,7 +138,8 @@ int Application::launchApp(int argc, char **argv)
 
         Renderer renderer;
         renderer.init(width, height, sunDir.x, sunDir.y, sunDir.z);
-        while (value > threshold){
+        while (value > threshold)
+        {
             value = renderer.render(false, true);
         }
 
@@ -132,14 +148,15 @@ int Application::launchApp(int argc, char **argv)
         if (d_finalizedImage)
         {
             unsigned char *img_data = (unsigned char *)malloc(width * height * 3);
-            
+
             for (int i = 0; i < width * height; i++)
             {
                 img_data[i * 3] = static_cast<unsigned char>(d_finalizedImage[i].x * 255.0f);
                 img_data[i * 3 + 1] = static_cast<unsigned char>(d_finalizedImage[i].y * 255.0f);
                 img_data[i * 3 + 2] = static_cast<unsigned char>(d_finalizedImage[i].z * 255.0f);
             }
-            std::cout << "converged after " << renderer.get_frame_number() << " with " << value << " error" << std::endl;
+            std::cout << "converged after " << renderer.get_frame_number() << " with " << value << " error"
+                      << std::endl;
             image.createFromRaw(img_data, width, height);
             const std::string imageName = "performance.jpg";
             image.saveJPG(RESULTS_PATH + imageName);
@@ -150,9 +167,9 @@ int Application::launchApp(int argc, char **argv)
             free(d_finalizedImage);
         }
     }
-    else if(mode >=3)
+    else if (mode >= 3)
     {
-        for(int i = 0; i < nbImage; i++)
+        for (int i = 0; i < nbImage; i++)
         {
             value = 1000.f;
             chrono.start();
@@ -164,7 +181,7 @@ int Application::launchApp(int argc, char **argv)
             for (int j = 0; j < nbRPP && value > threshold; j++)
             {
                 value = renderer.render(false, convergence);
-                if(j % 1000 == 0)
+                if (j % 1000 == 0)
                 {
                     std::cout << "image " << i << " : " << j << " samples, error = " << value << std::endl;
                 }
@@ -175,7 +192,9 @@ int Application::launchApp(int argc, char **argv)
             if (d_finalizedImage)
             {
                 chrono.stop();
-                printf("image %d : converged after %d samples with %f error in %fs (around %f spp/s)\n", i, renderer.get_frame_number(), value, chrono.elapsedTime(), renderer.get_frame_number() / chrono.elapsedTime());
+                printf("image %d : converged after %d samples with %f error in %fs (around %f spp/s)\n", i,
+                       renderer.get_frame_number(), value, chrono.elapsedTime(),
+                       renderer.get_frame_number() / chrono.elapsedTime());
                 unsigned char *img_data = (unsigned char *)malloc(width * height * 3);
                 for (int k = 0; k < width * height; k++)
                 {

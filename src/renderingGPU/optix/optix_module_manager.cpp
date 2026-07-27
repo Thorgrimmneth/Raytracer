@@ -23,10 +23,10 @@ void OptixModuleManager::create(OptixContext context, const std::string &ptx)
     OPTIX_CHECK(optixModuleCreate(context.deviceContext, &moduleOptions, &context.pipelineCompileOptions, ptx.c_str(), ptx.size(), log,
                                   &logSize, &module));
 
-    if (logSize > 1)
+    /*if (logSize > 1)
     {
         std::cout << "Module compilation log :\n" << log << std::endl;
-    }
+    }*/
 }
 
 void OptixModuleManager::createFromPath(OptixContext context, const std::string &path)

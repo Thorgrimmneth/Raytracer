@@ -147,7 +147,7 @@ void OptixGAS::build(OptixDeviceContext context, CUstream stream, const float3 *
     // Stats
     //------------------------------------------------------------------
 
-    std::cout << "GAS handle = " << handle << std::endl;
+    //std::cout << "GAS handle = " << handle << std::endl;
 
     std::cout << "Vertices  : " << vertexCount << std::endl;
 

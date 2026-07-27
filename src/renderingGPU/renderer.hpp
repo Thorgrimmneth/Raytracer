@@ -13,6 +13,7 @@ class Renderer
 
     ~Renderer();
 
+    void recordKernelTime(const std::string &kernel_name);
     // Setter
     void set_interop_resource(cudaGraphicsResource *resource);
 
@@ -28,8 +29,9 @@ class Renderer
 
     // Post-processing
     void apply_bloom();
-
-    float render(bool outputImage = true, bool convergence = false);
+    float render_no_text(bool outputImage = true, bool convergence = false);
+    float render_with_text(bool outputImage = true, bool convergence = false, bool outputText = false, std::string *result_numbers = nullptr);
+    float render(bool outputImage = true, bool convergence = false, bool outputText = false, std::string *result_numbers = nullptr);
     
     void finalize_image_no_render(bool convergence = false);
 

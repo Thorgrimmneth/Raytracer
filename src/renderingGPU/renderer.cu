@@ -2,14 +2,13 @@
 
 #include "../devicePrograms/launch_radiance_params.cuh"
 #include "../devicePrograms/launch_shadow_params.cuh"
-#include "utils/optix_pass_data.cuh"
 #include "camera/camera.cuh"
-#include "scene/scene.cuh"
-#include "utils/optix_pass_data.cuh"
 #include "renderingUtils/post_treatment.cuh"
 #include "renderingUtils/shading_kernels.cuh"
+#include "scene/scene.cuh"
 #include "utils/constant.cuh"
 #include "utils/fill_buffers.cuh"
+#include "utils/optix_pass_data.cuh"
 #include "utils/shading_launch.cuh"
 #include "utils/shadow_data.cuh"
 #include "utils/simplified_def.cuh"
@@ -18,6 +17,7 @@
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
 #include <fstream>
+#include <map>
 #include <thrust/sort.h>
 
 __constant__ int NB_BOUNCES;
@@ -95,7 +95,20 @@ class Renderer::Impl
     float3 *d_lvl2 = nullptr;
 
     cudaGraphicsResource *cuda_texture_resource = nullptr;
+
+    // CUDA event timing pairs
+    cudaEvent_t event_start;
+    cudaEvent_t event_stop;
+    std::map<std::string, float> kernel_times;
 };
+
+void Renderer::recordKernelTime(const std::string &kernel_name)
+{
+    cudaEventSynchronize(impl->event_stop);
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, impl->event_start, impl->event_stop);
+    impl->kernel_times[kernel_name] += milliseconds;
+}
 
 Renderer::Renderer() : impl(std::make_unique<Impl>()) {}
 
@@ -190,7 +203,8 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     // =========================
     // GPU buffers
     // =========================
-
+    cudaEventCreate(&impl->event_start);
+    cudaEventCreate(&impl->event_stop);
     cudaMalloc(&impl->d_normalized_buffer, impl->BUFFER_SIZE_FLOAT3);
 
     cudaMalloc(&impl->d_bloom_buffer, impl->BUFFER_SIZE_FLOAT3);
@@ -228,7 +242,7 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     impl->block_size = dim3(16, 16);
 
     impl->grid_size = dim3((impl->WIDTH + impl->block_size.x - 1) / impl->block_size.x,
-                          (impl->HEIGHT + impl->block_size.y - 1) / impl->block_size.y);
+                           (impl->HEIGHT + impl->block_size.y - 1) / impl->block_size.y);
 
     // =========================
     // Bloom mip chain
@@ -318,8 +332,8 @@ void Renderer::apply_bloom()
     // =========================
 
     extractBright<<<impl->grid_size, impl->block_size>>>(impl->d_accum_buffer, impl->d_normalized_buffer,
-                                                       impl->d_bloom_buffer, impl->WIDTH, impl->HEIGHT, impl->THRESHOLD,
-                                                       1.f / (float)impl->sample_count);
+                                                         impl->d_bloom_buffer, impl->WIDTH, impl->HEIGHT,
+                                                         impl->THRESHOLD, 1.f / (float)impl->sample_count);
 
     // =========================
     // Blur bloom
@@ -340,13 +354,13 @@ __global__ void accumulateShadowKernel(const float3 *shadowContributions, const 
     accum_buffer[shadowPixelIndices[idx]] += shadowContributions[idx] * shadowTransmittance[idx];
 }
 
-float Renderer::render(bool outputImage, bool convergence)
+float Renderer::render_no_text(bool outputImage, bool convergence)
 {
     int pixel_count = impl->WIDTH * impl->HEIGHT;
 
     dim3 block2D = impl->block_size;
     dim3 grid2D = impl->grid_size;
-
+    std::string resultValue = "Render result\n";
     dim3 block1D(256);
 
     auto gridForCount = [](int count) -> dim3 { return dim3((count + 255) / 256); };
@@ -365,20 +379,20 @@ float Renderer::render(bool outputImage, bool convergence)
     err = cudaGetLastError();
     if (err != cudaSuccess)
     {
-        std::cout << "generatePrimaryRaysKernel error: " << cudaGetErrorString(err) << std::endl;
+        std::cout << "generatePrimaryRaysKernel error;" << cudaGetErrorString(err) << std::endl;
         return -1.f;
     }
 
     int threads = 256;
     int blocks = (pixel_count + threads - 1) / threads;
-
     initFloat3Buffer<<<blocks, threads>>>(impl->current_queue.origins, pixel_count, impl->H_CAMERA.camera_pos);
 
     initFloat3Buffer<<<blocks, threads>>>(impl->current_queue.throughputs, pixel_count, make_float3(1.f));
 
     initBoolBuffer<<<blocks, threads>>>(impl->current_queue.isInside, pixel_count, false);
 
-    initBoolBuffer<<<blocks, threads>>>(impl->current_queue.lastBounceWasDelta, pixel_count, true); // first ray is always a delta ray
+    initBoolBuffer<<<blocks, threads>>>(impl->current_queue.lastBounceWasDelta, pixel_count,
+                                        true); // first ray is always a delta ray
 
     initFloatBuffer<<<blocks, threads>>>(impl->current_queue.lastBsdfPdf, pixel_count, 1.f);
 
@@ -414,10 +428,10 @@ float Renderer::render(bool outputImage, bool convergence)
                                 0, // stream
                                 impl->radiance_pass.d_params, sizeof(LaunchRadianceParams), &impl->radiance_pass.sbt,
                                 h_active_count, 1, 1));
-
         classifyPairs<<<gridForCount(h_active_count), block1D>>>(impl->scene.materials, h_active_count, impl->d_keys,
                                                                  impl->d_values, impl->hit_buffers.mask,
                                                                  impl->hit_buffers.materialIndices);
+
         thrust::sort_by_key(thrust::device, impl->d_keys, impl->d_keys + h_active_count, impl->d_values);
 
         computeMaterialRanges<<<1, MATERIAL_TYPE_COUNT>>>(impl->d_keys, h_active_count, impl->d_ranges);
@@ -425,11 +439,11 @@ float Renderer::render(bool outputImage, bool convergence)
         MaterialRanges ranges;
 
         cudaMemcpy(&ranges, impl->d_ranges, sizeof(MaterialRanges), cudaMemcpyDeviceToHost);
-
         reorderPaths<<<gridForCount(h_active_count), block1D>>>(
             impl->d_values, impl->current_queue, impl->sorted_queue, impl->hit_buffers.positions,
             impl->hit_buffers.normals, impl->hit_buffers.materialIndices, impl->hit_buffers.distances,
             impl->hit_buffers.objectIndices, impl->hit_buffers.types, h_active_count);
+
         for (int i = 0; i < MATERIAL_TYPE_COUNT; i++)
         {
             int offset = ranges.offset[i];
@@ -437,14 +451,15 @@ float Renderer::render(bool outputImage, bool convergence)
             if (count > 0)
             {
                 launchShadeKernel(static_cast<MaterialType>(i), impl->sorted_queue, impl->next_queue, impl->scene,
-                                  impl->d_accum_buffer, offset, count, impl->shadow_queue, impl->d_shadow_count, bounce);
+                                  impl->d_accum_buffer, offset, count, impl->shadow_queue, impl->d_shadow_count,
+                                  bounce);
             }
         }
 
         err = cudaGetLastError();
         if (err != cudaSuccess)
         {
-            std::cout << "shadeWavefrontKernel error: " << cudaGetErrorString(err) << std::endl;
+            std::cout << "shadeWavefrontKernel error;" << cudaGetErrorString(err) << std::endl;
             return -1.f;
         }
 
@@ -481,7 +496,6 @@ float Renderer::render(bool outputImage, bool convergence)
             impl->shadow_pass.params.active_count = h_shadowCount;
             cudaMemcpy(reinterpret_cast<void *>(impl->shadow_pass.d_params), &impl->shadow_pass.params,
                        sizeof(LaunchShadowParams), cudaMemcpyHostToDevice);
-
             OPTIX_CHECK(optixLaunch(impl->shadow_pass.pipeline,
                                     0, // stream
                                     impl->shadow_pass.d_params, sizeof(LaunchShadowParams), &impl->shadow_pass.sbt,
@@ -506,7 +520,6 @@ float Renderer::render(bool outputImage, bool convergence)
         impl->shadow_pass.params.active_count = h_shadowCount;
         cudaMemcpy(reinterpret_cast<void *>(impl->shadow_pass.d_params), &impl->shadow_pass.params,
                    sizeof(LaunchShadowParams), cudaMemcpyHostToDevice);
-
         OPTIX_CHECK(optixLaunch(impl->shadow_pass.pipeline,
                                 0, // stream
                                 impl->shadow_pass.d_params, sizeof(LaunchShadowParams), &impl->shadow_pass.sbt,
@@ -514,6 +527,7 @@ float Renderer::render(bool outputImage, bool convergence)
         accumulateShadowKernel<<<gridForCount(h_shadowCount), block1D>>>(
             impl->shadow_queue.contributions, impl->shadow_queue.transmittance, impl->shadow_queue.pixelIndices,
             impl->d_accum_buffer, h_shadowCount);
+        impl->launched_shade_kernel = true;
     }
     // -------------------------------------------------------------------------
     // 3. Accumulation dans d_accum_buffer
@@ -530,7 +544,6 @@ float Renderer::render(bool outputImage, bool convergence)
     // -------------------------------------------------------------------------
     // 6. Bloom + normalize
     // -------------------------------------------------------------------------
-
     apply_bloom();
     // -------------------------------------------------------------------------
     // 7. Mapping OpenGL / CUDA
@@ -546,7 +559,7 @@ float Renderer::render(bool outputImage, bool convergence)
     err = cudaGetLastError();
     if (err != cudaSuccess)
     {
-        std::cout << "cudaGraphicsMapResources error: " << cudaGetErrorString(err) << std::endl;
+        std::cout << "cudaGraphicsMapResources error;" << cudaGetErrorString(err) << std::endl;
         return -1.f;
     }
     cudaGraphicsSubResourceGetMappedArray(&textureArray, impl->cuda_texture_resource, 0, 0);
@@ -554,7 +567,7 @@ float Renderer::render(bool outputImage, bool convergence)
     err = cudaGetLastError();
     if (err != cudaSuccess)
     {
-        std::cout << "cudaGraphicsSubResourceGetMappedArray error: " << cudaGetErrorString(err) << std::endl;
+        std::cout << "cudaGraphicsSubResourceGetMappedArray error;" << cudaGetErrorString(err) << std::endl;
 
         cudaGraphicsUnmapResources(1, &impl->cuda_texture_resource, 0);
 
@@ -574,7 +587,7 @@ float Renderer::render(bool outputImage, bool convergence)
     err = cudaGetLastError();
     if (err != cudaSuccess)
     {
-        std::cout << "cudaCreateSurfaceObject error: " << cudaGetErrorString(err) << std::endl;
+        std::cout << "cudaCreateSurfaceObject error;" << cudaGetErrorString(err) << std::endl;
 
         cudaGraphicsUnmapResources(1, &impl->cuda_texture_resource, 0);
 
@@ -584,15 +597,13 @@ float Renderer::render(bool outputImage, bool convergence)
     // -------------------------------------------------------------------------
     // 8. Finalisation image
     // -------------------------------------------------------------------------
-
     finalizeImageV2<<<impl->grid_size, impl->block_size>>>(impl->d_normalized_buffer, impl->d_bloom_buffer,
-                                                         impl->d_hdrBloom_buffer, surfaceObject, impl->WIDTH,
-                                                         impl->HEIGHT, impl->EXPOSURE, impl->BLOOM_STRENGTH);
-
+                                                           impl->d_hdrBloom_buffer, surfaceObject, impl->WIDTH,
+                                                           impl->HEIGHT, impl->EXPOSURE, impl->BLOOM_STRENGTH);
     err = cudaGetLastError();
     if (err != cudaSuccess)
     {
-        std::cout << "finalizeImage error: " << cudaGetErrorString(err) << std::endl;
+        std::cout << "finalizeImage error;" << cudaGetErrorString(err) << std::endl;
         cudaDestroySurfaceObject(surfaceObject);
         cudaGraphicsUnmapResources(1, &impl->cuda_texture_resource, 0);
         return -1.f;
@@ -605,7 +616,7 @@ float Renderer::render(bool outputImage, bool convergence)
     err = cudaGetLastError();
     if (err != cudaSuccess)
     {
-        std::cout << "cudaGraphicsUnmapResources error: " << cudaGetErrorString(err) << std::endl;
+        std::cout << "cudaGraphicsUnmapResources error;" << cudaGetErrorString(err) << std::endl;
         return -1.f;
     }
 
@@ -616,12 +627,389 @@ float Renderer::render(bool outputImage, bool convergence)
 
         // copy image for convergence
         compare_buffers<<<impl->grid_size, impl->block_size>>>(impl->d_hdrBloom_buffer, impl->d_convergence_buffer,
-                                                             impl->WIDTH, impl->HEIGHT, impl->d_value);
+                                                               impl->WIDTH, impl->HEIGHT, impl->d_value);
         cudaMemcpy(&impl->value, impl->d_value, sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(impl->d_convergence_buffer, impl->d_hdrBloom_buffer, impl->BUFFER_SIZE_FLOAT3, cudaMemcpyDeviceToDevice);
+        cudaMemcpy(impl->d_convergence_buffer, impl->d_hdrBloom_buffer, impl->BUFFER_SIZE_FLOAT3,
+                   cudaMemcpyDeviceToDevice);
     }
 
     return impl->value;
+}
+
+float Renderer::render_with_text(bool outputImage, bool convergence, bool outputText, std::string *result_numbers)
+{
+    int pixel_count = impl->WIDTH * impl->HEIGHT;
+
+    dim3 block2D = impl->block_size;
+    dim3 grid2D = impl->grid_size;
+    dim3 block1D(256);
+
+    auto gridForCount = [](int count) -> dim3 { return dim3((count + 255) / 256); };
+
+    cudaError_t err;
+
+    // -------------------------------------------------------------------------
+    // 1. Génération des rayons primaires + activeQueue
+    // -------------------------------------------------------------------------
+    float invWidth = 1.f / (float)(impl->WIDTH - 1);
+    float invHeight = 1.f / (float)(impl->HEIGHT - 1);
+    cudaEventRecord(impl->event_start);
+    generatePrimaryRaysKernel<<<grid2D, block2D>>>(impl->current_queue.directions, impl->current_queue.rng,
+                                                   impl->current_queue.pixelIndices, impl->WIDTH, impl->HEIGHT,
+                                                   impl->sample_count, invWidth, invHeight);
+    cudaEventRecord(impl->event_stop);
+    cudaEventSynchronize(impl->event_stop);
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, impl->event_start, impl->event_stop);
+    *result_numbers += "generatePrimaryRaysKernel;" + std::to_string(milliseconds) + "\n";
+
+    err = cudaGetLastError();
+    if (err != cudaSuccess)
+    {
+        std::cout << "generatePrimaryRaysKernel error;" << cudaGetErrorString(err) << std::endl;
+        return -1.f;
+    }
+
+    int threads = 256;
+    int blocks = (pixel_count + threads - 1) / threads;
+    cudaEventRecord(impl->event_start);
+    initFloat3Buffer<<<blocks, threads>>>(impl->current_queue.origins, pixel_count, impl->H_CAMERA.camera_pos);
+
+    initFloat3Buffer<<<blocks, threads>>>(impl->current_queue.throughputs, pixel_count, make_float3(1.f));
+
+    initBoolBuffer<<<blocks, threads>>>(impl->current_queue.isInside, pixel_count, false);
+
+    initBoolBuffer<<<blocks, threads>>>(impl->current_queue.lastBounceWasDelta, pixel_count,
+                                        true); // first ray is always a delta ray
+
+    initFloatBuffer<<<blocks, threads>>>(impl->current_queue.lastBsdfPdf, pixel_count, 1.f);
+
+    initIntBuffer<<<blocks, threads>>>(impl->d_keys, pixel_count, (int)MISS);
+    initIntBuffer<<<blocks, threads>>>(impl->d_values, pixel_count, 0);
+    cudaEventRecord(impl->event_stop);
+    cudaEventSynchronize(impl->event_stop);
+    milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, impl->event_start, impl->event_stop);
+    *result_numbers += "init buffers;" + std::to_string(milliseconds) + "\n";
+    int h_active_count = pixel_count;
+    int h_shadowCount = 0;
+    impl->shadow_pass.params.materials = impl->scene.materials;
+    impl->shadow_pass.params.nbMaterials = impl->scene.nbMaterials;
+    // -------------------------------------------------------------------------
+    // 2. Boucle wavefront activeQueue
+    // -------------------------------------------------------------------------
+    for (int bounce = 0; bounce < impl->MAX_BOUNCES; bounce++)
+    {
+
+        if (h_active_count == 0)
+            break;
+
+        cudaMemset(impl->next_queue.active_count, 0, sizeof(int));
+        if (impl->launched_shade_kernel)
+            cudaMemset(impl->d_shadow_count, 0, sizeof(int));
+        // ---------------------------------------------------------------------
+        // 2.1 Intersection uniquement des rayons actifs
+        // ---------------------------------------------------------------------
+        impl->radiance_pass.params.origins = impl->current_queue.origins;
+        impl->radiance_pass.params.directions = impl->current_queue.directions;
+        impl->radiance_pass.params.hit_buffers = impl->hit_buffers;
+        impl->radiance_pass.params.active_count = h_active_count;
+
+        cudaMemcpy(reinterpret_cast<void *>(impl->radiance_pass.d_params), &impl->radiance_pass.params,
+                   sizeof(LaunchRadianceParams), cudaMemcpyHostToDevice);
+        cudaEventRecord(impl->event_start);
+        OPTIX_CHECK(optixLaunch(impl->radiance_pass.pipeline,
+                                0, // stream
+                                impl->radiance_pass.d_params, sizeof(LaunchRadianceParams), &impl->radiance_pass.sbt,
+                                h_active_count, 1, 1));
+        cudaEventRecord(impl->event_stop);
+        cudaEventSynchronize(impl->event_stop);
+        milliseconds = 0;
+        cudaEventElapsedTime(&milliseconds, impl->event_start, impl->event_stop);
+        *result_numbers += "radiance rays launch;" + std::to_string(milliseconds) + "\n";
+        cudaEventRecord(impl->event_start);
+        classifyPairs<<<gridForCount(h_active_count), block1D>>>(impl->scene.materials, h_active_count, impl->d_keys,
+                                                                 impl->d_values, impl->hit_buffers.mask,
+                                                                 impl->hit_buffers.materialIndices);
+        cudaEventRecord(impl->event_stop);
+        cudaEventSynchronize(impl->event_stop);
+        milliseconds = 0;
+        cudaEventElapsedTime(&milliseconds, impl->event_start, impl->event_stop);
+        *result_numbers += "classifyPairs;" + std::to_string(milliseconds) + "\n";
+
+        thrust::sort_by_key(thrust::device, impl->d_keys, impl->d_keys + h_active_count, impl->d_values);
+
+        cudaEventRecord(impl->event_start);
+        computeMaterialRanges<<<1, MATERIAL_TYPE_COUNT>>>(impl->d_keys, h_active_count, impl->d_ranges);
+        cudaEventRecord(impl->event_stop);
+        cudaEventSynchronize(impl->event_stop);
+        milliseconds = 0;
+        cudaEventElapsedTime(&milliseconds, impl->event_start, impl->event_stop);
+        *result_numbers += "computeMaterialRanges;" + std::to_string(milliseconds) + "\n";
+
+        MaterialRanges ranges;
+
+        cudaMemcpy(&ranges, impl->d_ranges, sizeof(MaterialRanges), cudaMemcpyDeviceToHost);
+        cudaEventRecord(impl->event_start);
+        reorderPaths<<<gridForCount(h_active_count), block1D>>>(
+            impl->d_values, impl->current_queue, impl->sorted_queue, impl->hit_buffers.positions,
+            impl->hit_buffers.normals, impl->hit_buffers.materialIndices, impl->hit_buffers.distances,
+            impl->hit_buffers.objectIndices, impl->hit_buffers.types, h_active_count);
+        cudaEventRecord(impl->event_stop);
+        cudaEventSynchronize(impl->event_stop);
+        milliseconds = 0;
+        cudaEventElapsedTime(&milliseconds, impl->event_start, impl->event_stop);
+        *result_numbers += "reorderPaths;" + std::to_string(milliseconds) + "\n";
+
+        for (int i = 0; i < MATERIAL_TYPE_COUNT; i++)
+        {
+            int offset = ranges.offset[i];
+            int count = ranges.count[i];
+            if (count > 0)
+            {
+                cudaEventRecord(impl->event_start);
+                launchShadeKernel(static_cast<MaterialType>(i), impl->sorted_queue, impl->next_queue, impl->scene,
+                                  impl->d_accum_buffer, offset, count, impl->shadow_queue, impl->d_shadow_count,
+                                  bounce);
+                cudaEventRecord(impl->event_stop);
+                cudaEventSynchronize(impl->event_stop);
+                milliseconds = 0;
+                cudaEventElapsedTime(&milliseconds, impl->event_start, impl->event_stop);
+                *result_numbers += "launchShadeKernel" + std::to_string(i) + ";" + std::to_string(milliseconds) + "\n";
+            }
+        }
+
+        err = cudaGetLastError();
+        if (err != cudaSuccess)
+        {
+            std::cout << "shadeWavefrontKernel error;" << cudaGetErrorString(err) << std::endl;
+            return -1.f;
+        }
+
+        // ---------------------------------------------------------------------
+        // 2.3 Récupération du nombre de rayons actifs pour le prochain bounce
+        // ---------------------------------------------------------------------
+
+        cudaMemcpy(&h_active_count, impl->next_queue.active_count, sizeof(int), cudaMemcpyDeviceToHost);
+        /*if (h_active_count > 1e6)
+        {
+            // sorting rays
+            buildOctantKeys<<<gridForCount(h_active_count), block1D>>>(impl->next_queue.directions, h_active_count,
+                                                                      impl->d_octant_keys, impl->d_values);
+            thrust::sort_by_key(thrust::device, impl->d_octant_keys, impl->d_octant_keys + h_active_count,
+        impl->d_values);
+
+            reorderRays<<<gridForCount(h_active_count), block1D>>>(impl->d_values, impl->next_queue,
+        impl->current_queue, h_active_count);
+        }*/
+        std::swap(impl->current_queue, impl->next_queue);
+
+        cudaMemcpy(&h_shadowCount, impl->d_shadow_count, sizeof(int), cudaMemcpyDeviceToHost);
+        if (h_shadowCount < impl->MIN_SHADOW_RAY_NUMBER)
+        {
+            impl->launched_shade_kernel = false;
+        }
+        else
+        {
+            impl->shadow_pass.params.origins = impl->shadow_queue.origins;
+            impl->shadow_pass.params.directions = impl->shadow_queue.directions;
+            impl->shadow_pass.params.maxDistances = impl->shadow_queue.maxDistances;
+            impl->shadow_pass.params.transmittance = impl->shadow_queue.transmittance;
+
+            impl->shadow_pass.params.active_count = h_shadowCount;
+            cudaMemcpy(reinterpret_cast<void *>(impl->shadow_pass.d_params), &impl->shadow_pass.params,
+                       sizeof(LaunchShadowParams), cudaMemcpyHostToDevice);
+            cudaEventRecord(impl->event_start);
+            OPTIX_CHECK(optixLaunch(impl->shadow_pass.pipeline,
+                                    0, // stream
+                                    impl->shadow_pass.d_params, sizeof(LaunchShadowParams), &impl->shadow_pass.sbt,
+                                    h_shadowCount, 1, 1));
+            cudaEventRecord(impl->event_stop);
+            cudaEventSynchronize(impl->event_stop);
+            milliseconds = 0;
+            cudaEventElapsedTime(&milliseconds, impl->event_start, impl->event_stop);
+            *result_numbers += "shadow rays launch;" + std::to_string(milliseconds) + "\n";
+            cudaEventRecord(impl->event_start);
+            accumulateShadowKernel<<<gridForCount(h_shadowCount), block1D>>>(
+                impl->shadow_queue.contributions, impl->shadow_queue.transmittance, impl->shadow_queue.pixelIndices,
+                impl->d_accum_buffer, h_shadowCount);
+            cudaEventRecord(impl->event_stop);
+            cudaEventSynchronize(impl->event_stop);
+            milliseconds = 0;
+            cudaEventElapsedTime(&milliseconds, impl->event_start, impl->event_stop);
+            *result_numbers += "accumulateShadowKernel;" + std::to_string(milliseconds) + "\n";
+            impl->launched_shade_kernel = true;
+        }
+        /*if(h_active_count < 1e5){
+            break;
+        }*/
+    }
+    // if shadow rays still need to be launched, launch them now
+    if (!impl->launched_shade_kernel && h_shadowCount > 0)
+    {
+        impl->shadow_pass.params.origins = impl->shadow_queue.origins;
+        impl->shadow_pass.params.directions = impl->shadow_queue.directions;
+        impl->shadow_pass.params.maxDistances = impl->shadow_queue.maxDistances;
+        impl->shadow_pass.params.transmittance = impl->shadow_queue.transmittance;
+
+        impl->shadow_pass.params.active_count = h_shadowCount;
+        cudaMemcpy(reinterpret_cast<void *>(impl->shadow_pass.d_params), &impl->shadow_pass.params,
+                   sizeof(LaunchShadowParams), cudaMemcpyHostToDevice);
+        cudaEventRecord(impl->event_start);
+        OPTIX_CHECK(optixLaunch(impl->shadow_pass.pipeline,
+                                0, // stream
+                                impl->shadow_pass.d_params, sizeof(LaunchShadowParams), &impl->shadow_pass.sbt,
+                                h_shadowCount, 1, 1));
+        cudaEventRecord(impl->event_stop);
+        cudaEventSynchronize(impl->event_stop);
+        milliseconds = 0;
+        cudaEventElapsedTime(&milliseconds, impl->event_start, impl->event_stop);
+        *result_numbers += "shadow rays launch;" + std::to_string(milliseconds) + "\n";
+        cudaEventRecord(impl->event_start);
+        accumulateShadowKernel<<<gridForCount(h_shadowCount), block1D>>>(
+            impl->shadow_queue.contributions, impl->shadow_queue.transmittance, impl->shadow_queue.pixelIndices,
+            impl->d_accum_buffer, h_shadowCount);
+        cudaEventRecord(impl->event_stop);
+        cudaEventSynchronize(impl->event_stop);
+        milliseconds = 0;
+        cudaEventElapsedTime(&milliseconds, impl->event_start, impl->event_stop);
+        *result_numbers += "accumulateShadowKernel;" + std::to_string(milliseconds) + "\n";
+        impl->launched_shade_kernel = true;
+    }
+    // -------------------------------------------------------------------------
+    // 3. Accumulation dans d_accum_buffer
+    // -------------------------------------------------------------------------
+
+    dim3 gridAllPixels((pixel_count + block1D.x - 1) / block1D.x);
+
+    // -------------------------------------------------------------------------
+    // 4. Incrément du sample count
+    // -------------------------------------------------------------------------
+
+    impl->sample_count++;
+
+    // -------------------------------------------------------------------------
+    // 6. Bloom + normalize
+    // -------------------------------------------------------------------------
+    cudaEventRecord(impl->event_start);
+    apply_bloom();
+    cudaEventRecord(impl->event_stop);
+    cudaEventSynchronize(impl->event_stop);
+    milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, impl->event_start, impl->event_stop);
+    *result_numbers += "bloom;" + std::to_string(milliseconds) + "\n";
+    // -------------------------------------------------------------------------
+    // 7. Mapping OpenGL / CUDA
+    // -------------------------------------------------------------------------
+    if (!outputImage)
+    {
+        finalize_image_no_render(convergence);
+        return impl->value;
+    }
+    cudaArray_t textureArray;
+
+    cudaGraphicsMapResources(1, &impl->cuda_texture_resource, 0);
+    err = cudaGetLastError();
+    if (err != cudaSuccess)
+    {
+        std::cout << "cudaGraphicsMapResources error;" << cudaGetErrorString(err) << std::endl;
+        return -1.f;
+    }
+    cudaGraphicsSubResourceGetMappedArray(&textureArray, impl->cuda_texture_resource, 0, 0);
+
+    err = cudaGetLastError();
+    if (err != cudaSuccess)
+    {
+        std::cout << "cudaGraphicsSubResourceGetMappedArray error;" << cudaGetErrorString(err) << std::endl;
+
+        cudaGraphicsUnmapResources(1, &impl->cuda_texture_resource, 0);
+
+        return -1.f;
+    }
+
+    cudaResourceDesc resource_desc;
+    memset(&resource_desc, 0, sizeof(resource_desc));
+
+    resource_desc.resType = cudaResourceTypeArray;
+    resource_desc.res.array.array = textureArray;
+
+    cudaSurfaceObject_t surfaceObject = 0;
+
+    cudaCreateSurfaceObject(&surfaceObject, &resource_desc);
+
+    err = cudaGetLastError();
+    if (err != cudaSuccess)
+    {
+        std::cout << "cudaCreateSurfaceObject error;" << cudaGetErrorString(err) << std::endl;
+
+        cudaGraphicsUnmapResources(1, &impl->cuda_texture_resource, 0);
+
+        return -1.f;
+    }
+
+    // -------------------------------------------------------------------------
+    // 8. Finalisation image
+    // -------------------------------------------------------------------------
+    cudaEventRecord(impl->event_start);
+    finalizeImageV2<<<impl->grid_size, impl->block_size>>>(impl->d_normalized_buffer, impl->d_bloom_buffer,
+                                                           impl->d_hdrBloom_buffer, surfaceObject, impl->WIDTH,
+                                                           impl->HEIGHT, impl->EXPOSURE, impl->BLOOM_STRENGTH);
+    cudaEventRecord(impl->event_stop);
+    cudaEventSynchronize(impl->event_stop);
+    milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, impl->event_start, impl->event_stop);
+    *result_numbers += "finalize;" + std::to_string(milliseconds) + "\n";
+    err = cudaGetLastError();
+    if (err != cudaSuccess)
+    {
+        std::cout << "finalizeImage error;" << cudaGetErrorString(err) << std::endl;
+        cudaDestroySurfaceObject(surfaceObject);
+        cudaGraphicsUnmapResources(1, &impl->cuda_texture_resource, 0);
+        return -1.f;
+    }
+
+    cudaDestroySurfaceObject(surfaceObject);
+
+    cudaGraphicsUnmapResources(1, &impl->cuda_texture_resource, 0);
+
+    err = cudaGetLastError();
+    if (err != cudaSuccess)
+    {
+        std::cout << "cudaGraphicsUnmapResources error;" << cudaGetErrorString(err) << std::endl;
+        return -1.f;
+    }
+
+    if (convergence)
+    {
+        impl->value = 0.f;
+        cudaMemcpy(impl->d_value, &impl->value, sizeof(float), cudaMemcpyHostToDevice);
+
+        // copy image for convergence
+        cudaEventRecord(impl->event_start);
+        compare_buffers<<<impl->grid_size, impl->block_size>>>(impl->d_hdrBloom_buffer, impl->d_convergence_buffer,
+                                                               impl->WIDTH, impl->HEIGHT, impl->d_value);
+        cudaEventRecord(impl->event_stop);
+        cudaEventSynchronize(impl->event_stop);
+        milliseconds = 0;
+        cudaEventElapsedTime(&milliseconds, impl->event_start, impl->event_stop);
+        *result_numbers += "convergence;" + std::to_string(milliseconds) + "\n";
+        cudaMemcpy(&impl->value, impl->d_value, sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(impl->d_convergence_buffer, impl->d_hdrBloom_buffer, impl->BUFFER_SIZE_FLOAT3,
+                   cudaMemcpyDeviceToDevice);
+    }
+
+    return impl->value;
+}
+float Renderer::render(bool outputImage, bool convergence, bool outputText, std::string *result_numbers)
+{
+    if (outputText)
+    {
+        return render_with_text(outputImage, convergence, outputText, result_numbers);
+    }
+    else
+    {
+        return render_no_text(outputImage, convergence);
+    }
 }
 
 void Renderer::finalize_image_no_render(bool convergence)
@@ -631,8 +1019,8 @@ void Renderer::finalize_image_no_render(bool convergence)
     // -------------------------------------------------------------------------
 
     finalizeImageV2NoRender<<<impl->grid_size, impl->block_size>>>(impl->d_normalized_buffer, impl->d_bloom_buffer,
-                                                                 impl->d_hdrBloom_buffer, impl->WIDTH, impl->HEIGHT,
-                                                                 impl->EXPOSURE, impl->BLOOM_STRENGTH);
+                                                                   impl->d_hdrBloom_buffer, impl->WIDTH, impl->HEIGHT,
+                                                                   impl->EXPOSURE, impl->BLOOM_STRENGTH);
 
     if (convergence)
     {
@@ -641,15 +1029,17 @@ void Renderer::finalize_image_no_render(bool convergence)
 
         // copy image for convergence
         compare_buffers<<<impl->grid_size, impl->block_size>>>(impl->d_hdrBloom_buffer, impl->d_convergence_buffer,
-                                                             impl->WIDTH, impl->HEIGHT, impl->d_value);
+                                                               impl->WIDTH, impl->HEIGHT, impl->d_value);
         cudaMemcpy(&impl->value, impl->d_value, sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(impl->d_convergence_buffer, impl->d_hdrBloom_buffer, impl->BUFFER_SIZE_FLOAT3, cudaMemcpyDeviceToDevice);
+        cudaMemcpy(impl->d_convergence_buffer, impl->d_hdrBloom_buffer, impl->BUFFER_SIZE_FLOAT3,
+                   cudaMemcpyDeviceToDevice);
     }
 }
 
 void Renderer::clean_up()
 {
-
+    cudaEventDestroy(impl->event_start);
+    cudaEventDestroy(impl->event_stop);
     impl->radiance_pass.destroy();
     impl->shadow_pass.destroy();
     impl->current_queue.destroy();
