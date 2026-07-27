@@ -3,7 +3,7 @@
 #include "../utils/simplified_def.cuh"
 
 void OptixGAS::build(OptixDeviceContext context, CUstream stream, const float3 *d_vertices, uint32_t vertexCount,
-                     const uint3 *d_indices, uint32_t triangleCount)
+                     const uint3 *d_indices, uint32_t triangleCount, float &global_size)
 {
     //------------------------------------------------------------------
     // Build input
@@ -125,12 +125,13 @@ void OptixGAS::build(OptixDeviceContext context, CUstream stream, const float3 *
 
         d_gasBuffer = d_compactedGas;
         handle = compactedHandle;
-
+        global_size += compactedSize;
         std::cout << "GAS compacted: " << gasBufferSizes.outputSizeInBytes / (1024.0 * 1024.0) << " MB -> "
                   << compactedSize / (1024.0 * 1024.0) << " MB" << std::endl;
     }
     else
     {
+        global_size = gasBufferSizes.outputSizeInBytes;
         d_gasBuffer = d_uncompactedGas;
         handle = uncompactedHandle;
 
@@ -155,12 +156,12 @@ void OptixGAS::build(OptixDeviceContext context, CUstream stream, const float3 *
     printf("\n");
 }
 
-void OptixGAS::build(OptixContext context, MeshGeometry mesh)
+void OptixGAS::build(OptixContext context, MeshGeometry mesh, float &global_size)
 {
-    build(context.deviceContext, context.stream, mesh.vertices, mesh.vertexCount, mesh.triangles, mesh.triangleCount);
+    build(context.deviceContext, context.stream, mesh.vertices, mesh.vertexCount, mesh.triangles, mesh.triangleCount, global_size);
 }
 
-void OptixGAS::build(OptixContext optixContext, SDFGeometry sdfs)
+void OptixGAS::build(OptixContext optixContext, SDFGeometry sdfs, float &global_size)
 {
     OptixDeviceContext context = optixContext.deviceContext;
     CUstream stream = optixContext.stream;
@@ -270,7 +271,7 @@ void OptixGAS::build(OptixContext optixContext, SDFGeometry sdfs)
 
         d_gasBuffer = d_compactedGas;
         handle = compactedHandle;
-
+        global_size += compactedSize;
         std::cout << "GAS compacted: " << gasBufferSizes.outputSizeInBytes / (1024.0 * 1024.0) << " MB -> "
                   << compactedSize / (1024.0 * 1024.0) << " MB" << std::endl;
     }
@@ -278,7 +279,7 @@ void OptixGAS::build(OptixContext optixContext, SDFGeometry sdfs)
     {
         d_gasBuffer = d_uncompactedGas;
         handle = uncompactedHandle;
-
+        global_size += gasBufferSizes.outputSizeInBytes;
         std::cout << "Compaction not beneficial" << std::endl;
     }
 
@@ -291,8 +292,6 @@ void OptixGAS::build(OptixContext optixContext, SDFGeometry sdfs)
     //------------------------------------------------------------------
     // Stats
     //------------------------------------------------------------------
-
-    std::cout << "GAS handle = " << handle << std::endl;
 
     std::cout << "SDF count  : " << sdfs.sdfCount << std::endl;
     printf("\n");

@@ -161,7 +161,7 @@ void sortMaterials(SceneHelper &helper)
 }
 
 Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
-                OptixPassData<LaunchShadowParams> &shadow_pass, int rngmanip)
+                OptixPassData<LaunchShadowParams> &shadow_pass, float &global_size, int rngmanip)
 {
     Scene scene;
     SceneHelper helper;
@@ -176,8 +176,8 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
     // ===== MESH INSTANCING: Load geometry once, create multiple instances =====
     MeshGeometry bunnyGeometry = loadMeshGeometry("data/bunny/Bunny.obj");
     helper.meshGeometriesGPU.push_back(bunnyGeometry);
-    /*MeshGeometry dragonGeometry = loadMeshGeometry("data/dragon/dragon.obj", make_float3(10.f));
-    helper.meshGeometriesGPU.push_back(dragonGeometry);*/
+    MeshGeometry dragonGeometry = loadMeshGeometry("data/dragon/dragon.obj", make_float3(10.f));
+    helper.meshGeometriesGPU.push_back(dragonGeometry);
 
     // Create 50 instances with different transforms and materials
     for (int i = 0; i < 10; i++)
@@ -275,6 +275,9 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
         // aabbs.push_back(sdf.getWorldAABB(primitives, nodes));
         aabbs.push_back(sdf.getWorldAABB());
     }
+    global_size += aabbs.size() * sizeof(OptixAabb);
+    global_size += helper.sdfsGPU.size() * sizeof(SDF);
+    global_size += helper.materialsGPU.size() * sizeof(Material);
     CUDA_CHECK(
         cudaMalloc(reinterpret_cast<void **>(&scene.sdfGeometries.d_aabbBuffer), aabbs.size() * sizeof(OptixAabb)));
     CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(scene.sdfGeometries.d_aabbBuffer), aabbs.data(),
@@ -327,11 +330,11 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
     {
         OptixGAS gas;
         // Build GAS from the geometry's vertices and triangles
-        gas.build(context, geometry);
+        gas.build(context, geometry, global_size);
         gasList.push_back(std::move(gas));
     }
     OptixGAS sdfGAS;
-    sdfGAS.build(context, scene.sdfGeometries);
+    sdfGAS.build(context, scene.sdfGeometries, global_size);
     gasList.push_back(std::move(sdfGAS));
     // =========================
     // Create instances from GAS with transformations

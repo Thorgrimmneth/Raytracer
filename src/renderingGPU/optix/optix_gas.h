@@ -13,11 +13,11 @@ class OptixGAS
 {
   public:
     void build(OptixDeviceContext context, CUstream stream, const float3 *d_vertices, uint32_t vertexCount,
-               const uint3 *d_indices, uint32_t triangleCount);
+               const uint3 *d_indices, uint32_t triangleCount, float &global_size);
 
-    void build(OptixContext context, MeshGeometry mesh);
+    void build(OptixContext context, MeshGeometry mesh, float &global_size);
 
-    void build(OptixContext optixContext, SDFGeometry sdfs);
+    void build(OptixContext optixContext, SDFGeometry sdfs, float &global_size);
     void destroy();
 
     OptixTraversableHandle handle = 0;

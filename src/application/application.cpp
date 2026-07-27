@@ -94,7 +94,7 @@ int Application::launchApp(int argc, char **argv)
                                  "; convergence = " + std::to_string(convergence) +
                                  "; threshold = " + std::to_string(threshold) + "\n";
     result_numbers += "kernel name; kernel time (ms)";
-    std::ofstream csvFile(RESULTS_PATH + "../results.csv", std::ios::app);
+    std::ofstream csvFile(RESULTS_PATH + "../results.csv", std::ios::out | std::ios::trunc);
         csvFile << result_numbers << std::endl;
         csvFile.close();
     // performance mode, no GUI. Used for profiling and creating final images

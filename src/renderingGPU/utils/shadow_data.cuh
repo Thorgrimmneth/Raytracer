@@ -44,13 +44,19 @@ struct ShadowRayQueue {
         }
     }
 
-    void init(int maxSize)
+    void init(int maxSize, float &global_size)
     {
         cudaMalloc(&origins, maxSize * sizeof(float3));
+        global_size += maxSize * sizeof(float3);
         cudaMalloc(&directions, maxSize * sizeof(float3));
+        global_size += maxSize * sizeof(float3);
         cudaMalloc(&contributions, maxSize * sizeof(float3));
+        global_size += maxSize * sizeof(float3);
         cudaMalloc(&pixelIndices, maxSize * sizeof(int));
+        global_size += maxSize * sizeof(int);
         cudaMalloc(&maxDistances, maxSize * sizeof(float));
+        global_size += maxSize * sizeof(float);
         cudaMalloc(&transmittance, maxSize * sizeof(float3));
+        global_size += maxSize * sizeof(float3);
     }
 };

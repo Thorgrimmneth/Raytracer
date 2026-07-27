@@ -188,7 +188,9 @@ HOST void init_constant(int width, int height, Camera c_camera, float4 sunDir)
 
 void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, float sunDirz, int rngManip)
 {
+    float global_size = sizeof(Impl);
     impl->H_CAMERA = init_camera(p_width, p_height);
+    global_size += sizeof(Camera);
     init_constant(p_width, p_height, impl->H_CAMERA, make_float4(sunDirx, sunDiry, sunDirz, 0.f));
     impl->WIDTH = p_width;
     impl->HEIGHT = p_height;
@@ -196,9 +198,9 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     float3 sunDir = make_float3(sunDirx, sunDiry, sunDirz);
 
     setSeed(43);
-
-    impl->scene = loadScene(sunDir, impl->radiance_pass, impl->shadow_pass, rngManip);
+    impl->scene = loadScene(sunDir, impl->radiance_pass, impl->shadow_pass, global_size, rngManip);
     impl->BUFFER_SIZE_FLOAT3 = impl->WIDTH * impl->HEIGHT * sizeof(float3);
+    
 
     // =========================
     // GPU buffers
@@ -212,22 +214,27 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     cudaMalloc(&impl->d_temp_buffer, impl->BUFFER_SIZE_FLOAT3);
     cudaMalloc(&impl->d_accum_buffer, impl->BUFFER_SIZE_FLOAT3);
     cudaMalloc(&impl->d_convergence_buffer, impl->BUFFER_SIZE_FLOAT3);
+    global_size += impl->BUFFER_SIZE_FLOAT3 * 6;
     cudaMalloc(&impl->d_value, sizeof(float));
     cudaMalloc(&impl->d_ranges, sizeof(MaterialRanges));
+    global_size += sizeof(MaterialRanges);
 
     size_t pixel_count = impl->WIDTH * impl->HEIGHT;
 
     cudaMalloc(&impl->d_keys, pixel_count * sizeof(int));
     cudaMalloc(&impl->d_values, pixel_count * sizeof(int));
+    global_size += pixel_count * sizeof(int) * 2;
 
     cudaMalloc(&impl->d_octant_keys, pixel_count * sizeof(unsigned int));
+    global_size += pixel_count * sizeof(unsigned int);
 
-    impl->current_queue.init(pixel_count);
-    impl->next_queue.init(pixel_count);
-    impl->sorted_queue.init(pixel_count);
-    impl->hit_buffers.init(pixel_count);
-    impl->shadow_queue.init(pixel_count * 2); // Assuming a maximum of 2 shadow rays per pixel
+    impl->current_queue.init(pixel_count, global_size);
+    impl->next_queue.init(pixel_count, global_size);
+    impl->sorted_queue.init(pixel_count, global_size);
+    impl->hit_buffers.init(pixel_count, global_size);
+    impl->shadow_queue.init(pixel_count * 2, global_size); // Assuming a maximum of 2 shadow rays per pixel
     cudaMalloc(&impl->d_shadow_count, sizeof(int));
+    global_size += pixel_count * sizeof(int) * 2; //d_keys and d_values
 
     cudaMemcpy(impl->current_queue.active_count, &pixel_count, sizeof(int), cudaMemcpyHostToDevice);
 
@@ -255,9 +262,12 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     impl->h2 = impl->h1 / 2;
 
     cudaMalloc(&impl->d_lvl1, impl->w1 * impl->h1 * sizeof(float3));
+    global_size += impl->w1 * impl->h1 * sizeof(float3);
 
     cudaMalloc(&impl->d_lvl2, impl->w2 * impl->h2 * sizeof(float3));
-
+    global_size += impl->w2 * impl->h2 * sizeof(float3);
+    printf("Renderer initialized with width: %d, height: %d, global_size: %.2f MB\n", impl->WIDTH, impl->HEIGHT,
+           global_size / (1024.0f * 1024.0f));
     impl->sample_count = 0;
 }
 

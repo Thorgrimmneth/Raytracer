@@ -58,20 +58,29 @@ struct RayQueue
         }
     }
 
-    void init(int maxSize)
+    void init(int maxSize, float &global_size)
     {
         cudaMalloc(&origins, maxSize * sizeof(float3));
+        global_size += maxSize * sizeof(float3);
         cudaMalloc(&directions, maxSize * sizeof(float3));
+        global_size += maxSize * sizeof(float3);
         cudaMalloc(&throughputs, maxSize * sizeof(float3));
+        global_size += maxSize * sizeof(float3);
 
         cudaMalloc(&lastBounceWasDelta, maxSize * sizeof(bool));
+        global_size += maxSize * sizeof(bool);
         cudaMalloc(&lastBsdfPdf, maxSize * sizeof(float));
+        global_size += maxSize * sizeof(float);
         cudaMalloc(&isInside, maxSize * sizeof(bool));
+        global_size += maxSize * sizeof(bool);
 
         cudaMalloc(&rng, maxSize * sizeof(RNG));
+        global_size += maxSize * sizeof(RNG);
         cudaMalloc(&pixelIndices, maxSize * sizeof(int));
+        global_size += maxSize * sizeof(int);
 
         cudaMalloc(&active_count, sizeof(int));
+        global_size += sizeof(int);
     }
 };
 
@@ -155,24 +164,38 @@ struct SortedRayQueue
         }
     }
 
-    void init(int maxSize)
+    void init(int maxSize, float &global_size)
     {
+        global_size += maxSize * sizeof(float3);
         cudaMalloc(&origins, maxSize * sizeof(float3));
+        global_size += maxSize * sizeof(float3);
         cudaMalloc(&directions, maxSize * sizeof(float3));
+        global_size += maxSize * sizeof(float3);
         cudaMalloc(&throughputs, maxSize * sizeof(float3));
 
+        global_size += maxSize * sizeof(bool);
         cudaMalloc(&lastBounceWasDelta, maxSize * sizeof(bool));
+        global_size += maxSize * sizeof(float);
         cudaMalloc(&lastBsdfPdf, maxSize * sizeof(float));
+        global_size += maxSize * sizeof(bool);
         cudaMalloc(&isInside, maxSize * sizeof(bool));
 
+        global_size += maxSize * sizeof(float3);
         cudaMalloc(&hitPositions, maxSize * sizeof(float3));
+        global_size += maxSize * sizeof(float3);
         cudaMalloc(&hitNormals, maxSize * sizeof(float3));
+        global_size += maxSize * sizeof(int);
         cudaMalloc(&hitMaterialIndices, maxSize * sizeof(int));
+        global_size += maxSize * sizeof(float);
         cudaMalloc(&hitDistances, maxSize * sizeof(float));
+        global_size += maxSize * sizeof(int);
         cudaMalloc(&hitTypes, maxSize * sizeof(int));
+        global_size += maxSize * sizeof(int);
         cudaMalloc(&hitObjectIndices, maxSize * sizeof(int));
 
+        global_size += maxSize * sizeof(RNG);
         cudaMalloc(&rng, maxSize * sizeof(RNG));
+        global_size += maxSize * sizeof(int);
         cudaMalloc(&pixelIndices, maxSize * sizeof(int));
     }
 };
@@ -226,14 +249,21 @@ struct HitBuffers
         }
     }
 
-    void init(int maxSize)
+    void init(int maxSize, float &global_size)
     {
+        global_size += maxSize * sizeof(float3);
         cudaMalloc(&positions, maxSize * sizeof(float3));
+        global_size += maxSize * sizeof(float3);
         cudaMalloc(&normals, maxSize * sizeof(float3));
+        global_size += maxSize * sizeof(int);
         cudaMalloc(&materialIndices, maxSize * sizeof(int));
+        global_size += maxSize * sizeof(int);
         cudaMalloc(&mask, maxSize * sizeof(int));
+        global_size += maxSize * sizeof(float);
         cudaMalloc(&distances, maxSize * sizeof(float));
+        global_size += maxSize * sizeof(int);
         cudaMalloc(&objectIndices, maxSize * sizeof(int));
+        global_size += maxSize * sizeof(int);
         cudaMalloc(&types, maxSize * sizeof(int));
     }
 };
