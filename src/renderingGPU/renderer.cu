@@ -496,7 +496,7 @@ float Renderer::render(bool outputImage, bool convergence)
         }*/
     }
     // if shadow rays still need to be launched, launch them now
-    if (!impl->launched_shade_kernel)
+    if (!impl->launched_shade_kernel && h_shadowCount > 0)
     {
         impl->shadow_pass.params.origins = impl->shadow_queue.origins;
         impl->shadow_pass.params.directions = impl->shadow_queue.directions;

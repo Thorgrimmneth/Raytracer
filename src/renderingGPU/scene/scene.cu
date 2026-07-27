@@ -176,8 +176,8 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
     // ===== MESH INSTANCING: Load geometry once, create multiple instances =====
     MeshGeometry bunnyGeometry = loadMeshGeometry("data/bunny/Bunny.obj");
     helper.meshGeometriesGPU.push_back(bunnyGeometry);
-    MeshGeometry dragonGeometry = loadMeshGeometry("data/dragon/dragon.obj", make_float3(10.f));
-    helper.meshGeometriesGPU.push_back(dragonGeometry);
+    /*MeshGeometry dragonGeometry = loadMeshGeometry("data/dragon/dragon.obj", make_float3(10.f));
+    helper.meshGeometriesGPU.push_back(dragonGeometry);*/
 
     // Create 50 instances with different transforms and materials
     for (int i = 0; i < 10; i++)
@@ -206,7 +206,7 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
 
     // Add ground plane
     addGround(helper);
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 1; i++)
     {
         int materialIndex = int(randomFloat() * helper.materialsGPU.size());
         SDF sdf = SDF::createRandomSphereAnalytic(materialIndex);
@@ -220,7 +220,7 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
         helper.sdfsGPU.push_back(sdf);
     }
     
-    for (int i = 0; i < 15; i++)
+    /*for (int i = 0; i < 15; i++)
     {
         int materialIndex = int(randomFloat() * helper.materialsGPU.size());
         SDF sdf = SDF::createRandomToreSDF(materialIndex);
@@ -232,7 +232,7 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
             sdf.lightIndex = (int)helper.lightsGPU.size() - 1;
         }
         helper.sdfsGPU.push_back(sdf);
-    }
+    }*/
 
     /*helper.materialsGPU.push_back(Material::makeMaterial(make_float3(1.f), TRANSPARENT, 0.f, 0.f, 1.5f));
     int materialIndex = helper.materialsGPU.size() - 1;

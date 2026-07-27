@@ -307,22 +307,23 @@ HOST void buildTransformMatrix(float *out_transform, float3 scale, Quaternion ro
     float r22 = 1.f - 2.f * (q_x * q_x + q_y * q_y);
 
     // Build 3x4 matrix: [R*S | T]
-    // Row 0: [r00*sx, r01*sx, r02*sx, tx]
+    // CORRECT: Scale each column of the rotation matrix
+    // Row 0: [r00*sx, r01*sy, r02*sz, tx]
     out_transform[0] = r00 * scale.x;
-    out_transform[1] = r01 * scale.x;
-    out_transform[2] = r02 * scale.x;
+    out_transform[1] = r01 * scale.y;  // Scale y-component
+    out_transform[2] = r02 * scale.z;  // Scale z-component
     out_transform[3] = translation.x;
 
-    // Row 1: [r10*sy, r11*sy, r12*sy, ty]
-    out_transform[4] = r10 * scale.y;
-    out_transform[5] = r11 * scale.y;
-    out_transform[6] = r12 * scale.y;
+    // Row 1: [r10*sx, r11*sy, r12*sz, ty]
+    out_transform[4] = r10 * scale.x;
+    out_transform[5] = r11 * scale.y;  // Scale y-component
+    out_transform[6] = r12 * scale.z;  // Scale z-component
     out_transform[7] = translation.y;
 
-    // Row 2: [r20*sz, r21*sz, r22*sz, tz]
-    out_transform[8] = r20 * scale.z;
-    out_transform[9] = r21 * scale.z;
-    out_transform[10] = r22 * scale.z;
+    // Row 2: [r20*sx, r21*sy, r22*sz, tz]
+    out_transform[8] = r20 * scale.x;
+    out_transform[9] = r21 * scale.y;  // Scale y-component
+    out_transform[10] = r22 * scale.z;  // Scale z-component
     out_transform[11] = translation.z;
 }
 

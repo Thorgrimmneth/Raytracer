@@ -205,7 +205,7 @@ __global__ void shadeLambertKernel(Scene scene, float3 *directions, float3 *thro
     float3 contribution = make_float3(0.f);
     float3 shadowDir = make_float3(0.f);
     float maxDist = 0.f;
-
+    
     if (alive && scene.nbLights > 0)
     {
         int lightIndex = selectLightByImportance(scene.nbLights, scene.lightCumulativeWeights, rng);
@@ -290,8 +290,8 @@ __global__ void shadeLambertKernel(Scene scene, float3 *directions, float3 *thro
     warpBase = __shfl_sync(0xffffffff, warpBase, 0);
     if (!neeAlive)
         return;
-
     float3 shadowOrigin = pos + normal * 1e-3f;
+    shadowOrigin += shadowDir * 1e-3f;
     shadowOrigins[warpBase + localRank] = shadowOrigin;
     shadowDirections[warpBase + localRank] = shadowDir;
     shadowContributions[warpBase + localRank] = contribution;
