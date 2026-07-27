@@ -26,11 +26,39 @@ extern "C" __global__ void __closesthit__radiance()
     const float3 &n1 = data->mesh.normals[tri.y];
     const float3 &n2 = data->mesh.normals[tri.z];
 
+    // Interpolate normal in model space
     float3 N = normalize((1 - bc.x - bc.y) * n0 + bc.x * n1 + bc.y * n2);
+    
+    // Get material index and apply mesh transformation to normal
+    uint instanceIndex = optixGetInstanceId();
+    
+    if (params.meshInstances && instanceIndex < params.nbMeshInstances)
+    {
+        // Transform normal from model space to world space
+        const float *transform = params.meshInstances[instanceIndex].transform;
+        
+        // Extract 3x3 rotation/scale from 3x4 transform matrix
+        // Normal transformation: N_world = transpose(inverse(M)) * N_local
+        // For orthogonal matrices, transpose = inverse
+        float3 N_world;
+        N_world.x = transform[0] * N.x + transform[4] * N.y + transform[8] * N.z;
+        N_world.y = transform[1] * N.x + transform[5] * N.y + transform[9] * N.z;
+        N_world.z = transform[2] * N.x + transform[6] * N.y + transform[10] * N.z;
+        
+        N = normalize(N_world);
+        payload->materialIndex = params.meshInstances[instanceIndex].materialIndex;
+    }
+    else
+    {
+        payload->materialIndex = 0;
+    }
+    
+    // Orient normal to face the incoming ray
     if(dot(N, optixGetWorldRayDirection()) > 0.f)
     {
         N = -N;
     }
+    
     payload->hit = 1;
 
     payload->t = optixGetRayTmax();
@@ -38,18 +66,6 @@ extern "C" __global__ void __closesthit__radiance()
     payload->position = optixGetWorldRayOrigin() + payload->t * optixGetWorldRayDirection();
 
     payload->normal = N;
-
-    // Get material index from mesh instance data
-    uint instanceIndex = optixGetInstanceId();
-
-    if (params.meshInstances && instanceIndex < params.nbMeshInstances)
-    {
-        payload->materialIndex = params.meshInstances[instanceIndex].materialIndex;
-    }
-    else
-    {
-        payload->materialIndex = 0; // Fallback to SBT data
-    }
     payload->objectIndex = instanceIndex;
     payload->object_type = HIT_TRIANGLE_MESH;
 }

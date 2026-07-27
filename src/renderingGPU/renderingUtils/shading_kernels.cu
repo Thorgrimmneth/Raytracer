@@ -291,7 +291,7 @@ __global__ void shadeLambertKernel(Scene scene, float3 *directions, float3 *thro
     if (!neeAlive)
         return;
 
-    float3 shadowOrigin = pos + normal * -1e-3f;
+    float3 shadowOrigin = pos + normal * 1e-3f;
     shadowOrigins[warpBase + localRank] = shadowOrigin;
     shadowDirections[warpBase + localRank] = shadowDir;
     shadowContributions[warpBase + localRank] = contribution;
