@@ -115,3 +115,5 @@ void sortLights(SceneHelper &helper);
 Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass, OptixPassData<LaunchShadowParams> &shadow_pass, int rngmanip = 0);
 
 void addGround(SceneHelper &helper);
+
+void createMaterials(SceneHelper &helper, int rngmanip = 0);

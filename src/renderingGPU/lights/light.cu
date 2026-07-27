@@ -215,12 +215,11 @@ DEVICE LightSample Light::sampleMeshGeom(const float3 &p_point, RNG &rng, const 
     const Material &m = scene_materials[inst.materialIndex];
 
     LightSample ls{};
-
-    if (geom.triangleCount == 0 || geom.meshArea <= 0.f)
+    if (geom.triangleCount == 0 || inst.worldArea <= 0.f)
         return ls;
 
     // Sample a triangle proportional to its area
-    float sampleArea = rng.nextFloat() * geom.meshArea;
+    float sampleArea = rng.nextFloat() * inst.worldArea;
 
     int lo = 0;
     int hi = geom.triangleCount - 1;

@@ -378,7 +378,7 @@ float Renderer::render(bool outputImage, bool convergence)
 
     initBoolBuffer<<<blocks, threads>>>(impl->current_queue.isInside, pixel_count, false);
 
-    initBoolBuffer<<<blocks, threads>>>(impl->current_queue.lastBounceWasDelta, pixel_count, false);
+    initBoolBuffer<<<blocks, threads>>>(impl->current_queue.lastBounceWasDelta, pixel_count, true); // first ray is always a delta ray
 
     initFloatBuffer<<<blocks, threads>>>(impl->current_queue.lastBsdfPdf, pixel_count, 1.f);
 

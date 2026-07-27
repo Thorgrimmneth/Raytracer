@@ -27,7 +27,6 @@ extern "C" __global__ void __closesthit__radiance()
     const float3 &n2 = data->mesh.normals[tri.z];
 
     float3 N = normalize((1 - bc.x - bc.y) * n0 + bc.x * n1 + bc.y * n2);
-
     if(dot(N, optixGetWorldRayDirection()) > 0.f)
     {
         N = -N;

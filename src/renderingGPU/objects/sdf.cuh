@@ -2,10 +2,12 @@
 
 #include "../utils/check.cuh"
 #include "../utils/op.cuh"
+#include "../utils/rng.cuh"
+#include "../utils/quaternion.cuh"
+#include "cone.cuh"
 #include "csg_tree.cuh"
 #include "sphere_analytic.cuh"
 #include "tore.cuh"
-#include "cone.cuh"
 #include <vector>
 
 enum class SDFType : uint8_t
@@ -65,7 +67,8 @@ struct SDF
         }
     }
 
-    HOST OptixAabb getWorldAABB(const std::vector<PrimitiveData> &primitives = {}, const std::vector<CSGNode> &nodes = {}) const
+    HOST OptixAabb getWorldAABB(const std::vector<PrimitiveData> &primitives = {},
+                                const std::vector<CSGNode> &nodes = {}) const
     {
         switch (type)
         {
@@ -121,7 +124,8 @@ struct SDF
         }
     }
 
-    HOST OptixAabb getAABB(const std::vector<PrimitiveData> &primitives = {}, const std::vector<CSGNode> &nodes = {}) const
+    HOST OptixAabb getAABB(const std::vector<PrimitiveData> &primitives = {},
+                           const std::vector<CSGNode> &nodes = {}) const
     {
         switch (type)
         {
@@ -158,6 +162,9 @@ struct SDF
         SDF sdf;
         sdf.type = SDFType::SphereAnalytic;
         sdf.sphere = SphereAnalytic::createRandomSphere(materialIndex);
+        sdf.aabb = sdf.sphere.computeAABB();
+        sdf.translation =
+            make_float3(randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f);
         return sdf;
     }
 
@@ -166,10 +173,16 @@ struct SDF
         SDF sdf;
         sdf.type = SDFType::Tore;
         sdf.tore = Tore::createRandomTore(materialIndex);
+        sdf.aabb = sdf.tore.computeAABB();
+        sdf.translation =
+            make_float3(randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f);
+        Quaternion rotation = quaternionFromAxisAngle(
+            make_float3(randomFloat() * 2.f, randomFloat() * 2.f, randomFloat() * 2.f), randomFloat() * 360.f);
+        Matrix3x3 rotationMatrix = quaternionToMatrix(rotation);
+        sdf.rotation = rotationMatrix.transpose();
         return sdf;
     }
 };
-
 
 struct SDFGeometry
 {

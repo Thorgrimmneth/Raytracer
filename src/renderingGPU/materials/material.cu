@@ -82,8 +82,7 @@ DEVICE float Material::computeG(const float &NdotV, const float &NdotL, const fl
     return computeG1(NdotV, alphaSquared) * computeG1(NdotL, alphaSquared);
 }
 
-DEVICE float3 Material::evaluateGGX(const float3 &wo, const float3 &normal, const float3 &wi,
-                                           const float3 &F0) const
+DEVICE float3 Material::evaluateGGX(const float3 &wo, const float3 &normal, const float3 &wi, const float3 &F0) const
 {
     float3 h = normalize(wi + wo);
     float NdotV = fmaxf(dot(normal, wo), 0.f);
@@ -123,7 +122,7 @@ DEVICE float3 Material::samplingGGX(const float3 &wo, const float3 &normal, RNG 
     float e2 = rngStates.nextFloat();
     float r = sqrtf(e1);
     float phi = 2.f * GPUPIf * e2;
-    
+
     float t1 = r * cosf(phi);
     float t2 = r * sinf(phi);
 
@@ -158,18 +157,22 @@ DEVICE float Material::pdfGGX(const float3 n, const float3 wi, const float3 wo) 
     float alphaSquared = alphaT * alphaT;
     float D = computeD(n, h, alphaSquared);
     float G1 = computeG1(NdotV, alphaSquared);
+    float NdotH = max(dot(n, h), 0.f);
+    float VdotH = max(dot(wo, h), 0.f);
 
-    return (G1 * D) / (4.f * NdotV);
+    if (NdotH <= 0.f || VdotH <= 0.f)
+        return 0.f;
+
+    return D * G1 * NdotH / (4.f * NdotV * VdotH);
 }
 
 // ============================================================
 //  getBSDF helpers
 // ============================================================
 
-DEVICE BSDFVal Material::getMetalBSDF(const float3 &direction, const float3 &normal,
-                                      RNG &rngStates) const
+DEVICE BSDFVal Material::getMetalBSDF(const float3 &direction, const float3 &normal, RNG &rngStates) const
 {
-    if(alpha() < 1e-4f)
+    if (alpha() < 1e-4f)
     {
         BSDFVal bsdf;
         bsdf.direction = reflect(direction, normal);
@@ -177,7 +180,7 @@ DEVICE BSDFVal Material::getMetalBSDF(const float3 &direction, const float3 &nor
         bsdf.brdf = color();
         return bsdf;
     }
-    
+
     float3 wo = -direction;
     BSDFVal bsdf;
 
@@ -198,8 +201,7 @@ DEVICE BSDFVal Material::getMetalBSDF(const float3 &direction, const float3 &nor
     return bsdf;
 }
 
-DEVICE BSDFVal Material::getLambertBSDF(const float3 &direction, const float3 &normal,
-                                        RNG &rngStates) const
+DEVICE BSDFVal Material::getLambertBSDF(const float3 &direction, const float3 &normal, RNG &rngStates) const
 {
     BSDFVal bsdf;
 
@@ -210,17 +212,16 @@ DEVICE BSDFVal Material::getLambertBSDF(const float3 &direction, const float3 &n
     return bsdf;
 }
 
-DEVICE BSDFVal Material::getPlasticBSDF(const float3 &direction, const float3 &normal,
-                                        RNG &rngStates) const
+DEVICE BSDFVal Material::getPlasticBSDF(const float3 &direction, const float3 &normal, RNG &rngStates) const
 {
     float3 wo = -direction;
     BSDFVal bsdf;
     float cosTheta = saturate(dot(normal, wo));
     float3 F0 = make_float3(0.04f);
     float3 F = fresnelSchlick(cosTheta, F0);
-    
+
     float specW = (F.x + F.y + F.z) / 3.f;
-    
+
     if (rngStates.nextFloat() < specW)
     {
         bsdf.direction = samplingGGX(wo, normal, rngStates);
@@ -255,8 +256,8 @@ DEVICE BSDFVal Material::getMirrorBSDF(const float3 &direction, const float3 &no
     return bsdf;
 }
 
-DEVICE BSDFVal Material::getTransparentBSDF(const float3 &direction, const float3 &normal,
-                                            RNG &rngStates, bool &isInside) const
+DEVICE BSDFVal Material::getTransparentBSDF(const float3 &direction, const float3 &normal, RNG &rngStates,
+                                            bool &isInside) const
 {
     float3 wo = direction;
     BSDFVal bsdf;
@@ -315,7 +316,6 @@ DEVICE BSDFVal Material::getTransparentBSDF(const float3 &direction, const float
         isInside = !isInside;
     }
 
-
     return bsdf;
 }
 
@@ -323,8 +323,7 @@ DEVICE BSDFVal Material::getTransparentBSDF(const float3 &direction, const float
 //  getBSDF dispatcher
 // ============================================================
 
-DEVICE BSDFVal Material::getBSDF(const float3 &direction, const float3 &normal, RNG &rngStates,
-                                 bool &isInside) const
+DEVICE BSDFVal Material::getBSDF(const float3 &direction, const float3 &normal, RNG &rngStates, bool &isInside) const
 {
     switch (type())
     {
@@ -360,8 +359,7 @@ DEVICE BSDFVal Material::getBSDF(const float3 &direction, const float3 &normal, 
 
 DEVICE float3 Material::evalLambertBSDF() const { return evaluateLambert(); }
 
-DEVICE float3 Material::evalMetalBSDF(const float3 &direction, const float3 &normal,
-                                      const float3 &wi) const
+DEVICE float3 Material::evalMetalBSDF(const float3 &direction, const float3 &normal, const float3 &wi) const
 {
     float3 wo = -direction;
 
@@ -373,8 +371,7 @@ DEVICE float3 Material::evalMetalBSDF(const float3 &direction, const float3 &nor
     return evaluateGGX(wo, normal, wi, F0);
 }
 
-DEVICE float3 Material::evalPlasticBSDF(const float3 &direction, const float3 &normal,
-                                        const float3 &wi) const
+DEVICE float3 Material::evalPlasticBSDF(const float3 &direction, const float3 &normal, const float3 &wi) const
 {
     float3 wo = -direction;
 
@@ -395,8 +392,7 @@ DEVICE float3 Material::evalPlasticBSDF(const float3 &direction, const float3 &n
 //  evalBSDF dispatcher
 // ============================================================
 
-DEVICE float3 Material::evalBSDF(const float3 &direction, const float3 &normal,
-                                 const float3 &wi) const
+DEVICE float3 Material::evalBSDF(const float3 &direction, const float3 &normal, const float3 &wi) const
 {
     switch (type())
     {
@@ -422,15 +418,13 @@ DEVICE float3 Material::evalBSDF(const float3 &direction, const float3 &normal,
 //  Used by MIS — delta materials return 0
 // ============================================================
 
-DEVICE float Material::lambertPDF(const float3 &direction, const float3 &normal,
-                                  const float3 &wi) const
+DEVICE float Material::lambertPDF(const float3 &direction, const float3 &normal, const float3 &wi) const
 {
 
     return pdfLambert(normal, wi);
 }
 
-DEVICE float Material::metalPDF(const float3 &direction, const float3 &normal,
-                                const float3 &wi) const
+DEVICE float Material::metalPDF(const float3 &direction, const float3 &normal, const float3 &wi) const
 {
     float3 wo = -direction;
 
@@ -440,8 +434,7 @@ DEVICE float Material::metalPDF(const float3 &direction, const float3 &normal,
     return pdfGGX(normal, wi, wo);
 }
 
-DEVICE float Material::plasticPDF(const float3 &direction, const float3 &normal,
-                                  const float3 &wi) const
+DEVICE float Material::plasticPDF(const float3 &direction, const float3 &normal, const float3 &wi) const
 {
     float3 wo = -direction;
 

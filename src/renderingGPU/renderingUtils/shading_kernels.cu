@@ -224,7 +224,7 @@ __global__ void shadeLambertKernel(Scene scene, float3 *directions, float3 *thro
 
             contribution = throughput * f * ls.radiance * cosTheta_nee * w * (1.f / lightPdf);
             shadowDir = ls.direction;
-            maxDist = ls.distance;
+            maxDist = ls.distance - 1e-3f;
             neeAlive = true;
         }
     }
@@ -291,7 +291,7 @@ __global__ void shadeLambertKernel(Scene scene, float3 *directions, float3 *thro
     if (!neeAlive)
         return;
 
-    float3 shadowOrigin = pos + normal * 1e-3f;
+    float3 shadowOrigin = pos + normal * -1e-3f;
     shadowOrigins[warpBase + localRank] = shadowOrigin;
     shadowDirections[warpBase + localRank] = shadowDir;
     shadowContributions[warpBase + localRank] = contribution;
@@ -482,7 +482,7 @@ __global__ void shadePlasticNEEKernel(Scene scene, float3 *directions, float3 *t
         float lightSelectionProb = getLightProbability(nbLights, scene.lightProbabilities, lightIndex);
 
         Light &light = scene.lights[lightIndex];
-
+        
         LightSample ls = light.sample(pos, rng, scene);
 
         neeAlive = ls.pdf > 0.f;

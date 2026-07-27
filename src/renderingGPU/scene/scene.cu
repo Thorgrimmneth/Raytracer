@@ -163,57 +163,16 @@ void sortMaterials(SceneHelper &helper)
 Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
                 OptixPassData<LaunchShadowParams> &shadow_pass, int rngmanip)
 {
-    Scene gpuScene;
+    Scene scene;
     SceneHelper helper;
     Light sun = createSun(sunDir, helper);
     helper.lightsGPU.push_back(sun);
-
     for (int i = 0; i < rngmanip; i++)
     {
         float manipRNG = randomFloat();
     }
-
-    for (int i = 0; i < 5; i++)
-    {
-        Material emissive = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), EMISSIVE,
-                                                   0.f, 0.f, 1.f, randomFloat() * 5.f + 8.f);
-        helper.materialsGPU.push_back(emissive);
-    }
-    for (int i = 0; i < 10; i++)
-    {
-        Material mirror = Material::makeMaterial(make_float3(1.f), MIRROR);
-        helper.materialsGPU.push_back(mirror);
-    }
-
-    for (int i = 0; i < 15; i++)
-    {
-        Material transparent = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()),
-                                                      TRANSPARENT, 0.f, 0.f, 1.5f);
-        helper.materialsGPU.push_back(transparent);
-    }
-    for (int i = 0; i < 10; i++)
-    {
-        Material lambert =
-            Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), LAMBERT, 1.0f);
-        helper.materialsGPU.push_back(lambert);
-    }
-
-    for (int i = 0; i < 10; i++)
-    {
-        float roughness = randomFloat() * 0.5f;
-        Material metal = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), METAL,
-                                                roughness * roughness, 1.f);
-        helper.materialsGPU.push_back(metal);
-    }
-
-    for (int i = 0; i < 10; i++)
-    {
-        float roughness = randomFloat() * 0.5f;
-        Material plastic = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), PLASTIC,
-                                                  roughness * roughness);
-        helper.materialsGPU.push_back(plastic);
-    }
-
+    createMaterials(helper);
+    
     // ===== MESH INSTANCING: Load geometry once, create multiple instances =====
     MeshGeometry bunnyGeometry = loadMeshGeometry("data/bunny/Bunny.obj");
     helper.meshGeometriesGPU.push_back(bunnyGeometry);
@@ -221,7 +180,7 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
     helper.meshGeometriesGPU.push_back(dragonGeometry);
 
     // Create 50 instances with different transforms and materials
-    for (int i = 0; i < 0; i++)
+    for (int i = 0; i < 10; i++)
     {
         Quaternion rotation = quaternionFromAxisAngle(
             make_float3(randomFloat() * 2.f, randomFloat() * 2.f, randomFloat() * 2.f), randomFloat() * 360.f);
@@ -247,15 +206,10 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
 
     // Add ground plane
     addGround(helper);
-    helper.materialsGPU.push_back(Material::makeMaterial(make_float3(1.f), TRANSPARENT, 0.f, 0.f, 1.5f));
     for (int i = 0; i < 10; i++)
     {
         int materialIndex = int(randomFloat() * helper.materialsGPU.size());
-        materialIndex = helper.materialsGPU.size() - 1; // Use the last material (transparent) for all spheres
         SDF sdf = SDF::createRandomSphereAnalytic(materialIndex);
-        sdf.translation =
-            make_float3(randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f);
-        sdf.aabb = sdf.getAABB();
         if (helper.materialsGPU[materialIndex].type() == EMISSIVE)
         {
             Light light;
@@ -265,18 +219,11 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
         }
         helper.sdfsGPU.push_back(sdf);
     }
-    /*
+    
     for (int i = 0; i < 15; i++)
     {
         int materialIndex = int(randomFloat() * helper.materialsGPU.size());
-        Quaternion rotation = quaternionFromAxisAngle(
-            make_float3(randomFloat() * 2.f, randomFloat() * 2.f, randomFloat() * 2.f), randomFloat() * 360.f);
         SDF sdf = SDF::createRandomToreSDF(materialIndex);
-        Matrix3x3 rotationMatrix = quaternionToMatrix(rotation);
-        sdf.rotation = rotationMatrix.transpose();
-        sdf.translation =
-            make_float3(randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f);
-        sdf.aabb = sdf.getAABB();
         if (helper.materialsGPU[materialIndex].type() == EMISSIVE)
         {
             Light light;
@@ -285,8 +232,8 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
             sdf.lightIndex = (int)helper.lightsGPU.size() - 1;
         }
         helper.sdfsGPU.push_back(sdf);
-    }*/
-    
+    }
+
     /*helper.materialsGPU.push_back(Material::makeMaterial(make_float3(1.f), TRANSPARENT, 0.f, 0.f, 1.5f));
     int materialIndex = helper.materialsGPU.size() - 1;
     SDF sdf;
@@ -294,9 +241,10 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
     CSGTree csgTree;
     csgTree.materialIndex = materialIndex;
     std::vector<PrimitiveData> primitives;
-    for(int i = 0; i < 400; i++)
+    for(int i = 0; i < 10; i++)
     {
-        primitives.push_back(PrimitiveData::createSpherePrimitive(make_float3(randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f), materialIndex, randomFloat() * 0.5f + 0.2f));
+        primitives.push_back(PrimitiveData::createSpherePrimitive(make_float3(randomFloat() * 10.f - 5.f, randomFloat()
+    * 10.f - 5.f, randomFloat() * 10.f - 5.f), materialIndex, randomFloat() * 0.5f + 0.2f));
     }
     /*Quaternion rotation = quaternionFromAxisAngle(
         make_float3(0.f, 0.f, 1.f), 180.f);
@@ -316,27 +264,26 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
     sdf.csgTree = csgTree;
     sdf.translation = make_float3(0.f, 0.f, 0.f);
     sdf.aabb = sdf.getAABB(primitives, nodes);
-
     helper.sdfsGPU.push_back(sdf);*/
 
     sortLights(helper);
-    gpuScene.uploadLights(helper);
-    gpuScene.uploadMaterials(helper);
+    scene.uploadLights(helper);
+    scene.uploadMaterials(helper);
     std::vector<OptixAabb> aabbs;
     for (const auto &sdf : helper.sdfsGPU)
     {
-        //aabbs.push_back(sdf.getWorldAABB(primitives, nodes));
+        // aabbs.push_back(sdf.getWorldAABB(primitives, nodes));
         aabbs.push_back(sdf.getWorldAABB());
     }
     CUDA_CHECK(
-        cudaMalloc(reinterpret_cast<void **>(&gpuScene.sdfGeometries.d_aabbBuffer), aabbs.size() * sizeof(OptixAabb)));
-    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(gpuScene.sdfGeometries.d_aabbBuffer), aabbs.data(),
+        cudaMalloc(reinterpret_cast<void **>(&scene.sdfGeometries.d_aabbBuffer), aabbs.size() * sizeof(OptixAabb)));
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(scene.sdfGeometries.d_aabbBuffer), aabbs.data(),
                           aabbs.size() * sizeof(OptixAabb), cudaMemcpyHostToDevice));
     CUDA_CHECK(
-        cudaMalloc(reinterpret_cast<void **>(&gpuScene.sdfGeometries.sdfs), helper.sdfsGPU.size() * sizeof(SDF)));
-    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(gpuScene.sdfGeometries.sdfs), helper.sdfsGPU.data(),
+        cudaMalloc(reinterpret_cast<void **>(&scene.sdfGeometries.sdfs), helper.sdfsGPU.size() * sizeof(SDF)));
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(scene.sdfGeometries.sdfs), helper.sdfsGPU.data(),
                           helper.sdfsGPU.size() * sizeof(SDF), cudaMemcpyHostToDevice));
-    gpuScene.sdfGeometries.sdfCount = helper.sdfsGPU.size();
+    scene.sdfGeometries.sdfCount = helper.sdfsGPU.size();
 
     OptixContext context;
     context.initialize();
@@ -354,7 +301,7 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
     initOptix(context, programGroupManagerRadiance, pipelineManagerRadiance, launchParamsManagerRadiance);
 
     OptixSBTManager sbtManagerRadiance;
-    sbtManagerRadiance.create(helper.meshGeometriesGPU, programGroupManagerRadiance, gpuScene.sdfGeometries);
+    sbtManagerRadiance.create(helper.meshGeometriesGPU, programGroupManagerRadiance, scene.sdfGeometries);
 
     OptixProgramGroupManager programGroupManagerShadow;
     OptixPipelineManager pipelineManagerShadow;
@@ -368,7 +315,7 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
     initOptix(context, programGroupManagerShadow, pipelineManagerShadow, launchParamsManagerShadow);
 
     OptixSBTManager sbtManagerShadow;
-    sbtManagerShadow.create(helper.meshGeometriesGPU, programGroupManagerShadow, gpuScene.sdfGeometries);
+    sbtManagerShadow.create(helper.meshGeometriesGPU, programGroupManagerShadow, scene.sdfGeometries);
 
     // =========================
     // Create GAS for shared mesh geometries
@@ -384,7 +331,7 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
         gasList.push_back(std::move(gas));
     }
     OptixGAS sdfGAS;
-    sdfGAS.build(context, gpuScene.sdfGeometries);
+    sdfGAS.build(context, scene.sdfGeometries);
     gasList.push_back(std::move(sdfGAS));
     // =========================
     // Create instances from GAS with transformations
@@ -438,24 +385,24 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
     CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerShadow.d_params),
                           &launchParamsManagerShadow.params, sizeof(LaunchShadowParams), cudaMemcpyHostToDevice));
 
-    gpuScene.uploadObjects(helper);
+    scene.uploadObjects(helper);
 
     // Now set mesh instances in launch params after uploadObjects has allocated them
-    if (gpuScene.meshInstances && gpuScene.nbMeshInstances > 0)
+    if (scene.meshInstances && scene.nbMeshInstances > 0)
     {
-        launchParamsManagerRadiance.params.meshInstances = gpuScene.meshInstances;
-        launchParamsManagerRadiance.params.nbMeshInstances = gpuScene.nbMeshInstances;
-        launchParamsManagerRadiance.params.materials = gpuScene.materials;
-        launchParamsManagerRadiance.params.nbMaterials = gpuScene.nbMaterials;
+        launchParamsManagerRadiance.params.meshInstances = scene.meshInstances;
+        launchParamsManagerRadiance.params.nbMeshInstances = scene.nbMeshInstances;
+        launchParamsManagerRadiance.params.materials = scene.materials;
+        launchParamsManagerRadiance.params.nbMaterials = scene.nbMaterials;
         // Update launch params on GPU with mesh instance pointers
         CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerRadiance.d_params),
                               &launchParamsManagerRadiance.params, sizeof(LaunchRadianceParams),
                               cudaMemcpyHostToDevice));
 
-        launchParamsManagerShadow.params.meshInstances = gpuScene.meshInstances;
-        launchParamsManagerShadow.params.nbMeshInstances = gpuScene.nbMeshInstances;
-        launchParamsManagerShadow.params.materials = gpuScene.materials;
-        launchParamsManagerShadow.params.nbMaterials = gpuScene.nbMaterials;
+        launchParamsManagerShadow.params.meshInstances = scene.meshInstances;
+        launchParamsManagerShadow.params.nbMeshInstances = scene.nbMeshInstances;
+        launchParamsManagerShadow.params.materials = scene.materials;
+        launchParamsManagerShadow.params.nbMaterials = scene.nbMaterials;
         CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerShadow.d_params),
                               &launchParamsManagerShadow.params, sizeof(LaunchShadowParams), cudaMemcpyHostToDevice));
     }
@@ -483,7 +430,7 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
 
     programGroupManagerRadiance.destroy();
     programGroupManagerShadow.destroy();
-    return gpuScene;
+    return scene;
 }
 
 void addGround(SceneHelper &helper)
@@ -502,4 +449,48 @@ void sortLights(SceneHelper &helper)
         return a.getColorPower().x + a.getColorPower().y + a.getColorPower().z >
                b.getColorPower().x + b.getColorPower().y + b.getColorPower().z;
     });
+}
+
+void createMaterials(SceneHelper &helper, int rngmanip)
+{
+    for (int i = 0; i < 5; i++)
+    {
+        Material emissive = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), EMISSIVE,
+                                                   0.f, 0.f, 1.f, randomFloat() * 5.f + 8.f);
+        helper.materialsGPU.push_back(emissive);
+    }
+    for (int i = 0; i < 10; i++)
+    {
+        Material mirror = Material::makeMaterial(make_float3(1.f), MIRROR);
+        helper.materialsGPU.push_back(mirror);
+    }
+
+    for (int i = 0; i < 15; i++)
+    {
+        Material transparent = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()),
+                                                      TRANSPARENT, 0.f, 0.f, 1.5f);
+        helper.materialsGPU.push_back(transparent);
+    }
+    for (int i = 0; i < 10; i++)
+    {
+        Material lambert =
+            Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), LAMBERT, 1.0f);
+        helper.materialsGPU.push_back(lambert);
+    }
+
+    for (int i = 0; i < 10; i++)
+    {
+        float roughness = randomFloat() * 0.5f;
+        Material metal = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), METAL,
+                                                roughness * roughness, 1.f);
+        helper.materialsGPU.push_back(metal);
+    }
+
+    for (int i = 0; i < 10; i++)
+    {
+        float roughness = randomFloat() * 0.5f;
+        Material plastic = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), PLASTIC,
+                                                  roughness * roughness);
+        helper.materialsGPU.push_back(plastic);
+    }
 }
