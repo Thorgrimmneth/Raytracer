@@ -68,7 +68,7 @@ DEVICE LightSample Light::sampleDirectionnal(const float3 &p_point) const
     rep.radiance = getColorPower();
     rep.pdf = 1.f;
     rep.power = getIntensity();
-    rep.distance = 1e20f;
+    rep.distance = 20000.f;
     rep.direction = normalize(-getDirection());
 
     return rep;
@@ -166,7 +166,7 @@ DEVICE LightSample Light::sampleCone(const float3 &p_point, RNG &rng) const
 
     LightSample rep{};
     rep.direction = sampledDir;
-    rep.distance = 1e20f;
+    rep.distance = 20000.f;
     rep.radiance = getColorPower();
     rep.pdf = invCosNorm;
     rep.power = getIntensity();

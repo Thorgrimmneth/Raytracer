@@ -50,7 +50,7 @@ extern "C" __global__ void __intersection__sdf__shadow()
             optixReportIntersection(tMin, 0);
             return;
         }
-        if(d > 1e20f)
+        if(d > 20000.f)
             return;
         tMin += d;
 

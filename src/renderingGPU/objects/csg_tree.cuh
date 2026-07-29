@@ -46,7 +46,7 @@ struct PrimitiveData
             return cone.sdf(pLocal);
         }
 
-        return 1e20f;
+        return 20000.f;
     }
 
     H_INLINE OptixAabb computeWorldAABB(const Matrix3x3 &p_rotation, const float3 &p_translation) const
@@ -248,12 +248,12 @@ struct CSGTree
                                         const std::vector<CSGNode> &nodesCPU) const
     {
         OptixAabb aabb;
-        aabb.minX = 1e20f;
-        aabb.minY = 1e20f;
-        aabb.minZ = 1e20f;
-        aabb.maxX = -1e20f;
-        aabb.maxY = -1e20f;
-        aabb.maxZ = -1e20f;
+        aabb.minX = 20000.f;
+        aabb.minY = 20000.f;
+        aabb.minZ = 20000.f;
+        aabb.maxX = -20000.f;
+        aabb.maxY = -20000.f;
+        aabb.maxZ = -20000.f;
         for (int i = 0; i < nodesCPU.size(); ++i)
         {
             const CSGNode &node = nodesCPU[i];
@@ -292,12 +292,12 @@ struct CSGTree
     HOST OptixAabb computeAABB(const std::vector<PrimitiveData> &primitives, const std::vector<CSGNode> &nodesCPU) const
     {
         OptixAabb aabb;
-        aabb.minX = 1e20f;
-        aabb.minY = 1e20f;
-        aabb.minZ = 1e20f;
-        aabb.maxX = -1e20f;
-        aabb.maxY = -1e20f;
-        aabb.maxZ = -1e20f;
+        aabb.minX = 20000.f;
+        aabb.minY = 20000.f;
+        aabb.minZ = 20000.f;
+        aabb.maxX = -20000.f;
+        aabb.maxY = -20000.f;
+        aabb.maxZ = -20000.f;
         for (int i = 0; i < nodesCPU.size(); ++i)
         {
             const CSGNode &node = nodesCPU[i];

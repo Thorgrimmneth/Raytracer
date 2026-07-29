@@ -14,9 +14,9 @@
 
 #include "../raytracingUtils/ray.cuh"
 
+#include "../optix/optix_context.h"
 #include "../optix/optix_gas.h"
 #include "../optix/optix_ias.h"
-#include "../optix/optix_context.h"
 #include "../optix/optix_sbt_manager.h"
 #include "../utils/compute_transform.cuh"
 #include "../utils/optix_pass_data.cuh"
@@ -103,16 +103,22 @@ struct Scene
 
     HOST void uploadMaterials(SceneHelper &helper);
 
-
-    D_FORCEINLINE float lightPdf(const float3 &origin, const float3 &dir) const
-    {
-
-        return 0.f;
-    };
+    D_FORCEINLINE float lightPdf(const float3 &origin, const float3 &dir) const { return 0.f; };
 };
 
+void initPassParam(OptixContext &context, OptixLaunchParamsManager<LaunchRadianceParams> &launchParamsManagerRadiance,
+                   OptixLaunchParamsManager<LaunchShadowParams> &launchParamsManagerShadow,
+                   OptixPipelineManager &pipelineManagerRadiance, OptixPipelineManager &pipelineManagerShadow,
+                   OptixSBTManager &sbtManagerRadiance, OptixSBTManager &sbtManagerShadow,
+                   Scene &scene, SceneHelper &helper);
+
 void sortLights(SceneHelper &helper);
-Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass, OptixPassData<LaunchShadowParams> &shadow_pass, float &global_size, int rngmanip = 0);
+
+Scene spheres(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
+              OptixPassData<LaunchShadowParams> &shadow_pass, float &global_size, int rngmanip = 0);
+
+Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
+                OptixPassData<LaunchShadowParams> &shadow_pass, float &global_size, int rngmanip = 0);
 
 void addGround(SceneHelper &helper);
 

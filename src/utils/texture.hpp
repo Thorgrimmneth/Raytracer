@@ -39,6 +39,7 @@ class Texture {
     }
 
     void saveJPG(const std::string &p_path, const int p_quality = 100);
+    void savePNG(const std::string &p_path);
 
     void createFromRaw(unsigned char *p_img, int width, int height)
     {

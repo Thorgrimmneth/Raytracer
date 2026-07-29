@@ -13,6 +13,7 @@ file(MAKE_DIRECTORY ${PTX_OUTPUT_DIR})
 set(PTX_FILE "${PTX_OUTPUT_DIR}/${FILE_NAME}.ptx")
 
 find_package(CUDAToolkit REQUIRED)
+find_package(PNG REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(assimp REQUIRED)
@@ -50,6 +51,7 @@ target_link_libraries(mon_projet PRIVATE
     CUDA::cuda_driver
     glfw
     OpenGL::GL
+    PNG::PNG
 )
 
 target_compile_options(mon_projet PRIVATE

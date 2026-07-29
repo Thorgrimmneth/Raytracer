@@ -11,9 +11,8 @@ struct SphereAnalytic
     float radius;
     int materialIndex;
 
-    static SphereAnalytic createRandomSphere(int materialIndex)
+    static SphereAnalytic createRandomSphere(float radius, int materialIndex)
     {
-        float radius = randomFloat() * 1.f + 0.2f;
         return create(radius, materialIndex);
     }
 

@@ -1,6 +1,7 @@
 #include "application.hpp"
-#include <nvtx3/nvToolsExt.h>
 #include <fstream>
+#include <nvtx3/nvToolsExt.h>
+#include "utils/png_saver.hpp"
 
 int Application::initParameters(int argc, char **argv)
 {
@@ -45,6 +46,18 @@ int Application::initParameters(int argc, char **argv)
         {
             rngManip = std::stoi(argv[++i]);
         }
+        else if (arg == "-saveData")
+        {
+            saveData = true;
+        }
+        else if (arg == "-printValue")
+        {
+            printValue = true;
+        }
+        else if (arg == "-output")
+        {
+            output_image = true;
+        }
         else if (arg == "--help")
         {
             std::cout << "Usage: ./mon_projet [options]\n";
@@ -68,11 +81,15 @@ int Application::initParameters(int argc, char **argv)
 
 float3 Application::computeSunDir(float t)
 {
-    float theta = 1.1 * PIf * t;
-    float az = 20.f * PIf / 180.f;
-    float3 base = make_float3(cos(theta), sin(theta), 0.0f);
-    float3 sun_direction =
-        normalize(make_float3(base.x * cos(az) - base.z * sin(az), base.y, base.x * sin(az) + base.z * cos(az)));
+    float3 cam_pos = make_float3(0.f, 3.f, 8.f);
+    float3 cam_target = make_float3(0.f, 1.f, 0.f);
+    float3 cam_up = make_float3(0.f, 1.f, 0.f);
+    float3 forward = normalize(cam_target - cam_pos);
+    float3 right = normalize(cross(forward, cam_up));
+    float3 up = normalize(cross(right, forward));
+
+    float theta = PIf * t;
+    float3 sun_direction = normalize(-forward * cos(theta) + up * sin(theta));
     return sun_direction;
 }
 
@@ -83,39 +100,70 @@ int Application::launchApp(int argc, char **argv)
     if (result == 1)
         return 1;
 
-    image = Texture(width, height);
-
     Chrono chronoGlobal;
     chronoGlobal.start();
     Chrono chrono;
     float value = 1000.f;
-    std::string result_numbers = "nbRPP = " + std::to_string(nbRPP) + "; width = " + std::to_string(width) +
-                                 "; height = " + std::to_string(height) + "; t = " + std::to_string(t) +
-                                 "; convergence = " + std::to_string(convergence) +
-                                 "; threshold = " + std::to_string(threshold) + "\n";
-    result_numbers += "kernel name; kernel time (ms)";
-    std::ofstream csvFile(RESULTS_PATH + "../results.csv", std::ios::out | std::ios::trunc);
+    if (saveData)
+    {
+        std::string result_numbers = "nbRPP = " + std::to_string(nbRPP) + "; width = " + std::to_string(width) +
+                                     "; height = " + std::to_string(height) + "; t = " + std::to_string(t) +
+                                     "; convergence = " + std::to_string(convergence) +
+                                     "; threshold = " + std::to_string(threshold) + "\n";
+        result_numbers += "kernel name; kernel time (ms)";
+        std::ofstream csvFile(RESULTS_PATH + "../results.csv", std::ios::out | std::ios::trunc);
         csvFile << result_numbers << std::endl;
         csvFile.close();
+    }
     // performance mode, no GUI. Used for profiling and creating final images
     if (mode == 0)
     {
+        chrono.start();
         sunDir = computeSunDir(t);
 
         Renderer renderer;
         renderer.init(width, height, sunDir.x, sunDir.y, sunDir.z);
         for (int i = 0; i < nbRPP && value > threshold; i++)
         {
-            result_numbers = "";
-            value = renderer.render(false, convergence, true, &result_numbers);
-            std::ofstream csvFile(RESULTS_PATH + "../results.csv", std::ios::app);
-            csvFile << result_numbers << std::endl;
-            csvFile.close();
+            std::string result_numbers = "";
+            value = renderer.render(false, convergence, saveData, &result_numbers);
+            if (saveData)
+            {
+                std::ofstream csvFile(RESULTS_PATH + "../results.csv", std::ios::app);
+                csvFile << result_numbers << std::endl;
+                csvFile.close();
+            }
+            if (printValue && i % 1000 == 0)
+            {
+                std::cout << "image : " << i << " samples, error = " << value << std::endl;
+            }
         }
-        // save result_numbers as csv file
-        
+        if (output_image)
+        {
+            float3 *d_finalizedImage = renderer.get_finalized_image();
+            if (d_finalizedImage)
+            {
+                unsigned char *img_data = (unsigned char *)malloc(width * height * 3);
+
+                for (int i = 0; i < width * height; i++)
+                {
+                    img_data[i * 3] = static_cast<unsigned char>(d_finalizedImage[i].x * 255.0f);
+                    img_data[i * 3 + 1] = static_cast<unsigned char>(d_finalizedImage[i].y * 255.0f);
+                    img_data[i * 3 + 2] = static_cast<unsigned char>(d_finalizedImage[i].z * 255.0f);
+                }
+                std::cout << "converged after " << renderer.get_frame_number() << " with " << value << " error"
+                          << std::endl;
+                const std::string imageName = "performance.png";
+                writePNG((char*)(RESULTS_PATH + imageName).c_str(), img_data, width, height);
+                std::cout << "saved : " + imageName << std::endl;
+                chrono.stop();
+                std::cout << "avg : " << renderer.get_frame_number() / (chrono.elapsedTime()) << " spp/s" << std::endl;
+                free(img_data);
+                free(d_finalizedImage);
+            }
+        }
     }
-    // cumulative mode. GUI, fps count. Allows to switch between megakernel and wavefront
+    // cumulative mode. GUI, fps count
     else if (mode == 1)
     {
         // setup window for cumulative rendering
@@ -124,12 +172,11 @@ int Application::launchApp(int argc, char **argv)
         sunDir = computeSunDir(t);
 
         unsigned char *img_cuda_raw = win.cumulativeRendering(sunDir, width, height, convergence, threshold, rngManip);
-
+        
         // end of rendering
-        image.createFromRaw(img_cuda_raw, width, height);
-        const std::string imageName = "cumulative.jpg";
-        image.saveJPG(RESULTS_PATH + imageName);
-        std::cout << "saved : " + imageName << std::endl;
+            writePNG((char*)(RESULTS_PATH + "cumulative.png").c_str(), img_cuda_raw, width, height);
+            const std::string imageName = "cumulative.png";
+            std::cout << "saved : " + imageName << std::endl;
     }
     else if (mode == 2)
     {
@@ -157,9 +204,8 @@ int Application::launchApp(int argc, char **argv)
             }
             std::cout << "converged after " << renderer.get_frame_number() << " with " << value << " error"
                       << std::endl;
-            image.createFromRaw(img_data, width, height);
-            const std::string imageName = "performance.jpg";
-            image.saveJPG(RESULTS_PATH + imageName);
+            const std::string imageName = "performance.png";
+            writePNG((char*)(RESULTS_PATH + imageName).c_str(), img_data, width, height);
             std::cout << "saved : " + imageName << std::endl;
             chrono.stop();
             std::cout << "avg : " << renderer.get_frame_number() / (chrono.elapsedTime()) << " spp/s" << std::endl;
@@ -202,9 +248,8 @@ int Application::launchApp(int argc, char **argv)
                     img_data[k * 3 + 1] = static_cast<unsigned char>(d_finalizedImage[k].y * 255.0f);
                     img_data[k * 3 + 2] = static_cast<unsigned char>(d_finalizedImage[k].z * 255.0f);
                 }
-                image.createFromRaw(img_data, width, height);
-                const std::string imageName = "performance_" + std::to_string(i) + ".jpg";
-                image.saveJPG(RESULTS_PATH + imageName);
+                const std::string imageName = "performance_" + std::to_string(i) + ".png";
+                writePNG((char*)(RESULTS_PATH + imageName).c_str(), img_data, width, height);
                 std::cout << "saved : " + imageName << std::endl;
                 free(img_data);
                 free(d_finalizedImage);

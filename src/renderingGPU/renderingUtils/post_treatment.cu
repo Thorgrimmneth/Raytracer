@@ -268,7 +268,7 @@ void finalizeImageV2(float3 *hdr, float3 *bloom, float3 *outCompare, cudaSurface
     c = (c * EXPOSURE) / (make_float3(1.f) + c * EXPOSURE);
 
     // Gamma correction
-    c = make_float3(sqrtf(fmaxf(c.x, 0.f)), sqrtf(fmaxf(c.y, 0.f)), sqrtf(fmaxf(c.z, 0.f)));
+    c = make_float3(linearToSRGB(c.x), linearToSRGB(c.y), linearToSRGB(c.z));
 
     uchar4 pixel = make_uchar4((unsigned char)(255.f * fminf(c.x, 1.f)), (unsigned char)(255.f * fminf(c.y, 1.f)),
                                (unsigned char)(255.f * fminf(c.z, 1.f)), 255);
@@ -298,8 +298,5 @@ void finalizeImageV2NoRender(float3 *hdr, float3 *bloom, float3 *outCompare, int
     c = (c * EXPOSURE) / (make_float3(1.f) + c * EXPOSURE);
 
     // Gamma correction
-    c = make_float3(sqrtf(fmaxf(c.x, 0.f)), sqrtf(fmaxf(c.y, 0.f)), sqrtf(fmaxf(c.z, 0.f)));
-
-    uchar4 pixel = make_uchar4((unsigned char)(255.f * fminf(c.x, 1.f)), (unsigned char)(255.f * fminf(c.y, 1.f)),
-                               (unsigned char)(255.f * fminf(c.z, 1.f)), 255);
+    c = make_float3(linearToSRGB(c.x), linearToSRGB(c.y), linearToSRGB(c.z));
 }

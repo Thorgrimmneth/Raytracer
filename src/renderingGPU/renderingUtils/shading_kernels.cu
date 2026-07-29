@@ -10,7 +10,7 @@ __global__ void shadeMissKernel(float3 *origins, float3 *directions, float3 *thr
 
     const float3 direction = directions[qid];
 
-    if (direction.y <= 0.0f)
+    if (direction.y <= -0.3f)
         return;
 
     const float3 origin = origins[qid];

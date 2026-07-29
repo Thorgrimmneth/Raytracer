@@ -157,11 +157,13 @@ struct SDF
         }
     }
 
-    static SDF createRandomSphereAnalytic(int materialIndex)
+    static SDF createRandomSphereAnalytic(int materialIndex, float radius = 0.f)
     {
         SDF sdf;
         sdf.type = SDFType::SphereAnalytic;
-        sdf.sphere = SphereAnalytic::createRandomSphere(materialIndex);
+        if (radius <= 0.f)
+            radius = randomFloat() * 1.f + 0.2f;
+        sdf.sphere = SphereAnalytic::createRandomSphere(radius, materialIndex);
         sdf.aabb = sdf.sphere.computeAABB();
         sdf.translation =
             make_float3(randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f, randomFloat() * 10.f - 5.f);
