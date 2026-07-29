@@ -1,47 +1,45 @@
 #pragma once
 
-#include "../utils/defines.hpp"
-
+#include "../utils/defines_cpu.hpp"
+#include <memory>
+#include "utils/shading_data.cuh"
 struct cudaGraphicsResource;
 
 class Renderer
 {
   public:
+    
     Renderer();
 
     ~Renderer();
 
+    void recordKernelTime(const std::string &kernel_name);
     // Setter
-    void setInteropResource(cudaGraphicsResource *resource);
+    void set_interop_resource(cudaGraphicsResource *resource);
 
-    // Setter (kinda)
-    void changeMode();
-
-    void resetAccumulation();
+    void reset_accumulation();
 
     // Getter
-    int getFrameNumber();
-    unsigned char *getFramebuffer();
-    float3 *getFinalizedImage();
+    int get_frame_number();
+    unsigned char *get_frame_buffer();
+    float3 *get_finalized_image();
 
     // Initialisation
-    void init(int width, int height, float sunDirx, float sunDiry, float sunDirz);
+    void init(int width, int height, float sunDirx, float sunDiry, float sunDirz, int rngManip = 0);
 
     // Post-processing
-    void applyBloom();
-
-    // Renderer : megakernel and wavefront
-    float renderFrame(bool outputImage, bool convergence = false);
-    float renderFrameWavefront(bool outputImage, bool convergence = false);
+    void apply_bloom();
+    float render_no_text(bool outputImage = true, bool convergence = false);
+    float render_with_text(bool outputImage = true, bool convergence = false, bool outputText = false, std::string *result_numbers = nullptr);
+    float render(bool outputImage = true, bool convergence = false, bool outputText = false, std::string *result_numbers = nullptr);
     
-    // Main function
-    float render(bool outputImage = true, bool convergence = false);
+    void finalize_image_no_render(bool convergence = false);
 
     // Cleaner
-    void cleanUp();
+    void clean_up();
 
   private:
     class Impl;
 
-    Impl *impl;
+    std::unique_ptr<Impl> impl;
 };

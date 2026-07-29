@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../utils/op.cuh"
-#include "../utils/macro.cuh"
+#include "../utils/simplified_def.cuh"
 
 struct Ray
 {

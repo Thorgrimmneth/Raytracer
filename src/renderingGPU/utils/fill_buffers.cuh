@@ -1,9 +1,13 @@
 #pragma once
 
-#include "macro.cuh"
+#include "simplified_def.cuh"
+#include "../materials/material.cuh"
 
 GLOBAL
 void initFloat3Buffer(float3* buffer, int count, float3 value);
+
+GLOBAL
+void initFloat4Buffer(float4* buffer, int count, float4 value);
 
 GLOBAL
 void initFloatBuffer(float* buffer, int count, float value);
@@ -13,3 +17,6 @@ void initBoolBuffer(bool* buffer, int count, bool value);
 
 GLOBAL
 void initIntBuffer(int* buffer, int count, int value);
+
+GLOBAL
+void initMaterialBuffer(MaterialType* buffer, int count, MaterialType value);

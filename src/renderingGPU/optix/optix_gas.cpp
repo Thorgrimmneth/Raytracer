@@ -1,13 +1,13 @@
 #include "optix_gas.h"
 
-#include "../utils/macro.cuh"
+#include "../utils/simplified_def.cuh"
 
 void OptixGAS::build(OptixDeviceContext context, CUstream stream, const float3 *d_vertices, uint32_t vertexCount,
-                     const uint3 *d_indices, uint32_t triangleCount)
+                     const uint3 *d_indices, uint32_t triangleCount, float &global_size)
 {
-    //
+    //------------------------------------------------------------------
     // Build input
-    //
+    //------------------------------------------------------------------
 
     OptixBuildInput buildInput = {};
 
@@ -16,11 +16,8 @@ void OptixGAS::build(OptixDeviceContext context, CUstream stream, const float3 *
     CUdeviceptr vertexBuffers[] = {reinterpret_cast<CUdeviceptr>(d_vertices)};
 
     buildInput.triangleArray.vertexBuffers = vertexBuffers;
-
     buildInput.triangleArray.numVertices = vertexCount;
-
     buildInput.triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
-
     buildInput.triangleArray.vertexStrideInBytes = sizeof(float3);
 
     buildInput.triangleArray.indexBuffer = reinterpret_cast<CUdeviceptr>(d_indices);
@@ -34,52 +31,270 @@ void OptixGAS::build(OptixDeviceContext context, CUstream stream, const float3 *
     uint32_t flags[] = {OPTIX_GEOMETRY_FLAG_NONE};
 
     buildInput.triangleArray.flags = flags;
-
     buildInput.triangleArray.numSbtRecords = 1;
 
-    //
+    //------------------------------------------------------------------
     // Build options
-    //
+    //------------------------------------------------------------------
 
     OptixAccelBuildOptions accelOptions = {};
 
-    accelOptions.buildFlags = OPTIX_BUILD_FLAG_ALLOW_COMPACTION;
+    accelOptions.buildFlags = OPTIX_BUILD_FLAG_PREFER_FAST_TRACE |
+                              OPTIX_BUILD_FLAG_ALLOW_COMPACTION; // OPTIX_BUILD_FLAG_ALLOW_UPDATE si scène dynamique
 
     accelOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
 
-    //
-    // Required memory
-    //
+    //------------------------------------------------------------------
+    // Memory requirements
+    //------------------------------------------------------------------
 
     OptixAccelBufferSizes gasBufferSizes;
 
     OPTIX_CHECK(optixAccelComputeMemoryUsage(context, &accelOptions, &buildInput, 1, &gasBufferSizes));
 
-    //
-    // Scratch
-    //
+    //------------------------------------------------------------------
+    // Scratch buffer
+    //------------------------------------------------------------------
 
     CUdeviceptr d_tempBuffer = 0;
 
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_tempBuffer), gasBufferSizes.tempSizeInBytes));
 
-    //
-    // GAS output
-    //
+    //------------------------------------------------------------------
+    // GAS output buffer (non compacté)
+    //------------------------------------------------------------------
 
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_gasBuffer), gasBufferSizes.outputSizeInBytes));
+    CUdeviceptr d_uncompactedGas = 0;
 
-    //
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_uncompactedGas), gasBufferSizes.outputSizeInBytes));
+
+    //------------------------------------------------------------------
+    // Compacted size output
+    //------------------------------------------------------------------
+
+    CUdeviceptr d_compactedSize = 0;
+
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_compactedSize), sizeof(uint64_t)));
+
+    OptixAccelEmitDesc emitDesc = {};
+
+    emitDesc.type = OPTIX_PROPERTY_TYPE_COMPACTED_SIZE;
+
+    emitDesc.result = d_compactedSize;
+
+    //------------------------------------------------------------------
     // Build
-    //
+    //------------------------------------------------------------------
+
+    OptixTraversableHandle uncompactedHandle = 0;
 
     OPTIX_CHECK(optixAccelBuild(context, stream, &accelOptions, &buildInput, 1, d_tempBuffer,
-                                gasBufferSizes.tempSizeInBytes, d_gasBuffer, gasBufferSizes.outputSizeInBytes, &handle,
-                                nullptr, 0));
+                                gasBufferSizes.tempSizeInBytes, d_uncompactedGas, gasBufferSizes.outputSizeInBytes,
+                                &uncompactedHandle, &emitDesc, 1));
 
     CUDA_CHECK(cudaStreamSynchronize(stream));
 
+    //------------------------------------------------------------------
+    // Read compacted size
+    //------------------------------------------------------------------
+
+    uint64_t compactedSize = 0;
+
+    CUDA_CHECK(cudaMemcpy(&compactedSize, reinterpret_cast<void *>(d_compactedSize), sizeof(uint64_t),
+                          cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_compactedSize)));
+
+    //------------------------------------------------------------------
+    // Compact if useful
+    //------------------------------------------------------------------
+
+    if (compactedSize < gasBufferSizes.outputSizeInBytes)
+    {
+        CUdeviceptr d_compactedGas = 0;
+
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_compactedGas), compactedSize));
+
+        OptixTraversableHandle compactedHandle = 0;
+
+        OPTIX_CHECK(
+            optixAccelCompact(context, stream, uncompactedHandle, d_compactedGas, compactedSize, &compactedHandle));
+
+        CUDA_CHECK(cudaStreamSynchronize(stream));
+
+        CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_uncompactedGas)));
+
+        d_gasBuffer = d_compactedGas;
+        handle = compactedHandle;
+        global_size += compactedSize;
+        std::cout << "GAS compacted: " << gasBufferSizes.outputSizeInBytes / (1024.0 * 1024.0) << " MB -> "
+                  << compactedSize / (1024.0 * 1024.0) << " MB" << std::endl;
+    }
+    else
+    {
+        global_size = gasBufferSizes.outputSizeInBytes;
+        d_gasBuffer = d_uncompactedGas;
+        handle = uncompactedHandle;
+
+        std::cout << "Compaction not beneficial" << std::endl;
+    }
+
+    //------------------------------------------------------------------
+    // Cleanup
+    //------------------------------------------------------------------
+
     CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_tempBuffer)));
+
+    //------------------------------------------------------------------
+    // Stats
+    //------------------------------------------------------------------
+
+    //std::cout << "GAS handle = " << handle << std::endl;
+
+    std::cout << "Vertices  : " << vertexCount << std::endl;
+
+    std::cout << "Triangles : " << triangleCount << std::endl;
+    printf("\n");
+}
+
+void OptixGAS::build(OptixContext context, MeshGeometry mesh, float &global_size)
+{
+    build(context.deviceContext, context.stream, mesh.vertices, mesh.vertexCount, mesh.triangles, mesh.triangleCount, global_size);
+}
+
+void OptixGAS::build(OptixContext optixContext, SDFGeometry sdfs, float &global_size)
+{
+    OptixDeviceContext context = optixContext.deviceContext;
+    CUstream stream = optixContext.stream;
+    OptixBuildInput buildInput = {};
+
+    buildInput.type = OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
+
+    buildInput.customPrimitiveArray.aabbBuffers = &sdfs.d_aabbBuffer;
+    buildInput.customPrimitiveArray.numPrimitives = sdfs.sdfCount;
+    buildInput.customPrimitiveArray.strideInBytes = sizeof(OptixAabb);
+    uint32_t flags[] = {OPTIX_GEOMETRY_FLAG_NONE};
+    buildInput.customPrimitiveArray.flags = flags;
+    buildInput.customPrimitiveArray.numSbtRecords = 1;
+    buildInput.customPrimitiveArray.sbtIndexOffsetBuffer = 0;
+    buildInput.customPrimitiveArray.sbtIndexOffsetSizeInBytes = 0;
+    buildInput.customPrimitiveArray.sbtIndexOffsetStrideInBytes = 0;
+
+    //------------------------------------------------------------------
+    // Build options
+    //------------------------------------------------------------------
+
+    OptixAccelBuildOptions accelOptions = {};
+
+    accelOptions.buildFlags = OPTIX_BUILD_FLAG_PREFER_FAST_TRACE |
+                              OPTIX_BUILD_FLAG_ALLOW_COMPACTION; // OPTIX_BUILD_FLAG_ALLOW_UPDATE si scène dynamique
+
+    accelOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
+
+    //------------------------------------------------------------------
+    // Memory requirements
+    //------------------------------------------------------------------
+
+    OptixAccelBufferSizes gasBufferSizes;
+
+    OPTIX_CHECK(optixAccelComputeMemoryUsage(context, &accelOptions, &buildInput, 1, &gasBufferSizes));
+
+    //------------------------------------------------------------------
+    // Scratch buffer
+    //------------------------------------------------------------------
+
+    CUdeviceptr d_tempBuffer = 0;
+
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_tempBuffer), gasBufferSizes.tempSizeInBytes));
+
+    //------------------------------------------------------------------
+    // GAS output buffer (non compacté)
+    //------------------------------------------------------------------
+
+    CUdeviceptr d_uncompactedGas = 0;
+
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_uncompactedGas), gasBufferSizes.outputSizeInBytes));
+
+    //------------------------------------------------------------------
+    // Compacted size output
+    //------------------------------------------------------------------
+
+    CUdeviceptr d_compactedSize = 0;
+
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_compactedSize), sizeof(uint64_t)));
+
+    OptixAccelEmitDesc emitDesc = {};
+
+    emitDesc.type = OPTIX_PROPERTY_TYPE_COMPACTED_SIZE;
+
+    emitDesc.result = d_compactedSize;
+
+    //------------------------------------------------------------------
+    // Build
+    //------------------------------------------------------------------
+
+    OptixTraversableHandle uncompactedHandle = 0;
+
+    OPTIX_CHECK(optixAccelBuild(context, stream, &accelOptions, &buildInput, 1, d_tempBuffer,
+                                gasBufferSizes.tempSizeInBytes, d_uncompactedGas, gasBufferSizes.outputSizeInBytes,
+                                &uncompactedHandle, &emitDesc, 1));
+
+    CUDA_CHECK(cudaStreamSynchronize(stream));
+
+    //------------------------------------------------------------------
+    // Read compacted size
+    //------------------------------------------------------------------
+
+    uint64_t compactedSize = 0;
+
+    CUDA_CHECK(cudaMemcpy(&compactedSize, reinterpret_cast<void *>(d_compactedSize), sizeof(uint64_t),
+                          cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_compactedSize)));
+
+    //------------------------------------------------------------------
+    // Compact if useful
+    //------------------------------------------------------------------
+
+    if (compactedSize < gasBufferSizes.outputSizeInBytes)
+    {
+        CUdeviceptr d_compactedGas = 0;
+
+        CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_compactedGas), compactedSize));
+
+        OptixTraversableHandle compactedHandle = 0;
+
+        OPTIX_CHECK(
+            optixAccelCompact(context, stream, uncompactedHandle, d_compactedGas, compactedSize, &compactedHandle));
+
+        CUDA_CHECK(cudaStreamSynchronize(stream));
+
+        CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_uncompactedGas)));
+
+        d_gasBuffer = d_compactedGas;
+        handle = compactedHandle;
+        global_size += compactedSize;
+        std::cout << "GAS compacted: " << gasBufferSizes.outputSizeInBytes / (1024.0 * 1024.0) << " MB -> "
+                  << compactedSize / (1024.0 * 1024.0) << " MB" << std::endl;
+    }
+    else
+    {
+        d_gasBuffer = d_uncompactedGas;
+        handle = uncompactedHandle;
+        global_size += gasBufferSizes.outputSizeInBytes;
+        std::cout << "Compaction not beneficial" << std::endl;
+    }
+
+    //------------------------------------------------------------------
+    // Cleanup
+    //------------------------------------------------------------------
+
+    CUDA_CHECK(cudaFree(reinterpret_cast<void *>(d_tempBuffer)));
+
+    //------------------------------------------------------------------
+    // Stats
+    //------------------------------------------------------------------
+
+    std::cout << "SDF count  : " << sdfs.sdfCount << std::endl;
+    printf("\n");
 }
 
 void OptixGAS::destroy()
@@ -90,6 +305,5 @@ void OptixGAS::destroy()
 
         d_gasBuffer = 0;
     }
-
     handle = 0;
 }

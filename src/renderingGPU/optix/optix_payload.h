@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../utils/objectType.h"
+#include "../utils/object_type.h"
 
 struct Payload
 {
@@ -13,6 +13,13 @@ struct Payload
 
     int objectIndex;
     int materialIndex;
+    float hitDistance;
 
-    HitObjectType objectType;
+    Hitobject_type object_type;
+};
+
+struct ShadowPayload
+{
+    float3 transmittance;
+    int depth;
 };

@@ -19,6 +19,21 @@
         "clear": true,
         "close": true
       }
+    },
+    {
+      "label": "Profile shadePlasticKernel",
+      "type": "shell",
+      "command": "ncu -f --set full --kernel-name shadePlasticKernel -o profile ./build/mon_projet && ncu-ui profile.ncu-rep",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true,
+        "close": true
+      }
     }
+    
   ]
 }

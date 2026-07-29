@@ -2,51 +2,8 @@
 
 #include <vector>
 
-#include "../utils/macro.cuh"
+#include "../utils/simplified_def.cuh"
 
-void OptixPipelineManager::create(
-    OptixDeviceContext context,
-    const OptixPipelineCompileOptions& pipelineCompileOptions,
-    OptixProgramGroup raygenPG,
-    OptixProgramGroup missPG,
-    OptixProgramGroup hitPG
-)
-{
-    std::vector<OptixProgramGroup> groups =
-    {
-        raygenPG,
-        missPG,
-        hitPG
-    };
-
-    OptixPipelineLinkOptions linkOptions = {};
-
-    linkOptions.maxTraceDepth = 1;
-
-    char log[4096];
-    size_t logSize = sizeof(log);
-
-    OPTIX_CHECK(
-        optixPipelineCreate(
-            context,
-            &pipelineCompileOptions,
-            &linkOptions,
-            groups.data(),
-            static_cast<unsigned int>(groups.size()),
-            log,
-            &logSize,
-            &pipeline
-        )
-    );
-
-    if(logSize > 1)
-    {
-        std::cout
-            << "Pipeline log:\n"
-            << log
-            << std::endl;
-    }
-}
 
 void OptixPipelineManager::create(
     OptixDeviceContext context,
@@ -54,11 +11,13 @@ void OptixPipelineManager::create(
     const OptixProgramGroupManager& programGroups
 )
 {
+    //TODO : add sdf module to the pipeline creation
     std::vector<OptixProgramGroup> groups =
     {
         programGroups.raygenPG,
         programGroups.missPG,
-        programGroups.hitPG
+        programGroups.meshHitPG,
+        programGroups.sdfHitPG
     };
 
     OptixPipelineLinkOptions linkOptions = {};
@@ -81,13 +40,48 @@ void OptixPipelineManager::create(
         )
     );
 
-    if(logSize > 1)
+    /*if(logSize > 1)
     {
         std::cout
             << "Pipeline log:\n"
             << log
             << std::endl;
-    }
+    }*/
+}
+
+void OptixPipelineManager::create(
+    OptixDeviceContext context,
+    const OptixPipelineCompileOptions& pipelineCompileOptions,
+    const std::vector<OptixProgramGroup>& programGroups
+)
+{
+    OptixPipelineLinkOptions linkOptions = {};
+
+    linkOptions.maxTraceDepth = 1;
+
+    char log[4096];
+    size_t logSize = sizeof(log);
+
+    OPTIX_CHECK(
+        optixPipelineCreate(
+            context,
+            &pipelineCompileOptions,
+            &linkOptions,
+            programGroups.data(),
+            static_cast<unsigned int>(programGroups.size()),
+            log,
+            &logSize,
+            &pipeline
+        )
+    );
+
+    /*if(logSize > 1)
+    {
+        std::cout
+            << "Pipeline log:\n"
+            << log
+            << std::endl;
+    }*/
 }
 
 void OptixPipelineManager::destroy()

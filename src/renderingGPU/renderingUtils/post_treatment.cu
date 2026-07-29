@@ -4,7 +4,7 @@
 #include <fstream>
 
 GLOBAL
-void extractBright(float3 *hdr, float3 *bright, int width, int height, float threshold)
+void extractBright(float3 *bright, float3 *normalize, float3 *out, int width, int height, float threshold, float invSampleCount)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -14,9 +14,12 @@ void extractBright(float3 *hdr, float3 *bright, int width, int height, float thr
 
     int idx = y * width + x;
 
-    float3 c = hdr[idx];
+
+    float3 c = bright[idx];
+    c = c * invSampleCount;
+    normalize[idx] = c;
     float maxChannel = fmaxf(c.x, fmaxf(c.y, c.z));
-    bright[idx] = (maxChannel > threshold) ? c : make_float3(0.f);
+    out[idx] = (maxChannel > threshold) ? c : make_float3(0.f);
 }
 
 GLOBAL
@@ -42,13 +45,8 @@ void downsample(float3 *input, float3 *output, int width, int height)
     output[y * newWidth + x] = (input[idx00] + input[idx10] + input[idx01] + input[idx11]) * 0.25f;
 }
 
-template<int RADIUS>
-GLOBAL
-void blurHorizontal(
-    const float3* __restrict__ input,
-    float3* __restrict__ output,
-    int width,
-    int height)
+template <int RADIUS>
+GLOBAL void blurHorizontal(const float3 *__restrict__ input, float3 *__restrict__ output, int width, int height)
 {
     constexpr int BLOCK_X = 16;
     constexpr int BLOCK_Y = 16;
@@ -77,19 +75,11 @@ void blurHorizontal(
     if (x >= width || y >= height)
         return;
 
-    constexpr float weights[] =
-    {
-        0.227027f,
-        0.1945946f,
-        0.1216216f,
-        0.054054f,
-        0.016216f
-    };
+    constexpr float weights[] = {0.227027f, 0.1945946f, 0.1216216f, 0.054054f, 0.016216f};
 
-    float3 result =
-        tile[ty][tx + RADIUS] * weights[0];
+    float3 result = tile[ty][tx + RADIUS] * weights[0];
 
-    #pragma unroll
+#pragma unroll
     for (int i = 1; i <= RADIUS; ++i)
     {
         result += tile[ty][tx + RADIUS - i] * weights[i];
@@ -99,13 +89,8 @@ void blurHorizontal(
     output[y * width + x] = result;
 }
 
-template<int RADIUS>
-GLOBAL
-void blurVertical(
-    const float3* __restrict__ input,
-    float3* __restrict__ output,
-    int width,
-    int height)
+template <int RADIUS>
+GLOBAL void blurVertical(const float3 *__restrict__ input, float3 *__restrict__ output, int width, int height)
 {
     constexpr int BLOCK_X = 16;
     constexpr int BLOCK_Y = 16;
@@ -134,19 +119,11 @@ void blurVertical(
     if (x >= width || y >= height)
         return;
 
-    constexpr float weights[] =
-    {
-        0.227027f,
-        0.1945946f,
-        0.1216216f,
-        0.054054f,
-        0.016216f
-    };
+    constexpr float weights[] = {0.227027f, 0.1945946f, 0.1216216f, 0.054054f, 0.016216f};
 
-    float3 result =
-        tile[ty + RADIUS][tx] * weights[0];
+    float3 result = tile[ty + RADIUS][tx] * weights[0];
 
-    #pragma unroll
+#pragma unroll
     for (int i = 1; i <= RADIUS; ++i)
     {
         result += tile[ty + RADIUS - i][tx] * weights[i];
@@ -157,7 +134,8 @@ void blurVertical(
 }
 
 GLOBAL
-void upsampleAdd(float3 *lowRes, float3 *highRes, int lowWidth, int lowHeight, int highWidth, float strength)
+void upsampleAdd(float3 *__restrict__ lowRes, float3 *highRes, int lowWidth, int lowHeight, int highWidth,
+                 float strength)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -165,8 +143,8 @@ void upsampleAdd(float3 *lowRes, float3 *highRes, int lowWidth, int lowHeight, i
     if (x >= highWidth || y >= lowHeight * 2)
         return;
 
-    float gx = (x + 0.5f) * 0.5f - 0.5f;
-    float gy = (y + 0.5f) * 0.5f - 0.5f;
+    float gx = 0.5f * x - 0.25f;
+    float gy = 0.5f * y - 0.5f;
 
     int x0 = floorf(gx);
     int y0 = floorf(gy);
@@ -184,7 +162,9 @@ void upsampleAdd(float3 *lowRes, float3 *highRes, int lowWidth, int lowHeight, i
     float3 c01 = lowRes[y1 * lowWidth + x0];
     float3 c11 = lowRes[y1 * lowWidth + x1];
 
-    float3 c = lerp(lerp(c00, c10, tx), lerp(c01, c11, tx), ty);
+    float3 a = c00 + tx * (c10 - c00);
+    float3 b = c01 + tx * (c11 - c01);
+    float3 c = a + ty * (b - a);
 
     highRes[y * highWidth + x] += c * strength;
 }
@@ -242,7 +222,7 @@ void normalizeKernel(float3 *accum, float3 *normalized, int sampleCount, int wid
 }
 
 GLOBAL
-void finalizeImage(float3 *hdr, cudaSurfaceObject_t surface, int width, int height, float exposure)
+void finalizeImage(float3 *hdr, cudaSurfaceObject_t surface, int width, int height, float EXPOSURE)
 {
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -252,10 +232,10 @@ void finalizeImage(float3 *hdr, cudaSurfaceObject_t surface, int width, int heig
 
     int idx = y * width + x;
 
-    float3 c = hdr[idx];
+    float3 &c = hdr[idx];
 
     // Reinhard tonemap
-    c = (c * exposure) / (make_float3(1.f) + c * exposure);
+    c = (c * EXPOSURE) / (make_float3(1.f) + c * EXPOSURE);
 
     // Gamma correction
     c = make_float3(sqrtf(fmaxf(c.x, 0.f)), sqrtf(fmaxf(c.y, 0.f)), sqrtf(fmaxf(c.z, 0.f)));
@@ -264,4 +244,59 @@ void finalizeImage(float3 *hdr, cudaSurfaceObject_t surface, int width, int heig
                                (unsigned char)(255.f * fminf(c.z, 1.f)), 255);
 
     surf2Dwrite(pixel, surface, x * sizeof(uchar4), y);
+}
+
+GLOBAL
+void finalizeImageV2(float3 *hdr, float3 *bloom, float3 *outCompare, cudaSurfaceObject_t surface, int width, int height, float EXPOSURE, float bloomStrength)
+{
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x >= width || y >= height)
+        return;
+    
+    int idx = y * width + x;
+
+    float3 hdrBloom = bloom[idx] * bloomStrength + hdr[idx];
+    // apply bloom
+    outCompare[idx] = hdrBloom;
+
+    // finalize image
+    float3 &c = hdr[idx];
+    c = hdrBloom;
+    // Reinhard tonemap
+    c = (c * EXPOSURE) / (make_float3(1.f) + c * EXPOSURE);
+
+    // Gamma correction
+    c = make_float3(linearToSRGB(c.x), linearToSRGB(c.y), linearToSRGB(c.z));
+
+    uchar4 pixel = make_uchar4((unsigned char)(255.f * fminf(c.x, 1.f)), (unsigned char)(255.f * fminf(c.y, 1.f)),
+                               (unsigned char)(255.f * fminf(c.z, 1.f)), 255);
+
+    surf2Dwrite(pixel, surface, x * sizeof(uchar4), y);
+}
+
+GLOBAL
+void finalizeImageV2NoRender(float3 *hdr, float3 *bloom, float3 *outCompare, int width, int height, float EXPOSURE, float bloomStrength)
+{
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x >= width || y >= height)
+        return;
+    
+    int idx = y * width + x;
+
+    float3 hdrBloom = bloom[idx] * bloomStrength + hdr[idx];
+    // apply bloom
+    outCompare[idx] = hdrBloom;
+
+    // finalize image
+    float3 &c = hdr[idx];
+    c = hdrBloom;
+    // Reinhard tonemap
+    c = (c * EXPOSURE) / (make_float3(1.f) + c * EXPOSURE);
+
+    // Gamma correction
+    c = make_float3(linearToSRGB(c.x), linearToSRGB(c.y), linearToSRGB(c.z));
 }

@@ -2,3 +2,4 @@ build/
 *Zone.Identifier*
 *.nsys-rep
 *.sqlite
+*.ncu-rep

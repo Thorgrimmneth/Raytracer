@@ -1,27 +1,27 @@
 #pragma once
 
 #include <assimp/Importer.hpp>
-#include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#include <assimp/scene.h>
 
-#include "../utils/quaternion.cuh"
+#include "scene_helper.cuh"
+#include "../utils/simplified_def.cuh"
 #include "../utils/op.cuh"
-#include "../utils/macro.cuh"
+#include "../utils/quaternion.cuh"
+#include <vector>
 
-#include "../objects/base_object.cuh"
 #include "../objects/triangle_mesh.cuh"
+#include "../objects/plane.cuh"
+#include <iostream>
 
-struct MeshAndPrimitive
-{
-    TriangleMesh mesh;
-    BaseObject prim;
+// Load mesh geometry (shared data, loaded once)
+HOST MeshGeometry loadMeshGeometry(const std::string &p_path);
 
-    MeshAndPrimitive(TriangleMesh p_mesh, float3 min, float3 max, ObjectType type, int index)
-        : prim(BaseObject(min, max, type, index)), mesh(p_mesh)
-    {
-    }
-};
+// Load mesh geometry with scaling (shared data, loaded once)
+HOST MeshGeometry loadMeshGeometry(const std::string &p_path, const float3 scale);
 
-HOST
-MeshAndPrimitive loadTriangleMesh(const std::string &p_path, int materialIndex, int index, 
-                                        float3 scale, Quaternion rotation, float3 translation);
+// Create instance with geometry reference
+HOST MeshInstance createMeshInstance(SceneHelper &sceneHelper, int geometryIndex, int materialIndex, float3 scale = make_float3(1.f),
+                           Quaternion rotation = quaternionFromAxisAngle(make_float3(0.f, 1.f, 0.f), 0.f), float3 translation = make_float3(0.f, 0.f, 0.f));
+
+HOST MeshGeometry PlaneToMesh(const Plane &plane, float size = 20000.f);

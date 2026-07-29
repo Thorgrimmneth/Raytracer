@@ -1,260 +1,133 @@
 #pragma once
 
-#include "../utils/macro.cuh"
+#include "../utils/simplified_def.cuh"
 #include "mesh_loader.cuh"
+
+#include <vector>
 
 #include "../lights/light.cuh"
 #include "../materials/material.cuh"
 
-#include "../objects/implicit_sphere.cuh"
 #include "../objects/plane.cuh"
-#include "../objects/sphere.cuh"
+#include "../objects/sphere_sdf.cuh"
 #include "../objects/triangle_mesh.cuh"
-
-#include "../objectsUtils/aabb.cuh"
-#include "../objectsUtils/bvh_scene.cuh"
 
 #include "../raytracingUtils/ray.cuh"
 
-
-#include "../../../devicePrograms/optix_launch_params_manager.h"
 #include "../optix/optix_context.h"
 #include "../optix/optix_gas.h"
-#include "../optix/optix_module_manager.h"
-#include "../optix/optix_pipeline_manager.h"
-#include "../optix/optix_program_group_manager.h"
+#include "../optix/optix_ias.h"
 #include "../optix/optix_sbt_manager.h"
-#include "../../../devicePrograms/launch_params.cuh"
+#include "../utils/compute_transform.cuh"
+#include "../utils/optix_pass_data.cuh"
+#include "init_optix.cuh"
 #include "scene_helper.cuh"
+#include "sun_helper.h"
 
 struct Light;
 
-struct OptixSceneData
+struct Scene
 {
-    OptixPipeline pipeline = nullptr;
-
-    OptixShaderBindingTable sbt = {};
-
-    CUdeviceptr d_launchParams = 0;
-    LaunchParams launchParams = {};
-
-    OptixTraversableHandle gasHandle = 0;
-    CUdeviceptr d_gasBuffer = 0;
-
-    OptixSceneData() = default;
-    OptixSceneData(OptixPipeline p, OptixShaderBindingTable s, CUdeviceptr lp, LaunchParams lpStruct,
-                   OptixTraversableHandle gasH, CUdeviceptr gasBuf)
-        : pipeline(p), sbt(s), d_launchParams(lp), launchParams(lpStruct), gasHandle(gasH), d_gasBuffer(gasBuf)
-    {
-    }
-
-    void destroy()
-    {
-        if (pipeline)
-            optixPipelineDestroy(pipeline);
-        if (d_launchParams)
-            CUDA_CHECK(cudaFree((void *)d_launchParams));
-        if (d_gasBuffer)
-            CUDA_CHECK(cudaFree((void *)d_gasBuffer));
-    }
-};
-
-struct CudaScene
-{
-    BVHScene bvhScene;
-    Sphere *spheres;
+    SphereSDF *spheres;
     Plane *planes;
-    TriangleMesh *triangleMeshes;
-    ImplicitSphere *implicitSpheres;
+    MeshGeometry *meshGeometries;
+    MeshInstance *meshInstances;
     Material *materials;
-    BaseObject *primitives;
     Light *lights;
     float *lightProbabilities;
     float *lightCumulativeWeights;
-
-    OptixSceneData optixData;
+    SDFGeometry sdfGeometries;
+    OptixTraversableHandle iasHandle = 0;
+    CUdeviceptr d_iasBuffer = 0;
+    std::vector<OptixGAS> gasList;
 
     int nbSpheres;
     int nbPlanes;
-    int nbTriangleMeshes;
+    int nbMeshes;
+    int nbMeshGeometries; // Number of unique mesh geometries
+    int nbMeshInstances;  // Number of mesh instances
     int nbMaterials;
     int nbLights;
-    int nbImplicitSpheres;
-    
-    void sceneSize(CudaSceneHelper &helper);
 
-    HOST void uploadObjects(CudaSceneHelper &helper);
-
-    HOST void uploadLights(CudaSceneHelper &helper);
-
-    HOST void uploadMaterials(CudaSceneHelper &helper);
-
-    D_FORCEINLINE bool intersect(const Ray &p_ray, const float p_tMin, const float p_tMax, OptixHit &p_hitRecord) const
+    inline HOST void destroy()
     {
-        float tMax = p_tMax;
-        bool hit = false;
-        for (int i = 0; i < nbPlanes; ++i)
+        std::cout << "Destroying Scene..." << std::endl;
+        if (meshGeometries)
         {
-            OptixHit planeHit;
-
-            if (planes[i].intersect(p_ray, p_tMin, tMax, planeHit))
+            for (int i = 0; i < nbMeshGeometries; ++i)
             {
-                tMax = planeHit.t;
-                p_hitRecord = planeHit;
-
-                p_hitRecord.objectType = HIT_PLANE;
-                p_hitRecord.objectIndex = i;
-
-                hit = true;
+                CUDA_CHECK(cudaFree(meshGeometries[i].vertices));
+                CUDA_CHECK(cudaFree(meshGeometries[i].normals));
+                CUDA_CHECK(cudaFree(meshGeometries[i].uvs));
+                CUDA_CHECK(cudaFree(meshGeometries[i].triangles));
+                CUDA_CHECK(cudaFree(meshGeometries[i].triangleAreaCdf));
             }
+            std::cout << "Destroyed " << nbMeshGeometries << " mesh geometries." << std::endl;
+            CUDA_CHECK(cudaFree(meshGeometries));
         }
-        if (bvhScene.intersect(p_ray, p_tMin, tMax, p_hitRecord))
-        {
-            tMax = p_hitRecord.t; // update tMax to conserve the nearest hit
-            hit = true;
-        }
+        std::cout << "Destroyed " << nbMeshGeometries << " mesh geometries." << std::endl;
 
-        return hit;
+        CUDA_CHECK(cudaFree(meshInstances));
+
+        CUDA_CHECK(cudaFree(spheres));
+        CUDA_CHECK(cudaFree(planes));
+
+        CUDA_CHECK(cudaFree(materials));
+
+        CUDA_CHECK(cudaFree(lights));
+        CUDA_CHECK(cudaFree(lightProbabilities));
+        CUDA_CHECK(cudaFree(lightCumulativeWeights));
+
+        // Remise à zéro
+        meshGeometries = nullptr;
+        meshInstances = nullptr;
+        spheres = nullptr;
+        planes = nullptr;
+        materials = nullptr;
+        lights = nullptr;
+        lightProbabilities = nullptr;
+        lightCumulativeWeights = nullptr;
+
+        nbMeshGeometries = 0;
+        nbMeshInstances = 0;
+        nbMeshes = 0;
+        nbSpheres = 0;
+        nbPlanes = 0;
+        nbMaterials = 0;
+        nbLights = 0;
     }
 
-    D_FORCEINLINE bool intersectAny(const Ray &p_ray, const float p_tMin, const float p_tMax) const
-    {
-        for (int i = 0; i < nbPlanes; ++i)
-        {
-            if (planes[i].intersectAny(p_ray, p_tMin, p_tMax, materials))
-            {
-                return true;
-            }
-        }
-        if (bvhScene.intersectAny(p_ray, p_tMin, p_tMax, materials))
-        {
-            return true;
-        }
-        return false;
-    }
+    HOST void uploadObjects(SceneHelper &helper);
 
-    D_FORCEINLINE float3 traceShadowRay(const Ray &p_ray, const float p_tMin, const float p_tMax) const
-    {
-        float3 shadowColor = make_float3(1.f);
-        Ray currentRay = p_ray;
-        float remainingDistance = p_tMax;
+    HOST void uploadLights(SceneHelper &helper);
 
-        // Trace through up to 2 transparent surfaces
-        for (int bounce = 0; bounce < 2; ++bounce)
-        {
-            OptixHit hit;
+    HOST void uploadMaterials(SceneHelper &helper);
 
-            if (!intersect(currentRay, p_tMin + 1e-4f, remainingDistance - 1e-4f, hit))
-            {
-                // No hit = ray reached the light
-                return shadowColor;
-            }
-
-            const Material &mtl = materials[hit.materialIndex];
-            MaterialType matType = mtl.type();
-
-            // Check if material is transparent
-            if (matType == TRANSPARENT)
-            {
-                // Tint shadow ray with material transmission color
-                float3 transmission = mtl.computeTransmission();
-                shadowColor *= transmission;
-
-                // Early termination: if transmission becomes negligible, stop bouncing
-                float transAlpha = fmaxf(shadowColor.x, fmaxf(shadowColor.y, shadowColor.z));
-                if (transAlpha < 0.001f)
-                {
-                    return make_float3(0.f);
-                }
-
-                // Continue ray from hit point toward light
-                currentRay = Ray(hit.position + currentRay.direction * 1e-4f, currentRay.direction, currentRay.time);
-                remainingDistance -= hit.t;
-            }
-            else if (matType == EMISSIVE)
-            {
-                return shadowColor;
-            }
-            else
-            {
-                // Opaque material blocks shadow completely
-                return make_float3(0.f);
-            }
-        }
-
-        // After max bounces, assume ray reached the light
-        return shadowColor;
-    }
-
-    D_FORCEINLINE float lightPdf(const float3 &origin, const float3 &dir) const
-    {
-        Ray ray(origin, dir);
-
-        OptixHit hit;
-
-        if (!intersect(ray, 1e-4f, 1e30f, hit))
-            return 0.0f;
-
-        const MaterialType matType = materials[hit.materialIndex].type();
-
-        if (matType != MaterialType::EMISSIVE)
-            return 0.0f;
-
-        const float dist2 = hit.t * hit.t;
-        float pdf = 0.0f;
-
-        if (hit.objectType == HIT_SPHERE)
-        {
-            const Sphere &s = spheres[hit.objectIndex];
-
-            const float3 toSurface = hit.position - s.getCenter1();
-            const float invRadius = 1.0f / s.getRadius();
-
-            const float cosTheta = fmaxf(dot(toSurface, -dir) * invRadius, 0.0f);
-
-            if (cosTheta <= 0.0f)
-                return 0.0f;
-
-            const float area = 4.0f * GPUPIf * s.getRadius() * s.getRadius();
-            pdf = dist2 / (area * cosTheta);
-        }
-        else if (hit.objectType == HIT_SPHERE_IMPLICIT)
-        {
-            const ImplicitSphere &s = implicitSpheres[hit.objectIndex];
-
-            const float3 toSurface = hit.position - s.getCenter1();
-            const float invRadius = 1.0f / s.getRadius();
-
-            const float cosTheta = fmaxf(dot(toSurface, -dir) * invRadius, 0.0f);
-
-            if (cosTheta <= 0.0f)
-                return 0.0f;
-
-            const float area = 4.0f * GPUPIf * s.getRadius() * s.getRadius();
-            pdf = dist2 / (area * cosTheta);
-        }
-        else if (hit.objectType == HIT_TRIANGLE_MESH)
-        {
-            const TriangleMesh &mesh = triangleMeshes[hit.objectIndex];
-
-            const float cosTheta = fmaxf(dot(hit.normal, -dir), 0.0f);
-
-            if (cosTheta <= 0.0f)
-                return 0.0f;
-
-            pdf = dist2 / (mesh.meshArea * cosTheta);
-        }
-        else
-        {
-            return 0.0f;
-        }
-
-        return pdf * (1.0f / nbLights);
-    };
+    D_FORCEINLINE float lightPdf(const float3 &origin, const float3 &dir) const { return 0.f; };
 };
 
-CudaScene spheresScene(float4 sunDir);
+void initPassParam(OptixContext &context, OptixLaunchParamsManager<LaunchRadianceParams> &launchParamsManagerRadiance,
+                   OptixLaunchParamsManager<LaunchShadowParams> &launchParamsManagerShadow,
+                   OptixPipelineManager &pipelineManagerRadiance, OptixPipelineManager &pipelineManagerShadow,
+                   OptixSBTManager &sbtManagerRadiance, OptixSBTManager &sbtManagerShadow, Scene &scene,
+                   SceneHelper &helper);
+void fillParams(OptixPassData<LaunchRadianceParams> &radiance_pass, OptixPassData<LaunchShadowParams> &shadow_pass,
+                OptixPipelineManager &pipelineManagerRadiance, OptixPipelineManager &pipelineManagerShadow,
+                OptixSBTManager &sbtManagerRadiance, OptixSBTManager &sbtManagerShadow,
+                OptixLaunchParamsManager<LaunchRadianceParams> &launchParamsManagerRadiance,
+                OptixLaunchParamsManager<LaunchShadowParams> &launchParamsManagerShadow, Scene &scene);
 
-CudaScene implicitSpheresScene(float4 sunDir);
+void sortLights(SceneHelper &helper);
 
-CudaScene singleObject(float4 sunDir);
+Scene showcase(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
+               OptixPassData<LaunchShadowParams> &shadow_pass, float &global_size);
+
+Scene spheres(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
+              OptixPassData<LaunchShadowParams> &shadow_pass, float &global_size, int rngmanip = 0);
+
+Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
+                OptixPassData<LaunchShadowParams> &shadow_pass, float &global_size, int rngmanip = 0);
+
+void addGround(SceneHelper &helper);
+
+void createMaterials(SceneHelper &helper, int rngmanip = 0);

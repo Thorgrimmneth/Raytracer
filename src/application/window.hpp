@@ -10,7 +10,7 @@
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
 
-#include "utils/defines.hpp"
+#include "utils/defines_cpu.hpp"
 
 #include "renderingGPU/renderer.hpp"
 
@@ -19,7 +19,7 @@ class Window {
     Window() = delete;
     ~Window();
     Window(int width, int height);
-    unsigned char *cumulativeRendering(Vec3f sunDir, int width, int height, bool convergence = false, float threshold = 0.01f);
+    unsigned char *cumulativeRendering(float3 sunDir, int width, int height, bool convergence = false, float threshold = 0.01f, int rngManip = 0);
 
   private:
     GLuint createShader(GLenum type, const char *source);

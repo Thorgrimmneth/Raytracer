@@ -3,6 +3,8 @@
 #include <optix.h>
 #include "optix_program_group_manager.h"
 
+#include <vector>
+
 class OptixPipelineManager
 {
 public:
@@ -10,15 +12,13 @@ public:
     void create(
         OptixDeviceContext context,
         const OptixPipelineCompileOptions& pipelineCompileOptions,
-        OptixProgramGroup raygenPG,
-        OptixProgramGroup missPG,
-        OptixProgramGroup hitPG
+        const OptixProgramGroupManager& programGroups
     );
 
     void create(
         OptixDeviceContext context,
         const OptixPipelineCompileOptions& pipelineCompileOptions,
-        const OptixProgramGroupManager& programGroups
+        const std::vector<OptixProgramGroup>& programGroups
     );
 
     void destroy();
