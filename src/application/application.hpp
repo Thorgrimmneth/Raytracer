@@ -1,6 +1,5 @@
-#include "utils/texture.hpp"
 #include "utils/chrono.hpp"
-
+#include "renderingGPU/utils/op.cuh"
 #include "window.hpp"
 
 class Application {

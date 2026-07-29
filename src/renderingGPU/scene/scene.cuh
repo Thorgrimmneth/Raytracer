@@ -109,10 +109,18 @@ struct Scene
 void initPassParam(OptixContext &context, OptixLaunchParamsManager<LaunchRadianceParams> &launchParamsManagerRadiance,
                    OptixLaunchParamsManager<LaunchShadowParams> &launchParamsManagerShadow,
                    OptixPipelineManager &pipelineManagerRadiance, OptixPipelineManager &pipelineManagerShadow,
-                   OptixSBTManager &sbtManagerRadiance, OptixSBTManager &sbtManagerShadow,
-                   Scene &scene, SceneHelper &helper);
+                   OptixSBTManager &sbtManagerRadiance, OptixSBTManager &sbtManagerShadow, Scene &scene,
+                   SceneHelper &helper);
+void fillParams(OptixPassData<LaunchRadianceParams> &radiance_pass, OptixPassData<LaunchShadowParams> &shadow_pass,
+                OptixPipelineManager &pipelineManagerRadiance, OptixPipelineManager &pipelineManagerShadow,
+                OptixSBTManager &sbtManagerRadiance, OptixSBTManager &sbtManagerShadow,
+                OptixLaunchParamsManager<LaunchRadianceParams> &launchParamsManagerRadiance,
+                OptixLaunchParamsManager<LaunchShadowParams> &launchParamsManagerShadow, Scene &scene);
 
 void sortLights(SceneHelper &helper);
+
+Scene showcase(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
+               OptixPassData<LaunchShadowParams> &shadow_pass, float &global_size);
 
 Scene spheres(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
               OptixPassData<LaunchShadowParams> &shadow_pass, float &global_size, int rngmanip = 0);

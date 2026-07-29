@@ -198,7 +198,8 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     float3 sunDir = make_float3(sunDirx, sunDiry, sunDirz);
 
     setSeed(43);
-    impl->scene = spheres(sunDir, impl->radiance_pass, impl->shadow_pass, global_size, rngManip);
+    //impl->scene = spheres(sunDir, impl->radiance_pass, impl->shadow_pass, global_size, rngManip);
+    impl->scene = showcase(sunDir, impl->radiance_pass, impl->shadow_pass, global_size);
     impl->BUFFER_SIZE_FLOAT3 = impl->WIDTH * impl->HEIGHT * sizeof(float3);
     
 

@@ -47,14 +47,14 @@ struct Material
 
         float rough = 0.03f + 0.35f * randomFloat();
 
-        return makeMaterial(color, METAL, rough * rough, 1.f, 1.5f, 0.f);
+        return makeMaterial(color, METAL, rough * rough, 1.f);
     }
 
     HOST static Material randomLambert()
     {
         float3 color = make_float3(randomFloat(), randomFloat(), randomFloat());
 
-        return makeMaterial(color, LAMBERT, 1.0f, 0.f, 1.5f, 0.f);
+        return makeMaterial(color, LAMBERT, 1.0f, 0.f);
     }
 
     HOST static Material randomPlastic()

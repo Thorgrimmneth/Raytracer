@@ -132,6 +132,155 @@ void sortMaterials(SceneHelper &helper)
     }
 }
 
+Scene showcase(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
+               OptixPassData<LaunchShadowParams> &shadow_pass, float &global_size)
+{
+    Scene scene;
+    SceneHelper helper;
+    Light sun = createSun(sunDir, helper);
+    helper.lightsGPU.push_back(sun);
+
+    // create scene here
+
+    MeshGeometry bunnyGeometry = loadMeshGeometry("data/bunny/Bunny.obj");
+    helper.meshGeometriesGPU.push_back(bunnyGeometry);
+    MeshGeometry dragonGeometry = loadMeshGeometry("data/dragon/dragon.obj");
+    helper.meshGeometriesGPU.push_back(dragonGeometry);
+
+    // bunny + emissive sphere behind
+    Material transparent = Material::makeMaterial(make_float3(1.f), TRANSPARENT, 0.f, 0.f, 1.5f);
+    helper.materialsGPU.push_back(transparent);
+
+    Quaternion rotation = quaternionFromAxisAngle(make_float3(0.f, 1.f, 0.f), 180.f);
+    float3 scale = make_float3(1.f);
+    float3 translation = make_float3(0.f, 1.5f, 0.f);
+
+    MeshInstance instance = createMeshInstance(helper, 0, helper.materialsGPU.size() - 1, scale, rotation, translation);
+    helper.meshInstancesGPU.push_back(instance);
+
+    Material emissive = Material::makeMaterial(make_float3(1.f, 0.f, 0.f), EMISSIVE, 0.f, 0.f, 1.f, 11.f);
+    helper.materialsGPU.push_back(emissive);
+    SDF sdf = SDF::createRandomSphereAnalytic(helper.materialsGPU.size() - 1, 0.5f);
+    sdf.translation = make_float3(0.f, 1.5f, -2.f);
+    Light light;
+    light.metadata = Light::packMetadata(LightType::SDF_GEOM, (int)helper.sdfsGPU.size());
+    helper.lightsGPU.push_back(light);
+    sdf.lightIndex = (int)helper.lightsGPU.size() - 1;
+    helper.sdfsGPU.push_back(sdf);
+
+    // metallic dragon
+    Material metal = Material::makeMaterial(make_float3(11.f, 217.f, 121.f)/255.f, METAL, 0.2f * 0.2f, 1.f);
+    helper.materialsGPU.push_back(metal);
+    Quaternion rotation2 = quaternionFromAxisAngle(make_float3(0.f, 1.f, 0.f), 20.f);
+    float3 scale2 = make_float3(15.f);
+    float3 translation2 = make_float3(4.f, 0.f, 0.f);
+    MeshInstance instance2 = createMeshInstance(helper, 1, helper.materialsGPU.size() - 1, scale2, rotation2, translation2);
+    helper.meshInstancesGPU.push_back(instance2);
+    // add ground plane last to avoid messing up the mesh instance indices
+    addGround(helper);
+    // end of scene
+
+    sortLights(helper);
+    scene.uploadLights(helper);
+    scene.uploadMaterials(helper);
+    std::vector<OptixAabb> aabbs;
+    for (const auto &sdf : helper.sdfsGPU)
+    {
+        // aabbs.push_back(sdf.getWorldAABB(primitives, nodes));
+        aabbs.push_back(sdf.getWorldAABB());
+    }
+    global_size += aabbs.size() * sizeof(OptixAabb);
+    global_size += helper.sdfsGPU.size() * sizeof(SDF);
+    global_size += helper.materialsGPU.size() * sizeof(Material);
+    CUDA_CHECK(
+        cudaMalloc(reinterpret_cast<void **>(&scene.sdfGeometries.d_aabbBuffer), aabbs.size() * sizeof(OptixAabb)));
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(scene.sdfGeometries.d_aabbBuffer), aabbs.data(),
+                          aabbs.size() * sizeof(OptixAabb), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&scene.sdfGeometries.sdfs), helper.sdfsGPU.size() * sizeof(SDF)));
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(scene.sdfGeometries.sdfs), helper.sdfsGPU.data(),
+                          helper.sdfsGPU.size() * sizeof(SDF), cudaMemcpyHostToDevice));
+    scene.sdfGeometries.sdfCount = helper.sdfsGPU.size();
+
+    OptixContext context;
+    context.initialize();
+    OptixLaunchParamsManager<LaunchRadianceParams> launchParamsManagerRadiance;
+    OptixLaunchParamsManager<LaunchShadowParams> launchParamsManagerShadow;
+    OptixPipelineManager pipelineManagerRadiance;
+    OptixPipelineManager pipelineManagerShadow;
+    OptixSBTManager sbtManagerRadiance;
+    OptixSBTManager sbtManagerShadow;
+    initPassParam(context, launchParamsManagerRadiance, launchParamsManagerShadow, pipelineManagerRadiance,
+                  pipelineManagerShadow, sbtManagerRadiance, sbtManagerShadow, scene, helper);
+
+    std::vector<OptixGAS> gasList;
+
+    // Create GAS for each unique mesh geometry
+    for (auto &geometry : helper.meshGeometriesGPU)
+    {
+        OptixGAS gas;
+        // Build GAS from the geometry's vertices and triangles
+        gas.build(context, geometry, global_size);
+        gasList.push_back(std::move(gas));
+    }
+    if (helper.sdfsGPU.size() > 0)
+    {
+        OptixGAS sdfGAS;
+        sdfGAS.build(context, scene.sdfGeometries, global_size);
+        gasList.push_back(std::move(sdfGAS));
+    }
+
+    std::vector<OptixInstance> instances;
+    // Create instances for mesh instances with their transformations
+    for (uint32_t i = 0; i < helper.meshInstancesGPU.size(); ++i)
+    {
+        const MeshInstance &meshInst = helper.meshInstancesGPU[i];
+
+        OptixInstance instance{};
+
+        // Create transformation matrix from quaternion, scale, and translation
+        computeTransform(meshInst, instance);
+
+        instance.instanceId = i;
+        instance.sbtOffset = meshInst.geometryIndex; // Offset in SBT for this instance
+
+        instance.visibilityMask = 255;
+        instance.flags = OPTIX_INSTANCE_FLAG_NONE;
+
+        instance.traversableHandle = gasList[meshInst.geometryIndex].handle;
+
+        instances.push_back(instance);
+    }
+    if (helper.sdfsGPU.size() > 0)
+    {
+        OptixInstance sdfInstance{};
+        float transform[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
+        memcpy(sdfInstance.transform, transform, sizeof(transform));
+        sdfInstance.instanceId = helper.meshInstancesGPU.size(); // Next instance ID
+        sdfInstance.sbtOffset = helper.meshGeometriesGPU.size(); // Last SBT record
+        sdfInstance.visibilityMask = 255;
+        sdfInstance.flags = OPTIX_INSTANCE_FLAG_NONE;
+        sdfInstance.traversableHandle = gasList.back().handle; // Last GAS is for SDFs
+        instances.push_back(sdfInstance);
+    }
+
+    OptixIAS ias;
+    ias.build(context.deviceContext, instances);
+
+    launchParamsManagerRadiance.params.traversable = ias.handle;
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerRadiance.d_params),
+                          &launchParamsManagerRadiance.params, sizeof(LaunchRadianceParams), cudaMemcpyHostToDevice));
+    launchParamsManagerShadow.params.traversable = ias.handle;
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerShadow.d_params),
+                          &launchParamsManagerShadow.params, sizeof(LaunchShadowParams), cudaMemcpyHostToDevice));
+
+    scene.uploadObjects(helper);
+
+    // Now set mesh instances in launch params after uploadObjects has allocated them
+    fillParams(radiance_pass, shadow_pass, pipelineManagerRadiance, pipelineManagerShadow, sbtManagerRadiance,
+               sbtManagerShadow, launchParamsManagerRadiance, launchParamsManagerShadow, scene);
+    return scene;
+}
+
 Scene spheres(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
               OptixPassData<LaunchShadowParams> &shadow_pass, float &global_size, int rngmanip)
 {
@@ -152,7 +301,7 @@ Scene spheres(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
     float margin = 0.05f;
     float minDist = bigRadius + smallRadius + margin;
 
-    int numberOfSpheresPerSide = 10;
+    int numberOfSpheresPerSide = 50;
     // ===== PETITES SPHERES =====
     for (int i = -numberOfSpheresPerSide; i < numberOfSpheresPerSide; i++)
     {
@@ -160,8 +309,7 @@ Scene spheres(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
         {
             double choose_mat = randomDouble();
 
-            float3 center =
-                make_float3(i + 0.8f * randomFloat(), 0.2f, (j - numberOfSpheresPerSide + 4) + 0.8f * randomFloat());
+            float3 center = make_float3(i + 0.8f * randomFloat(), 0.2f, j + 0.8f * randomFloat());
 
             if (length(center - make_float3(2.f, 1.f, 1.f)) < minDist ||
                 length(center - make_float3(0.f, 1.f, -1.f)) < minDist ||
@@ -342,45 +490,9 @@ Scene spheres(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
     scene.uploadObjects(helper);
 
     // Now set mesh instances in launch params after uploadObjects has allocated them
-    if (scene.meshInstances && scene.nbMeshInstances > 0)
-    {
-        launchParamsManagerRadiance.params.meshInstances = scene.meshInstances;
-        launchParamsManagerRadiance.params.nbMeshInstances = scene.nbMeshInstances;
-        launchParamsManagerRadiance.params.materials = scene.materials;
-        launchParamsManagerRadiance.params.nbMaterials = scene.nbMaterials;
-        // Update launch params on GPU with mesh instance pointers
-        CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerRadiance.d_params),
-                              &launchParamsManagerRadiance.params, sizeof(LaunchRadianceParams),
-                              cudaMemcpyHostToDevice));
+    fillParams(radiance_pass, shadow_pass, pipelineManagerRadiance, pipelineManagerShadow, sbtManagerRadiance,
+               sbtManagerShadow, launchParamsManagerRadiance, launchParamsManagerShadow, scene);
 
-        launchParamsManagerShadow.params.meshInstances = scene.meshInstances;
-        launchParamsManagerShadow.params.nbMeshInstances = scene.nbMeshInstances;
-        launchParamsManagerShadow.params.materials = scene.materials;
-        launchParamsManagerShadow.params.nbMaterials = scene.nbMaterials;
-        CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerShadow.d_params),
-                              &launchParamsManagerShadow.params, sizeof(LaunchShadowParams), cudaMemcpyHostToDevice));
-    }
-
-    // Radiance
-    radiance_pass.pipeline = pipelineManagerRadiance.pipeline;
-    radiance_pass.sbt = sbtManagerRadiance.sbt;
-
-    radiance_pass.params = launchParamsManagerRadiance.params;
-    radiance_pass.d_params = launchParamsManagerRadiance.d_params;
-
-    // Shadow
-    shadow_pass.pipeline = pipelineManagerShadow.pipeline;
-    shadow_pass.sbt = sbtManagerShadow.sbt;
-
-    shadow_pass.params = launchParamsManagerShadow.params;
-    shadow_pass.d_params = launchParamsManagerShadow.d_params;
-    // Transfer ownership of radiance resources
-    pipelineManagerRadiance.pipeline = nullptr;
-    sbtManagerRadiance.sbt = {};
-
-    // Transfer ownership of shadow resources
-    pipelineManagerShadow.pipeline = nullptr;
-    sbtManagerShadow.sbt = {};
     return scene;
 }
 
@@ -606,45 +718,10 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
     scene.uploadObjects(helper);
 
     // Now set mesh instances in launch params after uploadObjects has allocated them
-    if (scene.meshInstances && scene.nbMeshInstances > 0)
-    {
-        launchParamsManagerRadiance.params.meshInstances = scene.meshInstances;
-        launchParamsManagerRadiance.params.nbMeshInstances = scene.nbMeshInstances;
-        launchParamsManagerRadiance.params.materials = scene.materials;
-        launchParamsManagerRadiance.params.nbMaterials = scene.nbMaterials;
-        // Update launch params on GPU with mesh instance pointers
-        CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerRadiance.d_params),
-                              &launchParamsManagerRadiance.params, sizeof(LaunchRadianceParams),
-                              cudaMemcpyHostToDevice));
 
-        launchParamsManagerShadow.params.meshInstances = scene.meshInstances;
-        launchParamsManagerShadow.params.nbMeshInstances = scene.nbMeshInstances;
-        launchParamsManagerShadow.params.materials = scene.materials;
-        launchParamsManagerShadow.params.nbMaterials = scene.nbMaterials;
-        CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerShadow.d_params),
-                              &launchParamsManagerShadow.params, sizeof(LaunchShadowParams), cudaMemcpyHostToDevice));
-    }
+    fillParams(radiance_pass, shadow_pass, pipelineManagerRadiance, pipelineManagerShadow, sbtManagerRadiance,
+               sbtManagerShadow, launchParamsManagerRadiance, launchParamsManagerShadow, scene);
 
-    // Radiance
-    radiance_pass.pipeline = pipelineManagerRadiance.pipeline;
-    radiance_pass.sbt = sbtManagerRadiance.sbt;
-
-    radiance_pass.params = launchParamsManagerRadiance.params;
-    radiance_pass.d_params = launchParamsManagerRadiance.d_params;
-
-    // Shadow
-    shadow_pass.pipeline = pipelineManagerShadow.pipeline;
-    shadow_pass.sbt = sbtManagerShadow.sbt;
-
-    shadow_pass.params = launchParamsManagerShadow.params;
-    shadow_pass.d_params = launchParamsManagerShadow.d_params;
-    // Transfer ownership of radiance resources
-    pipelineManagerRadiance.pipeline = nullptr;
-    sbtManagerRadiance.sbt = {};
-
-    // Transfer ownership of shadow resources
-    pipelineManagerShadow.pipeline = nullptr;
-    sbtManagerShadow.sbt = {};
     return scene;
 }
 
@@ -689,6 +766,49 @@ void initPassParam(OptixContext &context, OptixLaunchParamsManager<LaunchRadianc
     sbtManagerShadow.create(helper.meshGeometriesGPU, programGroupManagerShadow, scene.sdfGeometries);
     programGroupManagerRadiance.destroy();
     programGroupManagerShadow.destroy();
+}
+
+void fillParams(OptixPassData<LaunchRadianceParams> &radiance_pass, OptixPassData<LaunchShadowParams> &shadow_pass,
+                OptixPipelineManager &pipelineManagerRadiance, OptixPipelineManager &pipelineManagerShadow,
+                OptixSBTManager &sbtManagerRadiance, OptixSBTManager &sbtManagerShadow,
+                OptixLaunchParamsManager<LaunchRadianceParams> &launchParamsManagerRadiance,
+                OptixLaunchParamsManager<LaunchShadowParams> &launchParamsManagerShadow, Scene &scene)
+{
+
+    launchParamsManagerRadiance.params.meshInstances = scene.meshInstances;
+    launchParamsManagerRadiance.params.nbMeshInstances = scene.nbMeshInstances;
+    launchParamsManagerRadiance.params.materials = scene.materials;
+    launchParamsManagerRadiance.params.nbMaterials = scene.nbMaterials;
+    // Update launch params on GPU with mesh instance pointers
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerRadiance.d_params),
+                          &launchParamsManagerRadiance.params, sizeof(LaunchRadianceParams), cudaMemcpyHostToDevice));
+
+    launchParamsManagerShadow.params.meshInstances = scene.meshInstances;
+    launchParamsManagerShadow.params.nbMeshInstances = scene.nbMeshInstances;
+    launchParamsManagerShadow.params.materials = scene.materials;
+    launchParamsManagerShadow.params.nbMaterials = scene.nbMaterials;
+    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerShadow.d_params),
+                          &launchParamsManagerShadow.params, sizeof(LaunchShadowParams), cudaMemcpyHostToDevice));
+
+    radiance_pass.pipeline = pipelineManagerRadiance.pipeline;
+    radiance_pass.sbt = sbtManagerRadiance.sbt;
+
+    radiance_pass.params = launchParamsManagerRadiance.params;
+    radiance_pass.d_params = launchParamsManagerRadiance.d_params;
+
+    // Shadow
+    shadow_pass.pipeline = pipelineManagerShadow.pipeline;
+    shadow_pass.sbt = sbtManagerShadow.sbt;
+
+    shadow_pass.params = launchParamsManagerShadow.params;
+    shadow_pass.d_params = launchParamsManagerShadow.d_params;
+    // Transfer ownership of radiance resources
+    pipelineManagerRadiance.pipeline = nullptr;
+    sbtManagerRadiance.sbt = {};
+
+    // Transfer ownership of shadow resources
+    pipelineManagerShadow.pipeline = nullptr;
+    sbtManagerShadow.sbt = {};
 }
 
 void sortLights(SceneHelper &helper)
