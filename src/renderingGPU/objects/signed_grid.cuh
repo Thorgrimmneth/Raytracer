@@ -80,7 +80,7 @@ struct SignedGrid
         float tz = gridPos.z - z0;
 
         auto index = [this](int x, int y, int z) {
-            return (size_t)z * resolution * resolution + (size_t)y * resolution + (size_t)x;
+            return z * resolution * resolution + y * resolution + x;
         };
 
         float c000 = data[index(x0, y0, z0)];

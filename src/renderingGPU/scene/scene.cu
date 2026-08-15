@@ -560,11 +560,11 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
         }
         helper.sdfsGPU.push_back(sdf);
     }
-    /*SDF sdf = load_sdf("data/bunnySDF/bunny_512.sdf");
+    SDF sdf = load_sdf("data/bunnySDF/bunny_256.sdf");
     sdf.translation = make_float3(0.f, 2.f, 0.f);
-    sdf.signedGrid.materialIndex = 10;
+    sdf.signedGrid.materialIndex = 1;
     sdf.aabb = sdf.getAABB();
-    helper.sdfsGPU.push_back(sdf);*/
+    helper.sdfsGPU.push_back(sdf);
     /*
     // Add torus SDFs
     for (int i = 0; i < 15; i++)

@@ -24,15 +24,17 @@ void classifyPairs(Material *materials, int activeCount, int *keys, int *values,
 }
 
 GLOBAL
-void reorderPaths(const int *permutation, RayQueue current, SortedRayQueue sorted, const float3 *hitPositions,
-                  const float3 *hitNormals, const int *hitMaterialIndices, const float *distances, const int *objectIndices, const int *types, int count)
+void reorderPaths(const int *__restrict__ permutation, RayQueue current, SortedRayQueue sorted,
+                  const float3 *__restrict__ hitPositions, const float3 *__restrict__ hitNormals,
+                  const int *__restrict__ hitMaterialIndices, const float *__restrict__ distances,
+                  const int *__restrict__ objectIndices, const int *__restrict__ types, int count)
 {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (tid >= count)
         return;
 
-    int src = permutation[tid];
+    const int src = permutation[tid];
 
     sorted.origins[tid] = current.origins[src];
     sorted.directions[tid] = current.directions[src];
@@ -40,16 +42,23 @@ void reorderPaths(const int *permutation, RayQueue current, SortedRayQueue sorte
 
     sorted.hitPositions[tid] = hitPositions[src];
     sorted.hitNormals[tid] = hitNormals[src];
+
     sorted.hitMaterialIndices[tid] = hitMaterialIndices[src];
+
     sorted.hitObjectIndices[tid] = objectIndices[src];
+
     sorted.hitDistances[tid] = distances[src];
+
     sorted.hitTypes[tid] = types[src];
 
     sorted.pixelIndices[tid] = current.pixelIndices[src];
 
     sorted.lastBounceWasDelta[tid] = current.lastBounceWasDelta[src];
+
     sorted.lastBsdfPdf[tid] = current.lastBsdfPdf[src];
+
     sorted.isInside[tid] = current.isInside[src];
+
     sorted.rng[tid] = current.rng[src];
 }
 
