@@ -22,6 +22,7 @@
 #include "../utils/optix_pass_data.cuh"
 #include "init_optix.cuh"
 #include "scene_helper.cuh"
+#include "sdf_loader.cuh"
 #include "sun_helper.h"
 
 struct Light;

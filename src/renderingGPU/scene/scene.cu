@@ -560,6 +560,11 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
         }
         helper.sdfsGPU.push_back(sdf);
     }
+    /*SDF sdf = load_sdf("data/bunnySDF/bunny_512.sdf");
+    sdf.translation = make_float3(0.f, 2.f, 0.f);
+    sdf.signedGrid.materialIndex = 10;
+    sdf.aabb = sdf.getAABB();
+    helper.sdfsGPU.push_back(sdf);*/
     /*
     // Add torus SDFs
     for (int i = 0; i < 15; i++)
@@ -827,26 +832,26 @@ void createMaterials(SceneHelper &helper, int rngmanip)
                                                    0.f, 0.f, 1.f, randomFloat() * 5.f + 8.f);
         helper.materialsGPU.push_back(emissive);
     }
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 10; i++) // 5-14
     {
         Material mirror = Material::makeMaterial(make_float3(1.f), MIRROR);
         helper.materialsGPU.push_back(mirror);
     }
 
-    for (int i = 0; i < 15; i++)
+    for (int i = 0; i < 15; i++) // 15 -29
     {
         Material transparent = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()),
                                                       TRANSPARENT, 0.f, 0.f, 1.5f);
         helper.materialsGPU.push_back(transparent);
     }
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 10; i++) // 30 - 39
     {
         Material lambert =
             Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), LAMBERT, 1.0f);
         helper.materialsGPU.push_back(lambert);
     }
 
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 10; i++) // 40 - 49
     {
         float roughness = randomFloat() * 0.5f;
         Material metal = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), METAL,
@@ -854,7 +859,7 @@ void createMaterials(SceneHelper &helper, int rngmanip)
         helper.materialsGPU.push_back(metal);
     }
 
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 10; i++) // 50 - 59
     {
         float roughness = randomFloat() * 0.5f;
         Material plastic = Material::makeMaterial(make_float3(randomFloat(), randomFloat(), randomFloat()), PLASTIC,

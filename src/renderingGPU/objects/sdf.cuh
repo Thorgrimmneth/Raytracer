@@ -7,6 +7,7 @@
 #include "cone.cuh"
 #include "csg_tree.cuh"
 #include "sphere_analytic.cuh"
+#include "signed_grid.cuh"
 #include "tore.cuh"
 #include <vector>
 
@@ -15,7 +16,8 @@ enum class SDFType : uint8_t
     SphereAnalytic,
     Tore,
     Cone,
-    CSGTree
+    CSGTree,
+    SignedGrid
 };
 
 struct SDF
@@ -30,6 +32,7 @@ struct SDF
         Tore tore;
         Cone cone;
         CSGTree csgTree;
+        SignedGrid signedGrid;
     };
 
     // Default constructor
@@ -45,6 +48,8 @@ struct SDF
             return cone.sdf(point);
         case SDFType::CSGTree:
             return csgTree.sdf(point);
+        case SDFType::SignedGrid:
+            return signedGrid.sdf(point);
         default:
             return 0.0f; // Should not happen
         }
@@ -62,6 +67,8 @@ struct SDF
             return cone.materialIndex;
         case SDFType::CSGTree:
             return csgTree.materialIndex;
+        case SDFType::SignedGrid:
+            return signedGrid.materialIndex;
         default:
             return 0; // Should not happen
         }
@@ -81,6 +88,8 @@ struct SDF
         case SDFType::CSGTree:
             // Note: CSGTree requires full SDF array, use getWorldAABBWithContext() instead
             return csgTree.computeWorldAABB(rotation, translation, primitives, nodes);
+        case SDFType::SignedGrid:
+            return signedGrid.computeWorldAABB(rotation, translation);
         default:
             return OptixAabb(); // Should not happen
         }
@@ -102,6 +111,9 @@ struct SDF
         case SDFType::CSGTree:
             csgTree.sampleSurfacePoint(p_point, p_normal, rng);
             break;
+        case SDFType::SignedGrid:
+            signedGrid.sampleSurfacePoint(p_point, p_normal, rng);
+            break;
         default:
             break; // Should not happen
         }
@@ -119,6 +131,8 @@ struct SDF
             return csgTree.getArea();
         case SDFType::Cone:
             return cone.getArea();
+        case SDFType::SignedGrid:
+            return signedGrid.getArea();
         default:
             return 0.f; // Should not happen
         }
@@ -137,6 +151,8 @@ struct SDF
             return cone.computeAABB();
         case SDFType::CSGTree:
             return csgTree.computeAABB(primitives, nodes);
+        case SDFType::SignedGrid:
+            return signedGrid.computeAABB();
         default:
             return OptixAabb(); // Should not happen
         }
@@ -152,6 +168,8 @@ struct SDF
             return cone.getNormal(point);
         case SDFType::CSGTree:
             return csgTree.getNormal(point);
+        case SDFType::SignedGrid:
+            return signedGrid.getNormal(point);
         default:
             return make_float3(0.f); // Should not happen
         }

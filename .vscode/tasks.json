@@ -33,6 +33,20 @@
         "clear": true,
         "close": true
       }
+    },
+    {
+      "label": "Fast make",
+      "type": "shell",
+      "command": "cd build && make && cd .. && ./build/mon_projet -mode 1 -w 1920 -t 0.87 -convergence 1 -rng 3 -rpp 100000 -value 0.001 -printValue 1 -output 1",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true,
+        "close": true
+      }
     }
     
   ]

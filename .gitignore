@@ -3,3 +3,4 @@ build/
 *.nsys-rep
 *.sqlite
 *.ncu-rep
+*.sdf
