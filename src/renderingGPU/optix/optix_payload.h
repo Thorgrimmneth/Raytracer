@@ -11,13 +11,9 @@ struct Payload
 
     float3 position;
     float3 normal;
-    float3 accumulated_color = make_float3(0.f);
-    float3 luminous_contribution = make_float3(0.f);
-    int objectIndex;
+    float3 contribution = make_float3(0.f);
     int materialIndex;
-    float hitDistance;
     int depth = 0;
-    Hitobject_type object_type;
     
     float3 bsdfDir = make_float3(0.f);
     int isInside = 0;

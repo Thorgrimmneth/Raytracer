@@ -20,10 +20,9 @@ struct LaunchRadianceParams
     float3* directions;
     float3* accum_buffer;
     float3* throughputs;
-    int* lastBounceWasDelta;  // Track if previous bounce was from delta material
+    int* lastBounceWasDelta;  // Tracks if previous bounce was from delta material
     int* isInside;
     RNG* rngs;
-    //HitBuffers hit_buffers;
 
     int active_count;
     int depth;

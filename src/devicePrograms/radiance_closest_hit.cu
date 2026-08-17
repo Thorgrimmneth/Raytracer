@@ -65,8 +65,6 @@ extern "C" __global__ void __closesthit__radiance()
     payload->position = position;
 
     payload->normal = N;
-    payload->objectIndex = instanceIndex;
-    payload->object_type = HIT_TRIANGLE_MESH;
 
     // ============================================================
     // Material Shading - Switch by Material Type
@@ -87,7 +85,7 @@ extern "C" __global__ void __closesthit__radiance()
         {
             case MaterialType::EMISSIVE:
             {
-                payload->luminous_contribution = mtl.color() * mtl.intensity();
+                payload->contribution = mtl.color() * mtl.intensity();
                 payload->bsdfDir = make_float3(0.f);
                 payload->bsdfPdf = 0.f;
                 return;
@@ -212,7 +210,7 @@ extern "C" __global__ void __closesthit__radiance()
             {
                 payload->bsdfDir = make_float3(0.f);
                 payload->bsdfPdf = 0.f;
-                payload->luminous_contribution = make_float3(0.f);
+                payload->contribution = make_float3(0.f);
                 return;
             }
         }
@@ -225,7 +223,7 @@ extern "C" __global__ void __closesthit__radiance()
         {
             payload->bsdfDir = make_float3(0.f);
             payload->bsdfPdf = 0.f;
-            payload->luminous_contribution = nee_contribution;
+            payload->contribution = nee_contribution;
             return;
         }
 
@@ -237,6 +235,6 @@ extern "C" __global__ void __closesthit__radiance()
         payload->lastBounceWasDelta = (matType == MaterialType::MIRROR || matType == MaterialType::TRANSPARENT) ? 1 : 0;
         
         params.throughputs[qid] = next_throughput;
-        payload->luminous_contribution = nee_contribution;
+        payload->contribution = nee_contribution;
     }
 }

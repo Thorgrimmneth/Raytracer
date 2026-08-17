@@ -32,7 +32,7 @@ extern "C" __global__ void __raygen__radiance()
         payload.depth = bounce;
 
         payload.hit = 0;
-        payload.accumulated_color = make_float3(0.f);
+        payload.contribution = make_float3(0.f);
 
         payload.lastBounceWasDelta = lastBounceWasDelta;
 
@@ -63,7 +63,7 @@ extern "C" __global__ void __raygen__radiance()
 
         if (!payload.hit)
         {
-            params.accum_buffer[qid] += params.throughputs[qid] * payload.accumulated_color;
+            params.accum_buffer[qid] += params.throughputs[qid] * payload.contribution;
 
             break;
         }
@@ -72,7 +72,7 @@ extern "C" __global__ void __raygen__radiance()
         // NEE / EMISSION
         // ========================================================
 
-        params.accum_buffer[qid] += payload.luminous_contribution;
+        params.accum_buffer[qid] += payload.contribution;
 
         // ========================================================
         // TERMINATE PATH

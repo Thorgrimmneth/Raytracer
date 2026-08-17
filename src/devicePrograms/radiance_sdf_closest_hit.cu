@@ -50,9 +50,7 @@ extern "C" __global__ void __closesthit__radiance__sdf()
     payload->t = optixGetRayTmax();
     payload->position = p;
     payload->normal = NWorld;
-    payload->objectIndex = optixGetInstanceId();
     payload->materialIndex = sdf.getMaterialIndex();
-    payload->object_type = HIT_SDF;
 
     // ============================================================
     // Material Shading - All Materials
@@ -74,7 +72,7 @@ extern "C" __global__ void __closesthit__radiance__sdf()
         switch (matType)
         {
         case MaterialType::EMISSIVE: {
-            payload->luminous_contribution = params.throughputs[qid] * mtl.color() * mtl.intensity();
+            payload->contribution = params.throughputs[qid] * mtl.color() * mtl.intensity();
             payload->bsdfDir = make_float3(0.f);
             payload->bsdfPdf = 0.f;
             return;
@@ -191,7 +189,7 @@ extern "C" __global__ void __closesthit__radiance__sdf()
         default: {
             payload->bsdfDir = make_float3(0.f);
             payload->bsdfPdf = 0.f;
-            payload->luminous_contribution = make_float3(0.f);
+            payload->contribution = make_float3(0.f);
             return;
         }
         }
@@ -206,7 +204,7 @@ extern "C" __global__ void __closesthit__radiance__sdf()
         {
             payload->bsdfDir = make_float3(0.f);
             payload->bsdfPdf = 0.f;
-            payload->luminous_contribution = nee_contribution;
+            payload->contribution = nee_contribution;
             return;
         }
 
@@ -215,7 +213,7 @@ extern "C" __global__ void __closesthit__radiance__sdf()
         {
             payload->bsdfDir = make_float3(0.f);
             payload->bsdfPdf = 0.f;
-            payload->luminous_contribution = nee_contribution;
+            payload->contribution = nee_contribution;
             return;
         }
 
@@ -231,6 +229,6 @@ extern "C" __global__ void __closesthit__radiance__sdf()
         payload->lastBounceWasDelta = (matType == MaterialType::MIRROR || matType == MaterialType::TRANSPARENT) ? 1 : 0;
 
         params.throughputs[qid] = next_throughput;
-        payload->luminous_contribution = nee_contribution;
+        payload->contribution = nee_contribution;
     }
 }

@@ -16,7 +16,7 @@ extern "C" __global__ void __miss__radiance()
     float3 direction = optixGetWorldRayDirection();
     if (direction.y <= -0.3f)
     {
-        payload->accumulated_color = make_float3(0.f);
+        payload->contribution = make_float3(0.f);
         payload->hit = 0;
         return;
     }
@@ -159,6 +159,6 @@ extern "C" __global__ void __miss__radiance()
     //------------------------------------------------------------------
     // Accumulation
     //------------------------------------------------------------------
-    payload->accumulated_color = params.throughputs[optixGetLaunchIndex().x] * sky;
+    payload->contribution = params.throughputs[optixGetLaunchIndex().x] * sky;
     payload->hit = 0;
 }
