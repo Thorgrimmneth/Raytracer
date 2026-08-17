@@ -40,13 +40,13 @@ void OptixPipelineManager::create(
         )
     );
 
-    /*if(logSize > 1)
+    if(logSize > 1)
     {
         std::cout
             << "Pipeline log:\n"
             << log
             << std::endl;
-    }*/
+    }
 }
 
 void OptixPipelineManager::create(

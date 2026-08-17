@@ -51,5 +51,10 @@ extern "C" __global__ void __raygen__radiance()
         params.hit_buffers.distances[qid] = payload.t;
         params.hit_buffers.types[qid] = payload.object_type;
         params.hit_buffers.objectIndices[qid] = payload.objectIndex;
+        
+        // Add direct lighting contribution
+        params.accum_buffer[params.pixelIndices[qid]] += payload.luminous_contribution;
     }
+    if(payload.hit == 0)
+        params.accum_buffer[params.pixelIndices[qid]] += payload.accumulated_color;
 }

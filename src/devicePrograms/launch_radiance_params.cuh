@@ -4,28 +4,48 @@
 #include <cuda_runtime.h>
 #include <stdint.h>
 
+#include "../renderingGPU/utils/rng.cuh"
 #include "../renderingGPU/utils/object_type.h"
 #include "../renderingGPU/materials/material.cuh"
 #include "../renderingGPU/raytracingUtils/ray.cuh"
 #include "../renderingGPU/utils/op.cuh"
 #include "../renderingGPU/objects/triangle_mesh.cuh"
 #include "../renderingGPU/utils/shading_data.cuh"
-// Minimal hit record for internal scene queries (lightPdf, etc)
+
+// Forward declare Light to avoid circular dependencies
+struct Light;
 
 struct LaunchRadianceParams
 {
-    float3* origins = nullptr;
-    float3* directions = nullptr;
-
+    float3* origins;
+    float3* directions;
+    float3* accum_buffer;
+    float3* throughputs;
+    int* pixelIndices;
+    RNG* rngs;
     HitBuffers hit_buffers;
 
-    int active_count = 0;
+    int active_count;
+    int depth;
+    OptixTraversableHandle traversable;
 
-    OptixTraversableHandle traversable = 0;
-    
-    // Mesh instances for per-instance data lookup (material, geometry index, etc.)
-    MeshInstance* meshInstances = nullptr;
-    Material* materials = nullptr;
-    int nbMeshInstances = 0;
-    int nbMaterials = 0;
+    MeshInstance* meshInstances;
+    Material* materials;
+    int nbMeshInstances;
+    int nbMaterials;
+
+    float3 sunDirection;
+
+    float HR;
+    float HM;
+
+    float3 betaR;
+    float3 betaM;
+
+    float atmosphereSize;
+
+    int nbSkySamples;
+
+    float sunAngularRadius;
+    float sunHalfAngularRadius;
 };

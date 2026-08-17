@@ -58,6 +58,8 @@ class Renderer::Impl
 
     uint depth = 0;
 
+    float3 sun_direction = make_float3(0.f); // Store sun direction for render passes
+
     OptixPassData<LaunchRadianceParams> radiance_pass;
     OptixPassData<LaunchShadowParams> shadow_pass;
     float3 *d_normalized_buffer = nullptr;
@@ -160,7 +162,7 @@ HOST void init_constant(int width, int height, Camera c_camera, float4 sunDir)
 {
     int c_nbBounces = 8;
     float c_earthRadius = 6360e3f;
-    float3 c_sunDirection = make_float3(sunDir);
+    float3 c_sunDirection = normalize(make_float3(sunDir));
     int c_skyColorSamples = 4;
     float c_hr = 1.f / 7994.f;
     float c_hm = 1.f / 1200.f;
@@ -191,19 +193,18 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     float global_size = sizeof(Impl);
     impl->H_CAMERA = init_camera(p_width, p_height);
     global_size += sizeof(Camera);
+    float3 sunDir = normalize(make_float3(sunDirx, sunDiry, sunDirz));
+    impl->sun_direction = sunDir;
     init_constant(p_width, p_height, impl->H_CAMERA, make_float4(sunDirx, sunDiry, sunDirz, 0.f));
     impl->WIDTH = p_width;
     impl->HEIGHT = p_height;
     impl->MIN_SHADOW_RAY_NUMBER = p_width * p_height;
-    float3 sunDir = make_float3(sunDirx, sunDiry, sunDirz);
-
     setSeed(43);
-    //impl->scene = spheres(sunDir, impl->radiance_pass, impl->shadow_pass, global_size, rngManip);
-    //impl->scene = showcase(sunDir, impl->radiance_pass, impl->shadow_pass, global_size);
+    // impl->scene = spheres(sunDir, impl->radiance_pass, impl->shadow_pass, global_size, rngManip);
+    // impl->scene = showcase(sunDir, impl->radiance_pass, impl->shadow_pass, global_size);
     impl->scene = loadScene(sunDir, impl->radiance_pass, impl->shadow_pass, global_size, rngManip);
 
     impl->BUFFER_SIZE_FLOAT3 = impl->WIDTH * impl->HEIGHT * sizeof(float3);
-    
 
     // =========================
     // GPU buffers
@@ -237,7 +238,7 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     impl->hit_buffers.init(pixel_count, global_size);
     impl->shadow_queue.init(pixel_count * 2, global_size); // Assuming a maximum of 2 shadow rays per pixel
     cudaMalloc(&impl->d_shadow_count, sizeof(int));
-    global_size += pixel_count * sizeof(int) * 2; //d_keys and d_values
+    global_size += pixel_count * sizeof(int) * 2; // d_keys and d_values
 
     cudaMemcpy(impl->current_queue.active_count, &pixel_count, sizeof(int), cudaMemcpyHostToDevice);
 
@@ -329,7 +330,8 @@ void generatePrimaryRaysKernel(float3 *directions, RNG *p_rng, int *p_pixelIndic
     p_pixelIndices[pixel_index] = pixel_index;
 
     uint seed = (pixel_index * 0x9E3779B9u) ^ (sample_count * 0x6C078965u);
-    RNG rng(seed);
+    RNG rng;
+    rng.state = seed;
 
     float sx = (x + rng.nextFloat()) * invWidth;
     float sy = (y + rng.nextFloat()) * invHeight;
@@ -415,12 +417,23 @@ float Renderer::render_no_text(bool outputImage, bool convergence)
     int h_shadowCount = 0;
     impl->shadow_pass.params.materials = impl->scene.materials;
     impl->shadow_pass.params.nbMaterials = impl->scene.nbMaterials;
+
+    impl->radiance_pass.params.sunDirection = impl->sun_direction;
+    impl->radiance_pass.params.HR = 1.f / 7994.f;
+    impl->radiance_pass.params.HM = 1.f / 1200.f;
+    impl->radiance_pass.params.betaR = make_float3(3.8e-6f, 13.5e-6f, 33.1e-6f);
+    impl->radiance_pass.params.betaM = make_float3(21e-6f);
+    impl->radiance_pass.params.atmosphereSize = 60000.f;
+    impl->radiance_pass.params.nbSkySamples = 4;
+    impl->radiance_pass.params.sunAngularRadius = cosf(2.1f * GPUPIf / 180.f);
+    impl->radiance_pass.params.sunHalfAngularRadius = cosf(2.1f * GPUPIf / 180.f * 0.5f);
+    
+
     // -------------------------------------------------------------------------
     // 2. Boucle wavefront activeQueue
     // -------------------------------------------------------------------------
     for (int bounce = 0; bounce < impl->MAX_BOUNCES; bounce++)
     {
-
         if (h_active_count == 0)
             break;
 
@@ -434,6 +447,11 @@ float Renderer::render_no_text(bool outputImage, bool convergence)
         impl->radiance_pass.params.directions = impl->current_queue.directions;
         impl->radiance_pass.params.hit_buffers = impl->hit_buffers;
         impl->radiance_pass.params.active_count = h_active_count;
+        impl->radiance_pass.params.accum_buffer = impl->d_accum_buffer;
+        impl->radiance_pass.params.throughputs = impl->current_queue.throughputs;
+        impl->radiance_pass.params.depth = bounce;
+        impl->radiance_pass.params.pixelIndices = impl->current_queue.pixelIndices;
+        impl->radiance_pass.params.rngs = impl->current_queue.rng;
 
         cudaMemcpy(reinterpret_cast<void *>(impl->radiance_pass.d_params), &impl->radiance_pass.params,
                    sizeof(LaunchRadianceParams), cudaMemcpyHostToDevice);
@@ -457,7 +475,7 @@ float Renderer::render_no_text(bool outputImage, bool convergence)
             impl->hit_buffers.normals, impl->hit_buffers.materialIndices, impl->hit_buffers.distances,
             impl->hit_buffers.objectIndices, impl->hit_buffers.types, h_active_count);
 
-        for (int i = 0; i < MATERIAL_TYPE_COUNT; i++)
+        for (int i = 2; i < MATERIAL_TYPE_COUNT; i++)
         {
             int offset = ranges.offset[i];
             int count = ranges.count[i];

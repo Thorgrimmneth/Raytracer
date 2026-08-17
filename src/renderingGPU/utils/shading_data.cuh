@@ -5,18 +5,18 @@
 
 struct RayQueue
 {
-    float3 *origins = nullptr;
-    float3 *directions = nullptr;
-    float3 *throughputs = nullptr;
+    float3 *origins;
+    float3 *directions;
+    float3 *throughputs;
 
-    bool *lastBounceWasDelta = nullptr;
-    float *lastBsdfPdf = nullptr;
-    bool *isInside = nullptr;
+    bool *lastBounceWasDelta;
+    float *lastBsdfPdf;
+    bool *isInside;
 
-    RNG *rng = nullptr;
-    int *pixelIndices = nullptr;
+    RNG *rng;
+    int *pixelIndices;
 
-    int *active_count = nullptr;
+    int *active_count;
 
     void destroy()
     {
@@ -202,13 +202,13 @@ struct SortedRayQueue
 
 struct HitBuffers
 {
-    float3 *positions = nullptr;
-    float3 *normals = nullptr;
-    int *materialIndices = nullptr;
-    float *distances = nullptr;
-    int *types = nullptr;
-    int *objectIndices = nullptr;
-    int *mask = nullptr;
+    float3 *positions;
+    float3 *normals;
+    int *materialIndices;
+    float *distances;
+    int *types;
+    int *objectIndices;
+    int *mask;
 
     void destroy()
     {

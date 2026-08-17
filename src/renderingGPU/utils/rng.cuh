@@ -6,11 +6,6 @@ struct RNG
 {
     uint state;
 
-    DEVICE 
-    RNG(uint seed)
-        : state(seed)
-    {}
-
     D_FORCEINLINE 
     uint nextUInt()
     {
