@@ -9,10 +9,9 @@
 #include "../utils/op.cuh"
 #include "../utils/rng.cuh"
 #include "../utils/simplified_def.cuh"
+#include "light_context.cuh"
 
 #include "lightsample.cuh"
-
-struct Scene;
 
 enum LightType : uint8_t
 {
@@ -88,9 +87,9 @@ struct alignas(16) Light
     // SAMPLING
     //
 
-    DEVICE LightSample sampleSphereGeom(const float3 &p_point, RNG &rng, const Scene &scene) const;
+    DEVICE LightSample sampleSphereGeom(const float3 &p_point, RNG &rng, const LightContext &ctx) const;
 
-    DEVICE LightSample samplePlaneGeom(const float3 &p_point, RNG &rng, const Scene &scene) const;
+    DEVICE LightSample samplePlaneGeom(const float3 &p_point, RNG &rng, const LightContext &ctx) const;
 
     DEVICE LightSample sampleSDFGeom(const float3 &p_point, RNG &rng, const SDF *scene_sdfs,
                                      const Material *scene_materials) const;
@@ -108,7 +107,7 @@ struct alignas(16) Light
 
     DEVICE LightSample sampleQuad(const float3 &p_point, RNG &rng) const;
 
-    DEVICE LightSample sample(const float3 &p_point, RNG &rng, const Scene &scene) const;
+    DEVICE LightSample sample(const float3 &p_point, RNG &rng, const LightContext &ctx) const;
 
     DEVICE LightSample sample(const float3 &p_point, RNG &rng) const;
 

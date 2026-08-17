@@ -289,15 +289,15 @@ DEVICE LightSample Light::sampleMeshGeom(const float3 &p_point, RNG &rng, const 
     return ls;
 }
 
-DEVICE LightSample Light::sample(const float3 &p_point, RNG &rng, const Scene &scene) const
+DEVICE LightSample Light::sample(const float3 &p_point, RNG &rng, const LightContext &ctx) const
 {
     switch (getType())
     {
     case SDF_GEOM:
-        return sampleSDFGeom(p_point, rng, scene.sdfGeometries.sdfs, scene.materials);
+        return sampleSDFGeom(p_point, rng, ctx.sdfs, ctx.materials);
 
     case MESH_GEOM:
-        return sampleMeshGeom(p_point, rng, scene.meshInstances, scene.meshGeometries, scene.materials);
+        return sampleMeshGeom(p_point, rng, ctx.meshInstances, ctx.meshGeometries, ctx.materials);
 
     default:
         return sample(p_point, rng);

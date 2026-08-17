@@ -11,9 +11,8 @@
 #include "../renderingGPU/utils/op.cuh"
 #include "../renderingGPU/objects/triangle_mesh.cuh"
 #include "../renderingGPU/utils/shading_data.cuh"
-
-// Forward declare Light to avoid circular dependencies
-struct Light;
+#include "../renderingGPU/lights/light_context.cuh"
+#include "../renderingGPU/lights/light.cuh"
 
 struct LaunchRadianceParams
 {
@@ -29,8 +28,6 @@ struct LaunchRadianceParams
     int depth;
     OptixTraversableHandle traversable;
 
-    MeshInstance* meshInstances;
-    Material* materials;
     int nbMeshInstances;
     int nbMaterials;
 
@@ -48,4 +45,10 @@ struct LaunchRadianceParams
 
     float sunAngularRadius;
     float sunHalfAngularRadius;
+
+    int nbLights;
+    Light* lights;
+    float* lightCumulativeWeights;
+    float* lightProbabilities;
+    LightContext lightContext;
 };

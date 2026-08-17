@@ -1,10 +1,13 @@
+#include "../renderingGPU/lights/light.cuh"
+#include "../renderingGPU/lights/light_selection_utils.cuh"
+#include "../renderingGPU/lights/lightsample.cuh"
 #include "../renderingGPU/optix/optix_payload.h"
 #include "../renderingGPU/optix/optix_sbt_manager.h"
+#include "../renderingGPU/renderingUtils/shading_kernels.cuh"
 #include "../renderingGPU/utils/object_type.h"
 #include "../renderingGPU/utils/op.cuh"
 #include "../renderingGPU/utils/packing.h"
 #include "../renderingGPU/utils/rng.cuh"
-#include "../renderingGPU/renderingUtils/shading_kernels.cuh"
 #include "launch_radiance_params.cuh"
 #include <optix.h>
 #include <optix_device.h>
@@ -34,15 +37,15 @@ extern "C" __global__ void __closesthit__radiance()
     // Get material index and apply mesh transformation to normal
     uint instanceIndex = optixGetInstanceId();
 
-    if (params.meshInstances && instanceIndex < params.nbMeshInstances)
+    if (params.lightContext.meshInstances && instanceIndex < params.nbMeshInstances)
     {
         // Transform normal from model space to world space
-        const float *transform = params.meshInstances[instanceIndex].transform;
+        const float *transform = params.lightContext.meshInstances[instanceIndex].transform;
 
         float3 N_world = transformVector(transform, N);
 
         N = normalize(N_world);
-        payload->materialIndex = params.meshInstances[instanceIndex].materialIndex;
+        payload->materialIndex = params.lightContext.meshInstances[instanceIndex].materialIndex;
     }
     else
     {
@@ -58,8 +61,8 @@ extern "C" __global__ void __closesthit__radiance()
     payload->hit = 1;
 
     payload->t = optixGetRayTmax();
-
-    payload->position = optixGetWorldRayOrigin() + payload->t * optixGetWorldRayDirection();
+    float3 position = optixGetWorldRayOrigin() + payload->t * optixGetWorldRayDirection();
+    payload->position = position;
 
     payload->normal = N;
     payload->objectIndex = instanceIndex;
@@ -68,20 +71,20 @@ extern "C" __global__ void __closesthit__radiance()
     // ============================================================
     // Lambert Shading
     // ============================================================
-    
+
     uint qid = optixGetLaunchIndex().x;
-    
+
     if (qid < params.active_count && params.rngs)
     {
-        Material &mtl = params.materials[payload->materialIndex];
-        
+        const Material &mtl = params.lightContext.materials[payload->materialIndex];
+
         // Skip non-Lambert materials
         if (mtl.type() != MaterialType::LAMBERT)
             return;
-        
-        RNG &rng = params.rngs[qid];
+
+        RNG &rng = params.rngs[params.pixelIndices[qid]];
         float3 direction = optixGetWorldRayDirection();
-        
+
         // Lambert BSDF sampling
         float e1 = rng.nextFloat();
         float e2 = rng.nextFloat();
@@ -100,14 +103,24 @@ extern "C" __global__ void __closesthit__radiance()
         float cosTheta_bsdf = fmaxf(dot(N, bsdfDir), 0.f);
         float bsdf_pdf = cosTheta_bsdf * M_1_PIf;
 
-        if(bsdf_pdf <= 0.f)
+        if (bsdf_pdf <= 0.f)
         {
             payload->luminous_contribution = make_float3(0.f);
             return;
         }
-        payload->luminous_contribution = mtl.color() * cosTheta_bsdf * M_1_PIf / bsdf_pdf;
-        
+
+        if (params.nbLights > 0)
+        {
+            int lightIndex = selectLightByImportance(params.nbLights, params.lightCumulativeWeights, rng);
+
+            Light &light = params.lights[lightIndex];
+
+            //LightSample ls = light.sample(payload->position, rng, params.lightContext);
+        }
         payload->bsdfDir = bsdfDir;
         payload->bsdfPdf = bsdf_pdf;
+
+        // Store contribution for accumulation
+        payload->luminous_contribution = mtl.color() * cosTheta_bsdf * M_1_PIf / bsdf_pdf;
     }
 }

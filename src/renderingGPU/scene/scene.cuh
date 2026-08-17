@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "../lights/light.cuh"
+#include "../lights/light_context.cuh"
 #include "../materials/material.cuh"
 
 #include "../objects/plane.cuh"

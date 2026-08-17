@@ -780,10 +780,22 @@ void fillParams(OptixPassData<LaunchRadianceParams> &radiance_pass, OptixPassDat
                 OptixLaunchParamsManager<LaunchShadowParams> &launchParamsManagerShadow, Scene &scene)
 {
 
-    launchParamsManagerRadiance.params.meshInstances = scene.meshInstances;
+    
     launchParamsManagerRadiance.params.nbMeshInstances = scene.nbMeshInstances;
-    launchParamsManagerRadiance.params.materials = scene.materials;
-    launchParamsManagerRadiance.params.nbMaterials = scene.nbMaterials;
+    LightContext lightContext;
+
+    lightContext.materials = scene.materials;
+    lightContext.meshGeometries = scene.meshGeometries;
+    lightContext.sdfs = scene.sdfGeometries.sdfs;
+    lightContext.meshInstances = scene.meshInstances;
+
+    launchParamsManagerRadiance.params.nbLights = scene.nbLights;
+    launchParamsManagerRadiance.params.lights = scene.lights;
+    launchParamsManagerRadiance.params.lightCumulativeWeights = scene.lightCumulativeWeights;
+    launchParamsManagerRadiance.params.lightProbabilities = scene.lightProbabilities;
+
+    launchParamsManagerRadiance.params.lightContext = lightContext;
+
     // Update launch params on GPU with mesh instance pointers
     CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerRadiance.d_params),
                           &launchParamsManagerRadiance.params, sizeof(LaunchRadianceParams), cudaMemcpyHostToDevice));

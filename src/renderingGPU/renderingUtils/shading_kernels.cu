@@ -210,7 +210,7 @@ __global__ void shadeLambertKernel(Scene scene, float3 *directions, float3 *thro
     {
         int lightIndex = selectLightByImportance(scene.nbLights, scene.lightCumulativeWeights, rng);
         Light &light = scene.lights[lightIndex];
-        LightSample ls = light.sample(pos, rng, scene);
+        LightSample ls = light.sample(pos, rng);
 
         float cosTheta_nee = fmaxf(dot(normal, ls.direction), 0.0f);
         float lightPdf = ls.pdf * getLightProbability(scene.nbLights, scene.lightProbabilities, lightIndex);
@@ -344,7 +344,7 @@ __global__ void shadeMetalKernel(Scene scene, float3 *directions, float3 *throug
     {
         int lightIndex = selectLightByImportance(scene.nbLights, scene.lightCumulativeWeights, rng);
         Light &light = scene.lights[lightIndex];
-        LightSample ls = light.sample(pos, rng, scene);
+        LightSample ls = light.sample(pos, rng);
 
         float cosTheta_nee = fmaxf(dot(normal, ls.direction), 0.0f);
         float lightPdf = ls.pdf * getLightProbability(scene.nbLights, scene.lightProbabilities, lightIndex);
@@ -483,7 +483,7 @@ __global__ void shadePlasticNEEKernel(Scene scene, float3 *directions, float3 *t
 
         Light &light = scene.lights[lightIndex];
         
-        LightSample ls = light.sample(pos, rng, scene);
+        LightSample ls = light.sample(pos, rng);
 
         neeAlive = ls.pdf > 0.f;
 
