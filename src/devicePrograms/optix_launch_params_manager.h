@@ -2,7 +2,6 @@
 
 #include "../src/renderingGPU/raytracingUtils/ray.cuh"
 #include "launch_radiance_params.cuh"
-#include "launch_shadow_params.cuh"
 #include "../src/renderingGPU/utils/check.cuh"
 #include <vector>
 

@@ -1,6 +1,6 @@
 #include "../renderingGPU/optix/optix_payload.h"
+#include "../renderingGPU/optix/optix_ray_type.h"
 #include "../renderingGPU/utils/op.cuh"
-
 #include "../renderingGPU/utils/packing.h"
 
 #include <optix.h>
@@ -14,47 +14,96 @@ __constant__ LaunchRadianceParams params;
 
 extern "C" __global__ void __raygen__radiance()
 {
-    uint3 launchIndex = optixGetLaunchIndex();
-
-    uint qid = launchIndex.x;
+    const uint qid = optixGetLaunchIndex().x;
 
     if (qid >= params.active_count)
         return;
 
-    Payload payload;
+    float3 origin = params.origins[qid];
+    float3 direction = params.directions[qid];
 
-    payload.hit = 0;
+    bool lastBounceWasDelta = params.lastBounceWasDelta ? params.lastBounceWasDelta[qid] : false;
 
-    uint32_t p0;
-    uint32_t p1;
+    bool isInside = params.isInside ? params.isInside[qid] : false;
 
-    packPointer(&payload, p0, p1);
-    optixTraverse(params.traversable, params.origins[qid], params.directions[qid], 0.001f, 20000.f, 0.0f,
-                  OptixVisibilityMask(255), OPTIX_RAY_FLAG_DISABLE_ANYHIT, 0, 1, 0, p0, p1);
-    optixReorder();
-    optixInvoke(p0, p1);
-    //optixTrace(params.traversable, params.origins[qid], params.directions[qid], 0.001f, 20000.f, 0.0f,
-    //   OptixVisibilityMask(255), OPTIX_RAY_FLAG_DISABLE_ANYHIT, 0, 1, 0, p0, p1);
-
-    params.hit_buffers.mask[qid] = payload.hit;
-
-    if (payload.hit)
+    for (int bounce = 0; bounce < params.maxBounces; ++bounce)
     {
-        /*printf("Hit at index %d: position (%f, %f, %f), normal (%f, %f, %f), materialIndex %d\n", qid,
-               payload.position.x, payload.position.y, payload.position.z,
-               payload.normal.x, payload.normal.y, payload.normal.z,
-               payload.materialIndex);*/
-        // Store hit data in SoA format
-        params.hit_buffers.positions[qid] = payload.position;
-        params.hit_buffers.normals[qid] = payload.normal;
-        params.hit_buffers.materialIndices[qid] = payload.materialIndex;
-        params.hit_buffers.distances[qid] = payload.t;
-        params.hit_buffers.types[qid] = payload.object_type;
-        params.hit_buffers.objectIndices[qid] = payload.objectIndex;
-        
-        // Add direct lighting contribution
-        params.accum_buffer[params.pixelIndices[qid]] += payload.luminous_contribution;
+        Payload payload{};
+        payload.depth = bounce;
+
+        payload.hit = 0;
+        payload.accumulated_color = make_float3(0.f);
+
+        payload.lastBounceWasDelta = lastBounceWasDelta;
+
+        payload.isInside = isInside;
+
+        uint32_t p0;
+        uint32_t p1;
+
+        packPointer(&payload, p0, p1);
+
+        optixTrace(params.traversable,
+
+                   origin, direction,
+
+                   1e-3f, 20000.f, 0.f,
+
+                   OptixVisibilityMask(255),
+
+                   OPTIX_RAY_FLAG_DISABLE_ANYHIT,
+
+                   RAY_TYPE_RADIANCE, RAY_TYPE_COUNT, RAY_TYPE_RADIANCE,
+
+                   p0, p1);
+
+        // ========================================================
+        // MISS
+        // ========================================================
+
+        if (!payload.hit)
+        {
+            params.accum_buffer[qid] += params.throughputs[qid] * payload.accumulated_color;
+
+            break;
+        }
+
+        // ========================================================
+        // NEE / EMISSION
+        // ========================================================
+
+        params.accum_buffer[qid] += payload.luminous_contribution;
+
+        // ========================================================
+        // TERMINATE PATH
+        // ========================================================
+
+        if (payload.bsdfPdf <= 0.f)
+            break;
+
+        // ========================================================
+        // NEXT BOUNCE
+        // ========================================================
+
+        // Offset ray origin away from surface, accounting for being inside transparent material
+        direction = payload.bsdfDir;
+
+        float side = dot(payload.bsdfDir, payload.normal) > 0.f ? 1.f : -1.f;
+
+        origin = payload.position + payload.normal * (side * 1e-3f);
+
+        direction = payload.bsdfDir;
+
+        lastBounceWasDelta = payload.lastBounceWasDelta;
+
+        isInside = payload.isInside;
     }
-    if(payload.hit == 0)
-        params.accum_buffer[params.pixelIndices[qid]] += payload.accumulated_color;
+
+    // Store final path state if you still need it outside
+    params.origins[qid] = origin;
+    params.directions[qid] = normalize(direction);
+
+    params.lastBounceWasDelta[qid] = lastBounceWasDelta;
+
+    params.isInside[qid] = isInside;
 }

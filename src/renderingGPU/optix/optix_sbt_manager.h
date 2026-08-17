@@ -7,9 +7,9 @@
 
 #include "../objects/sdf.cuh"
 #include "../objects/triangle_mesh.cuh"
-#include "../src/renderingGPU/utils/op.cuh"
-#include "optix_ray_type.h"
+
 #include "optix_program_group_manager.h"
+#include "optix_ray_type.h"
 
 template <typename T> struct alignas(OPTIX_SBT_RECORD_ALIGNMENT) SbtRecord
 {
@@ -67,7 +67,8 @@ class OptixSBTManager
 
   private:
     CUdeviceptr d_raygenRecord = 0;
+
     CUdeviceptr d_missRecord = 0;
+
     CUdeviceptr d_hitRecords = 0;
-    CUdeviceptr d_anyHitRecords = 0;
 };

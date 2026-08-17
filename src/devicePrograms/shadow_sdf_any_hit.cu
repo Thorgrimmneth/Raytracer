@@ -2,12 +2,12 @@
 #include "../renderingGPU/optix/optix_payload.h"
 #include "../renderingGPU/optix/optix_sbt_manager.h"
 #include "../renderingGPU/utils/packing.h"
-#include "launch_shadow_params.cuh"
+#include "launch_radiance_params.cuh"
 #include <optix.h>
 #include <optix_device.h>
 
 extern "C" {
-__constant__ LaunchShadowParams params;
+__constant__ LaunchRadianceParams params;
 }
 
 extern "C" __global__ void __anyhit__shadow__sdf()
@@ -20,7 +20,7 @@ extern "C" __global__ void __anyhit__shadow__sdf()
     const HitData *data = reinterpret_cast<const HitData *>(optixGetSbtDataPointer());
     const SDF &sdf = data->sdf.sdfs[optixGetPrimitiveIndex()];
 
-    Material &mat = params.materials[sdf.getMaterialIndex()];
+    const Material &mat = params.lightContext.materials[sdf.getMaterialIndex()];
     MaterialType type = mat.type();
     if (type != MaterialType::TRANSPARENT)
     {

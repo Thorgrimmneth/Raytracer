@@ -1,46 +1,7 @@
 #include "optix_program_group_manager.h"
 
-void OptixProgramGroupManager::create(OptixContext context, OptixModule raygenModule,
-                                      const std::string &raygenName, OptixModule missModule,
-                                      const std::string &missName, OptixModule hitModule, const std::string &hitName,
-                                      OptixModule anyHitModule, const std::string &anyHitName, OptixModule intersectionModule, const std::string &intersectionName)
-{
-    if (!hitModule && !anyHitModule)
-    {
-        throw std::runtime_error("HitGroup must contain a ClosestHit or an AnyHit program.");
-    }
-
-    OptixProgramGroupOptions options = {};
-
-    OptixProgramGroupDesc raygenPGDesc = {};
-    raygenPGDesc.kind = OPTIX_PROGRAM_GROUP_KIND_RAYGEN;
-    raygenPGDesc.raygen.module = raygenModule;
-    raygenPGDesc.raygen.entryFunctionName = raygenName.c_str();
-
-    OPTIX_CHECK(optixProgramGroupCreate(context.deviceContext, &raygenPGDesc, 1, &options, nullptr, nullptr, &raygenPG));
-
-    OptixProgramGroupDesc missPGDesc = {};
-    missPGDesc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
-    missPGDesc.miss.module = missModule;
-    missPGDesc.miss.entryFunctionName = missName.c_str();
-
-    OPTIX_CHECK(optixProgramGroupCreate(context.deviceContext, &missPGDesc, 1, &options, nullptr, nullptr, &missPG));
-
-    OptixProgramGroupDesc hitPGDesc = {};
-    hitPGDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
-    hitPGDesc.hitgroup.moduleCH = hitModule;
-    hitPGDesc.hitgroup.entryFunctionNameCH = hitModule ? hitName.c_str() : nullptr;
-
-    hitPGDesc.hitgroup.moduleAH = anyHitModule;
-    hitPGDesc.hitgroup.entryFunctionNameAH = anyHitModule ? anyHitName.c_str() : nullptr;
-
-    hitPGDesc.hitgroup.moduleIS = intersectionModule;
-    hitPGDesc.hitgroup.entryFunctionNameIS = intersectionModule ? intersectionName.c_str() : nullptr;
-
-    OPTIX_CHECK(optixProgramGroupCreate(context.deviceContext, &hitPGDesc, 1, &options, nullptr, nullptr, &meshHitPG));
-}
-
-void OptixProgramGroupManager::addRaygenProgram(OptixContext context, const std::string &raygenModulePath, const std::string &raygenName)
+void OptixProgramGroupManager::addRaygenProgram(OptixContext context, const std::string &raygenModulePath,
+                                                const std::string &raygenName)
 {
     OptixProgramGroupOptions options = {};
 
@@ -52,128 +13,174 @@ void OptixProgramGroupManager::addRaygenProgram(OptixContext context, const std:
     raygenPGDesc.raygen.module = raygenModule.module;
     raygenPGDesc.raygen.entryFunctionName = raygenName.c_str();
 
-    OPTIX_CHECK(optixProgramGroupCreate(context.deviceContext, &raygenPGDesc, 1, &options, nullptr, nullptr, &raygenPG));
+    OPTIX_CHECK(
+        optixProgramGroupCreate(context.deviceContext, &raygenPGDesc, 1, &options, nullptr, nullptr, &raygenPG));
 }
 
-void OptixProgramGroupManager::addMissProgram(OptixContext context, const std::string &missModulePath, const std::string &missName)
+void OptixProgramGroupManager::addMissProgram(OptixContext context, const std::string &missModulePath,
+                                              const std::string &missName)
 {
     OptixProgramGroupOptions options = {};
 
-    OptixProgramGroupDesc missPGDesc = {};
-    missPGDesc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
-    OptixModuleManager missModule;
-    missModule.createFromPath(context, missModulePath);
-    modules.push_back(missModule);
-    missPGDesc.miss.module = missModule.module;
-    missPGDesc.miss.entryFunctionName = missName.c_str();
+    OptixProgramGroupDesc desc = {};
+    desc.kind = OPTIX_PROGRAM_GROUP_KIND_MISS;
 
-    OPTIX_CHECK(optixProgramGroupCreate(context.deviceContext, &missPGDesc, 1, &options, nullptr, nullptr, &missPG));
+    OptixModuleManager module;
+    module.createFromPath(context, missModulePath);
+
+    modules.push_back(module);
+
+    desc.miss.module = module.module;
+    desc.miss.entryFunctionName = missName.c_str();
+
+    OptixProgramGroup pg = nullptr;
+
+    OPTIX_CHECK(optixProgramGroupCreate(context.deviceContext, &desc, 1, &options, nullptr, nullptr, &pg));
+
+    missPGs.push_back(pg);
 }
 
-void OptixProgramGroupManager::addMeshHitProgram(OptixContext context, const std::string &closestModulePath, const std::string &closestName,
-                                                  const std::string &anyHitModulePath, const std::string &anyHitName,
-                                                  const std::string &intersectionModulePath, const std::string &intersectionName)
+void OptixProgramGroupManager::addMeshHitProgram(OptixContext context, const std::string &closestModulePath,
+                                                 const std::string &closestName, const std::string &anyHitModulePath,
+                                                 const std::string &anyHitName,
+                                                 const std::string &intersectionModulePath,
+                                                 const std::string &intersectionName)
 {
-    if (closestModulePath.empty() && anyHitModulePath.empty())
-    {
-        throw std::runtime_error("HitGroup must contain a ClosestHit or an AnyHit program.");
-    }
-
     OptixProgramGroupOptions options = {};
 
-    OptixProgramGroupDesc hitPGDesc = {};
-    hitPGDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+    OptixProgramGroupDesc desc = {};
+    desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+
     OptixModuleManager closestModule;
-    if(!closestModulePath.empty()) 
+    OptixModuleManager anyHitModule;
+    OptixModuleManager intersectionModule;
+
+    if (!closestModulePath.empty())
     {
         closestModule.createFromPath(context, closestModulePath);
         modules.push_back(closestModule);
-    }
-    hitPGDesc.hitgroup.moduleCH = closestModule.module;
-    hitPGDesc.hitgroup.entryFunctionNameCH = closestModule.module ? closestName.c_str() : nullptr;
 
-    OptixModuleManager anyHitModule;
-    if (!anyHitModulePath.empty()) 
+        desc.hitgroup.moduleCH = closestModule.module;
+        desc.hitgroup.entryFunctionNameCH = closestName.c_str();
+    }
+
+    if (!anyHitModulePath.empty())
     {
         anyHitModule.createFromPath(context, anyHitModulePath);
         modules.push_back(anyHitModule);
-    }
-    hitPGDesc.hitgroup.moduleAH = anyHitModule.module;
-    hitPGDesc.hitgroup.entryFunctionNameAH = anyHitModule.module ? anyHitName.c_str() : nullptr;
 
-    OptixModuleManager intersectionModule;
-    if (!intersectionModulePath.empty()) 
+        desc.hitgroup.moduleAH = anyHitModule.module;
+        desc.hitgroup.entryFunctionNameAH = anyHitName.c_str();
+    }
+
+    if (!intersectionModulePath.empty())
     {
         intersectionModule.createFromPath(context, intersectionModulePath);
         modules.push_back(intersectionModule);
-    }
-    hitPGDesc.hitgroup.moduleIS = intersectionModule.module;
-    hitPGDesc.hitgroup.entryFunctionNameIS = intersectionModule.module ? intersectionName.c_str() : nullptr;
 
-    OPTIX_CHECK(optixProgramGroupCreate(context.deviceContext, &hitPGDesc, 1, &options, nullptr, nullptr, &meshHitPG));
+        desc.hitgroup.moduleIS = intersectionModule.module;
+        desc.hitgroup.entryFunctionNameIS = intersectionName.c_str();
+    }
+
+    OptixProgramGroup pg = nullptr;
+
+    OPTIX_CHECK(optixProgramGroupCreate(context.deviceContext, &desc, 1, &options, nullptr, nullptr, &pg));
+
+    meshHitPGs.push_back(pg);
 }
 
-void OptixProgramGroupManager::addSdfHitProgram(OptixContext context, const std::string &closestModulePath, const std::string &closestName,
-                                                const std::string &anyHitModulePath, const std::string &anyHitName,
-                                                const std::string &intersectionModulePath, const std::string &intersectionName)
+void OptixProgramGroupManager::addSdfHitProgram(OptixContext context, const std::string &closestModulePath,
+                                                const std::string &closestName, const std::string &anyHitModulePath,
+                                                const std::string &anyHitName,
+                                                const std::string &intersectionModulePath,
+                                                const std::string &intersectionName)
 {
-    if (closestModulePath.empty() && anyHitModulePath.empty())
-    {
-        throw std::runtime_error("HitGroup must contain a ClosestHit or an AnyHit program.");
-    }
-
     OptixProgramGroupOptions options = {};
 
-    OptixProgramGroupDesc hitPGDesc = {};
-    hitPGDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+    OptixProgramGroupDesc desc = {};
+    desc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+
     OptixModuleManager closestModule;
-    if (!closestModulePath.empty()) 
+    OptixModuleManager anyHitModule;
+    OptixModuleManager intersectionModule;
+
+    if (!closestModulePath.empty())
     {
         closestModule.createFromPath(context, closestModulePath);
         modules.push_back(closestModule);
-    }
-    hitPGDesc.hitgroup.moduleCH = closestModule.module;
-    hitPGDesc.hitgroup.entryFunctionNameCH = closestModule.module ? closestName.c_str() : nullptr;
 
-    OptixModuleManager anyHitModule;
-    if (!anyHitModulePath.empty()) {
+        desc.hitgroup.moduleCH = closestModule.module;
+        desc.hitgroup.entryFunctionNameCH = closestName.c_str();
+    }
+
+    if (!anyHitModulePath.empty())
+    {
         anyHitModule.createFromPath(context, anyHitModulePath);
         modules.push_back(anyHitModule);
-    }
-    hitPGDesc.hitgroup.moduleAH = anyHitModule.module;
-    hitPGDesc.hitgroup.entryFunctionNameAH = anyHitModule.module ? anyHitName.c_str() : nullptr;
 
-    OptixModuleManager intersectionModule;
-    if (!intersectionModulePath.empty()) {
+        desc.hitgroup.moduleAH = anyHitModule.module;
+        desc.hitgroup.entryFunctionNameAH = anyHitName.c_str();
+    }
+
+    if (!intersectionModulePath.empty())
+    {
         intersectionModule.createFromPath(context, intersectionModulePath);
         modules.push_back(intersectionModule);
-    }
-    hitPGDesc.hitgroup.moduleIS = intersectionModule.module;
-    hitPGDesc.hitgroup.entryFunctionNameIS = intersectionModule.module ? intersectionName.c_str() : nullptr;
 
-    OPTIX_CHECK(optixProgramGroupCreate(context.deviceContext, &hitPGDesc, 1, &options, nullptr, nullptr, &sdfHitPG));
+        desc.hitgroup.moduleIS = intersectionModule.module;
+        desc.hitgroup.entryFunctionNameIS = intersectionName.c_str();
+    }
+
+    OptixProgramGroup pg = nullptr;
+
+    OPTIX_CHECK(optixProgramGroupCreate(context.deviceContext, &desc, 1, &options, nullptr, nullptr, &pg));
+
+    sdfHitPGs.push_back(pg);
 }
 
 void OptixProgramGroupManager::destroy()
 {
+    // Raygen
     if (raygenPG)
     {
         OPTIX_CHECK(optixProgramGroupDestroy(raygenPG));
         raygenPG = nullptr;
     }
-    if (missPG)
+
+    // Miss programs
+    for (OptixProgramGroup pg : missPGs)
     {
-        OPTIX_CHECK(optixProgramGroupDestroy(missPG));
-        missPG = nullptr;
+        if (pg)
+        {
+            OPTIX_CHECK(optixProgramGroupDestroy(pg));
+        }
     }
-    if (meshHitPG)
+    missPGs.clear();
+
+    // Mesh hit groups
+    for (OptixProgramGroup pg : meshHitPGs)
     {
-        OPTIX_CHECK(optixProgramGroupDestroy(meshHitPG));
-        meshHitPG = nullptr;
+        if (pg)
+        {
+            OPTIX_CHECK(optixProgramGroupDestroy(pg));
+        }
     }
-    if( sdfHitPG)
+    meshHitPGs.clear();
+
+    // SDF hit groups
+    for (OptixProgramGroup pg : sdfHitPGs)
     {
-        OPTIX_CHECK(optixProgramGroupDestroy(sdfHitPG));
-        sdfHitPG = nullptr;
+        if (pg)
+        {
+            OPTIX_CHECK(optixProgramGroupDestroy(pg));
+        }
     }
+    sdfHitPGs.clear();
+
+    // Modules
+    for (auto &module : modules)
+    {
+        module.destroy();
+    }
+    modules.clear();
 }

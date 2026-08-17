@@ -20,9 +20,10 @@ struct LaunchRadianceParams
     float3* directions;
     float3* accum_buffer;
     float3* throughputs;
-    int* pixelIndices;
+    int* lastBounceWasDelta;  // Track if previous bounce was from delta material
+    int* isInside;
     RNG* rngs;
-    HitBuffers hit_buffers;
+    //HitBuffers hit_buffers;
 
     int active_count;
     int depth;
@@ -30,7 +31,7 @@ struct LaunchRadianceParams
 
     int nbMeshInstances;
     int nbMaterials;
-
+    int maxBounces;
     float3 sunDirection;
 
     float HR;

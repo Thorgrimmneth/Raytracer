@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../../devicePrograms/launch_radiance_params.cuh"
-#include "../../devicePrograms/launch_shadow_params.cuh"
 #include "../../devicePrograms/optix_launch_params_manager.h"
 #include <optix_stubs.h>
 

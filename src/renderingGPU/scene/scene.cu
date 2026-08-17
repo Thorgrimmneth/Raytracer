@@ -132,8 +132,7 @@ void sortMaterials(SceneHelper &helper)
     }
 }
 
-Scene showcase(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
-               OptixPassData<LaunchShadowParams> &shadow_pass, float &global_size)
+Scene showcase(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass, float &global_size)
 {
     Scene scene;
     SceneHelper helper;
@@ -169,12 +168,13 @@ Scene showcase(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass
     helper.sdfsGPU.push_back(sdf);
 
     // metallic dragon
-    Material metal = Material::makeMaterial(make_float3(11.f, 217.f, 121.f)/255.f, METAL, 0.2f * 0.2f, 1.f);
+    Material metal = Material::makeMaterial(make_float3(11.f, 217.f, 121.f) / 255.f, METAL, 0.2f * 0.2f, 1.f);
     helper.materialsGPU.push_back(metal);
     Quaternion rotation2 = quaternionFromAxisAngle(make_float3(0.f, 1.f, 0.f), 20.f);
     float3 scale2 = make_float3(15.f);
     float3 translation2 = make_float3(4.f, 0.f, 0.f);
-    MeshInstance instance2 = createMeshInstance(helper, 1, helper.materialsGPU.size() - 1, scale2, rotation2, translation2);
+    MeshInstance instance2 =
+        createMeshInstance(helper, 1, helper.materialsGPU.size() - 1, scale2, rotation2, translation2);
     helper.meshInstancesGPU.push_back(instance2);
     // add ground plane last to avoid messing up the mesh instance indices
     addGround(helper);
@@ -204,13 +204,9 @@ Scene showcase(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass
     OptixContext context;
     context.initialize();
     OptixLaunchParamsManager<LaunchRadianceParams> launchParamsManagerRadiance;
-    OptixLaunchParamsManager<LaunchShadowParams> launchParamsManagerShadow;
     OptixPipelineManager pipelineManagerRadiance;
-    OptixPipelineManager pipelineManagerShadow;
     OptixSBTManager sbtManagerRadiance;
-    OptixSBTManager sbtManagerShadow;
-    initPassParam(context, launchParamsManagerRadiance, launchParamsManagerShadow, pipelineManagerRadiance,
-                  pipelineManagerShadow, sbtManagerRadiance, sbtManagerShadow, scene, helper);
+    initPassParam(context, launchParamsManagerRadiance, pipelineManagerRadiance, sbtManagerRadiance, scene, helper);
 
     std::vector<OptixGAS> gasList;
 
@@ -241,7 +237,7 @@ Scene showcase(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass
         computeTransform(meshInst, instance);
 
         instance.instanceId = i;
-        instance.sbtOffset = meshInst.geometryIndex; // Offset in SBT for this instance
+        instance.sbtOffset = meshInst.geometryIndex * 2; // Offset in SBT for this instance
 
         instance.visibilityMask = 255;
         instance.flags = OPTIX_INSTANCE_FLAG_NONE;
@@ -255,8 +251,8 @@ Scene showcase(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass
         OptixInstance sdfInstance{};
         float transform[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
         memcpy(sdfInstance.transform, transform, sizeof(transform));
-        sdfInstance.instanceId = helper.meshInstancesGPU.size(); // Next instance ID
-        sdfInstance.sbtOffset = helper.meshGeometriesGPU.size(); // Last SBT record
+        sdfInstance.instanceId = helper.meshInstancesGPU.size();     // Next instance ID
+        sdfInstance.sbtOffset = helper.meshGeometriesGPU.size() * 2; // Last SBT record
         sdfInstance.visibilityMask = 255;
         sdfInstance.flags = OPTIX_INSTANCE_FLAG_NONE;
         sdfInstance.traversableHandle = gasList.back().handle; // Last GAS is for SDFs
@@ -267,22 +263,18 @@ Scene showcase(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass
     ias.build(context.deviceContext, instances);
 
     launchParamsManagerRadiance.params.traversable = ias.handle;
+    launchParamsManagerRadiance.params.lastBounceWasDelta = nullptr;  // Will be set by renderer
     CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerRadiance.d_params),
                           &launchParamsManagerRadiance.params, sizeof(LaunchRadianceParams), cudaMemcpyHostToDevice));
-    launchParamsManagerShadow.params.traversable = ias.handle;
-    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerShadow.d_params),
-                          &launchParamsManagerShadow.params, sizeof(LaunchShadowParams), cudaMemcpyHostToDevice));
 
     scene.uploadObjects(helper);
 
     // Now set mesh instances in launch params after uploadObjects has allocated them
-    fillParams(radiance_pass, shadow_pass, pipelineManagerRadiance, pipelineManagerShadow, sbtManagerRadiance,
-               sbtManagerShadow, launchParamsManagerRadiance, launchParamsManagerShadow, scene);
+    fillParams(radiance_pass, pipelineManagerRadiance, sbtManagerRadiance, launchParamsManagerRadiance, scene);
     return scene;
 }
 
-Scene spheres(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
-              OptixPassData<LaunchShadowParams> &shadow_pass, float &global_size, int rngmanip)
+Scene spheres(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass, float &global_size, int rngmanip)
 {
     Scene scene;
     SceneHelper helper;
@@ -418,13 +410,9 @@ Scene spheres(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
     OptixContext context;
     context.initialize();
     OptixLaunchParamsManager<LaunchRadianceParams> launchParamsManagerRadiance;
-    OptixLaunchParamsManager<LaunchShadowParams> launchParamsManagerShadow;
     OptixPipelineManager pipelineManagerRadiance;
-    OptixPipelineManager pipelineManagerShadow;
     OptixSBTManager sbtManagerRadiance;
-    OptixSBTManager sbtManagerShadow;
-    initPassParam(context, launchParamsManagerRadiance, launchParamsManagerShadow, pipelineManagerRadiance,
-                  pipelineManagerShadow, sbtManagerRadiance, sbtManagerShadow, scene, helper);
+    initPassParam(context, launchParamsManagerRadiance, pipelineManagerRadiance, sbtManagerRadiance, scene, helper);
 
     std::vector<OptixGAS> gasList;
 
@@ -455,7 +443,7 @@ Scene spheres(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
         computeTransform(meshInst, instance);
 
         instance.instanceId = i;
-        instance.sbtOffset = meshInst.geometryIndex; // Offset in SBT for this instance
+        instance.sbtOffset = meshInst.geometryIndex * 2; // Offset in SBT for this instance
 
         instance.visibilityMask = 255;
         instance.flags = OPTIX_INSTANCE_FLAG_NONE;
@@ -469,8 +457,8 @@ Scene spheres(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
         OptixInstance sdfInstance{};
         float transform[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
         memcpy(sdfInstance.transform, transform, sizeof(transform));
-        sdfInstance.instanceId = helper.meshInstancesGPU.size(); // Next instance ID
-        sdfInstance.sbtOffset = helper.meshGeometriesGPU.size(); // Last SBT record
+        sdfInstance.instanceId = helper.meshInstancesGPU.size();     // Next instance ID
+        sdfInstance.sbtOffset = helper.meshGeometriesGPU.size() * 2; // Last SBT record
         sdfInstance.visibilityMask = 255;
         sdfInstance.flags = OPTIX_INSTANCE_FLAG_NONE;
         sdfInstance.traversableHandle = gasList.back().handle; // Last GAS is for SDFs
@@ -481,23 +469,19 @@ Scene spheres(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
     ias.build(context.deviceContext, instances);
 
     launchParamsManagerRadiance.params.traversable = ias.handle;
+    launchParamsManagerRadiance.params.lastBounceWasDelta = nullptr;
     CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerRadiance.d_params),
                           &launchParamsManagerRadiance.params, sizeof(LaunchRadianceParams), cudaMemcpyHostToDevice));
-    launchParamsManagerShadow.params.traversable = ias.handle;
-    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerShadow.d_params),
-                          &launchParamsManagerShadow.params, sizeof(LaunchShadowParams), cudaMemcpyHostToDevice));
 
     scene.uploadObjects(helper);
 
     // Now set mesh instances in launch params after uploadObjects has allocated them
-    fillParams(radiance_pass, shadow_pass, pipelineManagerRadiance, pipelineManagerShadow, sbtManagerRadiance,
-               sbtManagerShadow, launchParamsManagerRadiance, launchParamsManagerShadow, scene);
+    fillParams(radiance_pass, pipelineManagerRadiance, sbtManagerRadiance, launchParamsManagerRadiance, scene);
 
     return scene;
 }
 
-Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
-                OptixPassData<LaunchShadowParams> &shadow_pass, float &global_size, int rngmanip)
+Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass, float &global_size, int rngmanip)
 {
     Scene scene;
     SceneHelper helper;
@@ -560,6 +544,19 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
         }
         helper.sdfsGPU.push_back(sdf);
     }
+
+    /*MeshInstance instance =
+        createMeshInstance(helper, 0, 1, make_float3(1.f), quaternionFromAxisAngle(make_float3(0.f, 1.f, 0.f), 180.f),
+                           make_float3(0.f, 1.5f, 0.f));
+    if (helper.materialsGPU[1].type() == EMISSIVE)
+    {
+        Light light;
+        light.metadata = Light::packMetadata(LightType::MESH_GEOM, (int)helper.meshInstancesGPU.size());
+        helper.lightsGPU.push_back(light);
+        instance.lightIndex = (int)helper.lightsGPU.size() - 1;
+    }
+    helper.meshInstancesGPU.push_back(instance);*/
+    
     SDF sdf = load_sdf("data/bunnySDF/bunny_256.sdf");
     sdf.translation = make_float3(0.f, 2.f, 0.f);
     sdf.signedGrid.materialIndex = 1;
@@ -646,13 +643,9 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
     OptixContext context;
     context.initialize();
     OptixLaunchParamsManager<LaunchRadianceParams> launchParamsManagerRadiance;
-    OptixLaunchParamsManager<LaunchShadowParams> launchParamsManagerShadow;
     OptixPipelineManager pipelineManagerRadiance;
-    OptixPipelineManager pipelineManagerShadow;
     OptixSBTManager sbtManagerRadiance;
-    OptixSBTManager sbtManagerShadow;
-    initPassParam(context, launchParamsManagerRadiance, launchParamsManagerShadow, pipelineManagerRadiance,
-                  pipelineManagerShadow, sbtManagerRadiance, sbtManagerShadow, scene, helper);
+    initPassParam(context, launchParamsManagerRadiance, pipelineManagerRadiance, sbtManagerRadiance, scene, helper);
 
     // =========================
     // Create GAS for shared mesh geometries
@@ -688,7 +681,7 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
         computeTransform(meshInst, instance);
 
         instance.instanceId = i;
-        instance.sbtOffset = meshInst.geometryIndex; // Offset in SBT for this instance
+        instance.sbtOffset = meshInst.geometryIndex * 2; // Offset in SBT for this instance
 
         instance.visibilityMask = 255;
         instance.flags = OPTIX_INSTANCE_FLAG_NONE;
@@ -702,8 +695,8 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
         OptixInstance sdfInstance{};
         float transform[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
         memcpy(sdfInstance.transform, transform, sizeof(transform));
-        sdfInstance.instanceId = helper.meshInstancesGPU.size(); // Next instance ID
-        sdfInstance.sbtOffset = helper.meshGeometriesGPU.size(); // Last SBT record
+        sdfInstance.instanceId = helper.meshInstancesGPU.size();     // Next instance ID
+        sdfInstance.sbtOffset = helper.meshGeometriesGPU.size() * 2; // Last SBT record
         sdfInstance.visibilityMask = 255;
         sdfInstance.flags = OPTIX_INSTANCE_FLAG_NONE;
         sdfInstance.traversableHandle = gasList.back().handle; // Last GAS is for SDFs
@@ -714,18 +707,15 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
     ias.build(context.deviceContext, instances);
 
     launchParamsManagerRadiance.params.traversable = ias.handle;
+    launchParamsManagerRadiance.params.lastBounceWasDelta = nullptr;  // Will be set by renderer
     CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerRadiance.d_params),
                           &launchParamsManagerRadiance.params, sizeof(LaunchRadianceParams), cudaMemcpyHostToDevice));
-    launchParamsManagerShadow.params.traversable = ias.handle;
-    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerShadow.d_params),
-                          &launchParamsManagerShadow.params, sizeof(LaunchShadowParams), cudaMemcpyHostToDevice));
 
     scene.uploadObjects(helper);
 
     // Now set mesh instances in launch params after uploadObjects has allocated them
 
-    fillParams(radiance_pass, shadow_pass, pipelineManagerRadiance, pipelineManagerShadow, sbtManagerRadiance,
-               sbtManagerShadow, launchParamsManagerRadiance, launchParamsManagerShadow, scene);
+    fillParams(radiance_pass, pipelineManagerRadiance, sbtManagerRadiance, launchParamsManagerRadiance, scene);
 
     return scene;
 }
@@ -740,47 +730,64 @@ void addGround(SceneHelper &helper)
     helper.meshInstancesGPU.push_back(createMeshInstance(helper, helper.meshGeometriesGPU.size() - 1, p.materialIndex));
 }
 
-void initPassParam(OptixContext &context, OptixLaunchParamsManager<LaunchRadianceParams> &launchParamsManagerRadiance,
-                   OptixLaunchParamsManager<LaunchShadowParams> &launchParamsManagerShadow,
-                   OptixPipelineManager &pipelineManagerRadiance, OptixPipelineManager &pipelineManagerShadow,
-                   OptixSBTManager &sbtManagerRadiance, OptixSBTManager &sbtManagerShadow, Scene &scene,
+void initPassParam(OptixContext &context, OptixLaunchParamsManager<LaunchRadianceParams> &launchParamsManager,
+                   OptixPipelineManager &pipelineManager, OptixSBTManager &sbtManager, Scene &scene,
                    SceneHelper &helper)
 {
-    OptixProgramGroupManager programGroupManagerRadiance;
-    programGroupManagerRadiance.addRaygenProgram(context, "build/radiance_raygen.ptx", "__raygen__radiance");
-    programGroupManagerRadiance.addMissProgram(context, "build/radiance_miss.ptx", "__miss__radiance");
-    programGroupManagerRadiance.addMeshHitProgram(context, "build/radiance_closest_hit.ptx", "__closesthit__radiance",
-                                                  "", "", "", "");
-    programGroupManagerRadiance.addSdfHitProgram(context, "build/radiance_sdf_closest_hit.ptx",
-                                                 "__closesthit__radiance__sdf", "", "",
-                                                 "build/radiance_sdf_intersection.ptx", "__intersection__sdf");
+    OptixProgramGroupManager pgm;
 
-    initOptix(context, programGroupManagerRadiance, pipelineManagerRadiance, launchParamsManagerRadiance);
+    // =====================================================
+    // RAYGEN
+    // =====================================================
 
-    sbtManagerRadiance.create(helper.meshGeometriesGPU, programGroupManagerRadiance, scene.sdfGeometries);
+    pgm.addRaygenProgram(context, "build/radiance_raygen.ptx", "__raygen__radiance");
 
-    OptixProgramGroupManager programGroupManagerShadow;
-    programGroupManagerShadow.addRaygenProgram(context, "build/shadow_raygen.ptx", "__raygen__shadow");
-    programGroupManagerShadow.addMissProgram(context, "build/shadow_miss.ptx", "__miss__shadow");
-    programGroupManagerShadow.addMeshHitProgram(context, "", "", "build/shadow_any_hit.ptx", "__anyhit__shadow", "",
-                                                "");
-    programGroupManagerShadow.addSdfHitProgram(context, "", "", "build/shadow_sdf_any_hit.ptx", "__anyhit__shadow__sdf",
-                                               "build/shadow_sdf_intersection.ptx", "__intersection__sdf__shadow");
-    initOptix(context, programGroupManagerShadow, pipelineManagerShadow, launchParamsManagerShadow);
+    // =====================================================
+    // MISS
+    // =====================================================
 
-    sbtManagerShadow.create(helper.meshGeometriesGPU, programGroupManagerShadow, scene.sdfGeometries);
-    programGroupManagerRadiance.destroy();
-    programGroupManagerShadow.destroy();
+    pgm.addMissProgram(context, "build/radiance_miss.ptx", "__miss__radiance");
+
+    pgm.addMissProgram(context, "build/shadow_miss.ptx", "__miss__shadow");
+
+    // =====================================================
+    // MESH
+    // =====================================================
+
+    pgm.addMeshHitProgram(context, "build/radiance_closest_hit.ptx", "__closesthit__radiance");
+
+    pgm.addMeshHitProgram(context, "", "", "build/shadow_any_hit.ptx", "__anyhit__shadow");
+
+    // =====================================================
+    // SDF
+    // =====================================================
+
+    pgm.addSdfHitProgram(context, "build/radiance_sdf_closest_hit.ptx", "__closesthit__radiance__sdf", "", "",
+                         "build/radiance_sdf_intersection.ptx", "__intersection__sdf");
+
+    pgm.addSdfHitProgram(context, "", "", "build/shadow_sdf_any_hit.ptx", "__anyhit__shadow__sdf",
+                         "build/shadow_sdf_intersection.ptx", "__intersection__sdf__shadow");
+
+    // =====================================================
+    // PIPELINE
+    // =====================================================
+
+    initOptix(context, pgm, pipelineManager, launchParamsManager);
+
+    // =====================================================
+    // SBT
+    // =====================================================
+
+    sbtManager.create(helper.meshGeometriesGPU, pgm, scene.sdfGeometries);
+
+    pgm.destroy();
 }
 
-void fillParams(OptixPassData<LaunchRadianceParams> &radiance_pass, OptixPassData<LaunchShadowParams> &shadow_pass,
-                OptixPipelineManager &pipelineManagerRadiance, OptixPipelineManager &pipelineManagerShadow,
-                OptixSBTManager &sbtManagerRadiance, OptixSBTManager &sbtManagerShadow,
-                OptixLaunchParamsManager<LaunchRadianceParams> &launchParamsManagerRadiance,
-                OptixLaunchParamsManager<LaunchShadowParams> &launchParamsManagerShadow, Scene &scene)
+void fillParams(OptixPassData<LaunchRadianceParams> &radiance_pass, OptixPipelineManager &pipelineManagerRadiance,
+                OptixSBTManager &sbtManagerRadiance,
+                OptixLaunchParamsManager<LaunchRadianceParams> &launchParamsManagerRadiance, Scene &scene)
 {
 
-    
     launchParamsManagerRadiance.params.nbMeshInstances = scene.nbMeshInstances;
     LightContext lightContext;
 
@@ -796,36 +803,15 @@ void fillParams(OptixPassData<LaunchRadianceParams> &radiance_pass, OptixPassDat
 
     launchParamsManagerRadiance.params.lightContext = lightContext;
 
+    // Copy SBT and pipeline to radiance_pass
+    radiance_pass.sbt = sbtManagerRadiance.sbt;
+    radiance_pass.pipeline = pipelineManagerRadiance.pipeline;
+    radiance_pass.d_params = launchParamsManagerRadiance.d_params;
+    radiance_pass.params = launchParamsManagerRadiance.params;
+
     // Update launch params on GPU with mesh instance pointers
     CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerRadiance.d_params),
                           &launchParamsManagerRadiance.params, sizeof(LaunchRadianceParams), cudaMemcpyHostToDevice));
-
-    launchParamsManagerShadow.params.meshInstances = scene.meshInstances;
-    launchParamsManagerShadow.params.nbMeshInstances = scene.nbMeshInstances;
-    launchParamsManagerShadow.params.materials = scene.materials;
-    launchParamsManagerShadow.params.nbMaterials = scene.nbMaterials;
-    CUDA_CHECK(cudaMemcpy(reinterpret_cast<void *>(launchParamsManagerShadow.d_params),
-                          &launchParamsManagerShadow.params, sizeof(LaunchShadowParams), cudaMemcpyHostToDevice));
-
-    radiance_pass.pipeline = pipelineManagerRadiance.pipeline;
-    radiance_pass.sbt = sbtManagerRadiance.sbt;
-
-    radiance_pass.params = launchParamsManagerRadiance.params;
-    radiance_pass.d_params = launchParamsManagerRadiance.d_params;
-
-    // Shadow
-    shadow_pass.pipeline = pipelineManagerShadow.pipeline;
-    shadow_pass.sbt = sbtManagerShadow.sbt;
-
-    shadow_pass.params = launchParamsManagerShadow.params;
-    shadow_pass.d_params = launchParamsManagerShadow.d_params;
-    // Transfer ownership of radiance resources
-    pipelineManagerRadiance.pipeline = nullptr;
-    sbtManagerRadiance.sbt = {};
-
-    // Transfer ownership of shadow resources
-    pipelineManagerShadow.pipeline = nullptr;
-    sbtManagerShadow.sbt = {};
 }
 
 void sortLights(SceneHelper &helper)

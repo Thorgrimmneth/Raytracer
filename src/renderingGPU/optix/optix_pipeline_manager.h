@@ -12,13 +12,7 @@ public:
     void create(
         OptixDeviceContext context,
         const OptixPipelineCompileOptions& pipelineCompileOptions,
-        const OptixProgramGroupManager& programGroups
-    );
-
-    void create(
-        OptixDeviceContext context,
-        const OptixPipelineCompileOptions& pipelineCompileOptions,
-        const std::vector<OptixProgramGroup>& programGroups
+        const OptixProgramGroupManager &programGroups
     );
 
     void destroy();

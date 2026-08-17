@@ -141,7 +141,7 @@ extern "C" __global__ void __miss__radiance()
 
     float3 sunColor = lerp(make_float3(30.f, 27.f, 24.f), make_float3(60.f, 25.f, 10.f), sunset);
 
-    if (params.depth > 0)
+    if (payload->depth > 0)
     {
         sunColor = clamp(sunColor, make_float3(0.f), make_float3(1.f));
     }

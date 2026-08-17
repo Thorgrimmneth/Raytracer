@@ -1,11 +1,11 @@
 #include "../renderingGPU/optix/optix_payload.h"
 #include "../renderingGPU/utils/packing.h"
-#include "launch_shadow_params.cuh"
+#include "launch_radiance_params.cuh"
 #include <optix.h>
 #include <optix_device.h>
 
 extern "C" {
-__constant__ LaunchShadowParams params;
+__constant__ LaunchRadianceParams params;
 }
 
 extern "C" __global__ void __anyhit__shadow()
@@ -15,7 +15,15 @@ extern "C" __global__ void __anyhit__shadow()
     {
         optixTerminateRay();
     }
-    Material &mat = params.materials[params.meshInstances[optixGetInstanceId()].materialIndex];
+    
+    uint instanceIndex = optixGetInstanceId();
+    if (!params.lightContext.meshInstances || instanceIndex >= params.nbMeshInstances)
+    {
+        optixIgnoreIntersection();
+        return;
+    }
+    
+    const Material &mat = params.lightContext.materials[params.lightContext.meshInstances[instanceIndex].materialIndex];
     MaterialType type = mat.type();
     if (type != MaterialType::TRANSPARENT)
     {

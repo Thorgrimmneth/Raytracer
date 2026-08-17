@@ -69,7 +69,7 @@ extern "C" __global__ void __closesthit__radiance()
     payload->object_type = HIT_TRIANGLE_MESH;
 
     // ============================================================
-    // Lambert Shading
+    // Material Shading - Switch by Material Type
     // ============================================================
 
     uint qid = optixGetLaunchIndex().x;
@@ -77,50 +77,166 @@ extern "C" __global__ void __closesthit__radiance()
     if (qid < params.active_count && params.rngs)
     {
         const Material &mtl = params.lightContext.materials[payload->materialIndex];
+        MaterialType matType = mtl.type();
+        RNG &rng = params.rngs[qid];
+        float3 wo = optixGetWorldRayDirection();
+        float3 nee_contribution = make_float3(0.f);
+        BSDFVal bsdf;
 
-        // Skip non-Lambert materials
-        if (mtl.type() != MaterialType::LAMBERT)
-            return;
-
-        RNG &rng = params.rngs[params.pixelIndices[qid]];
-        float3 direction = optixGetWorldRayDirection();
-
-        // Lambert BSDF sampling
-        float e1 = rng.nextFloat();
-        float e2 = rng.nextFloat();
-        float r = sqrtf(e1);
-        float phi = 2.f * M_PIf * e2;
-        float cosf_phi = cosf(phi);
-        float sinf_phi = sinf(phi);
-        float x = r * cosf_phi;
-        float y = r * sinf_phi;
-        float z = sqrtf(fmaxf(0.f, 1.f - x * x - y * y));
-
-        float3 T, B;
-        getTangentFrame(N, T, B);
-        float3 bsdfDir = x * T + y * B + z * N;
-
-        float cosTheta_bsdf = fmaxf(dot(N, bsdfDir), 0.f);
-        float bsdf_pdf = cosTheta_bsdf * M_1_PIf;
-
-        if (bsdf_pdf <= 0.f)
+        switch (matType)
         {
-            payload->luminous_contribution = make_float3(0.f);
+            case MaterialType::EMISSIVE:
+            {
+                payload->luminous_contribution = mtl.color() * mtl.intensity();
+                payload->bsdfDir = make_float3(0.f);
+                payload->bsdfPdf = 0.f;
+                return;
+            }
+
+            case MaterialType::LAMBERT:
+            {
+                // NEE for diffuse
+                if (!payload->lastBounceWasDelta && params.nbLights > 0)
+                {
+                    int lightIndex = selectLightByImportance(params.nbLights, params.lightCumulativeWeights, rng);
+                    Light &light = params.lights[lightIndex];
+                    LightSample ls = light.sample(payload->position, rng, params.lightContext);
+
+                    float cosTheta_nee = fmaxf(dot(N, ls.direction), 0.0f);
+                    float lightPdf = ls.pdf * getLightProbability(params.nbLights, params.lightProbabilities, lightIndex);
+
+                    if (lightPdf > 0.f && cosTheta_nee > 0.f && ls.pdf > 0.f)
+                    {
+                        float3 f_nee = mtl.evalBSDF(wo, N, ls.direction);
+                        
+                        if (dot(f_nee, f_nee) > 0.f)
+                        {
+                            float pdf_bsdf = mtl.pdf(wo, N, ls.direction);
+                            float w = powerHeuristic(lightPdf, pdf_bsdf);
+
+                            ShadowPayload shadowPayload;
+                            shadowPayload.transmittance = make_float3(1.f);
+                            shadowPayload.depth = 0;
+
+                            uint32_t p0, p1;
+                            packPointer(&shadowPayload, p0, p1);
+
+                            float3 shadowRayOrigin = payload->position + N * 1e-3f;
+                            float shadowRayDist = ls.distance - 1e-3f;
+
+                            optixTrace(params.traversable, shadowRayOrigin, ls.direction, 1e-3f, shadowRayDist, 0.0f,
+                                      OptixVisibilityMask(255), OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
+                                      1, 1, 1, p0, p1);
+
+                            nee_contribution = params.throughputs[qid] * f_nee * ls.radiance 
+                                             * cosTheta_nee * w * (1.f / lightPdf) * shadowPayload.transmittance;
+                        }
+                    }
+                }
+
+                // BSDF sampling
+                bsdf = mtl.getBSDF(wo, N, rng, payload->isInside);
+                break;
+            }
+
+            case MaterialType::METAL:
+            {
+                // No NEE for metals, only BSDF sampling
+                bsdf = mtl.getBSDF(wo, N, rng, payload->isInside);
+                break;
+            }
+
+            case MaterialType::PLASTIC:
+            {
+                // NEE for plastic (has diffuse component)
+                if (!payload->lastBounceWasDelta && params.nbLights > 0)
+                {
+                    int lightIndex = selectLightByImportance(params.nbLights, params.lightCumulativeWeights, rng);
+                    Light &light = params.lights[lightIndex];
+                    LightSample ls = light.sample(payload->position, rng, params.lightContext);
+
+                    float cosTheta_nee = fmaxf(dot(N, ls.direction), 0.0f);
+                    float lightPdf = ls.pdf * getLightProbability(params.nbLights, params.lightProbabilities, lightIndex);
+
+                    if (lightPdf > 0.f && cosTheta_nee > 0.f && ls.pdf > 0.f)
+                    {
+                        float3 f_nee = mtl.evalBSDF(wo, N, ls.direction);
+                        
+                        if (dot(f_nee, f_nee) > 0.f)
+                        {
+                            float pdf_bsdf = mtl.pdf(wo, N, ls.direction);
+                            float w = powerHeuristic(lightPdf, pdf_bsdf);
+
+                            ShadowPayload shadowPayload;
+                            shadowPayload.transmittance = make_float3(1.f);
+                            shadowPayload.depth = 0;
+
+                            uint32_t p0, p1;
+                            packPointer(&shadowPayload, p0, p1);
+
+                            float3 shadowRayOrigin = payload->position + N * 1e-3f;
+                            float shadowRayDist = ls.distance - 1e-3f;
+
+                            optixTrace(params.traversable, shadowRayOrigin, ls.direction, 1e-3f, shadowRayDist, 0.0f,
+                                      OptixVisibilityMask(255), OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT,
+                                      1, 1, 1, p0, p1);
+
+                            nee_contribution = params.throughputs[qid] * f_nee * ls.radiance 
+                                             * cosTheta_nee * w * (1.f / lightPdf) * shadowPayload.transmittance;
+                        }
+                    }
+                }
+
+                // BSDF sampling
+                bsdf = mtl.getBSDF(wo, N, rng, payload->isInside);
+                break;
+            }
+
+            case MaterialType::TRANSPARENT:
+            {
+                // No NEE for transparent (delta material), only BSDF sampling
+                int tempIsInside = payload->isInside;
+                bsdf = mtl.getBSDF(wo, N, rng, tempIsInside);
+                payload->isInside = tempIsInside;
+                break;
+            }
+
+            case MaterialType::MIRROR:
+            {
+                // No NEE for mirrors (delta material), only BSDF sampling
+                bsdf = mtl.getBSDF(wo, N, rng, payload->isInside);
+                break;
+            }
+
+            default:
+            {
+                payload->bsdfDir = make_float3(0.f);
+                payload->bsdfPdf = 0.f;
+                payload->luminous_contribution = make_float3(0.f);
+                return;
+            }
+        }
+
+        // ============================================================
+        // Finalize bounce
+        // ============================================================
+
+        if (bsdf.pdf <= 0.f || dot(N, bsdf.direction) <= 0.f)
+        {
+            payload->bsdfDir = make_float3(0.f);
+            payload->bsdfPdf = 0.f;
+            payload->luminous_contribution = nee_contribution;
             return;
         }
 
-        if (params.nbLights > 0)
-        {
-            int lightIndex = selectLightByImportance(params.nbLights, params.lightCumulativeWeights, rng);
+        float cosTheta_bsdf = dot(N, bsdf.direction);
+        float3 next_throughput = params.throughputs[qid] * bsdf.brdf * cosTheta_bsdf / bsdf.pdf;
 
-            Light &light = params.lights[lightIndex];
-
-            //LightSample ls = light.sample(payload->position, rng, params.lightContext);
-        }
-        payload->bsdfDir = bsdfDir;
-        payload->bsdfPdf = bsdf_pdf;
-
-        // Store contribution for accumulation
-        payload->luminous_contribution = mtl.color() * cosTheta_bsdf * M_1_PIf / bsdf_pdf;
+        payload->bsdfDir = bsdf.direction;
+        payload->bsdfPdf = bsdf.pdf;
+        payload->lastBounceWasDelta = (matType == MaterialType::MIRROR || matType == MaterialType::TRANSPARENT) ? 1 : 0;
+        
+        params.throughputs[qid] = next_throughput;
+        payload->luminous_contribution = nee_contribution;
     }
 }

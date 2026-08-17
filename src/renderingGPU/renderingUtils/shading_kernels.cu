@@ -841,16 +841,16 @@ __global__ void shadeTransparentKernel(Scene scene, float3 *directions, float3 *
 
     float3 throughput = throughputs[qid];
 
-    bool &isInside = isInsides[qid];
-
+    bool isInside = isInsides[qid];
+    int isIn = isInsides[qid] ? 1 : 0;
     int materialIndex = hitMaterialIndices[qid];
     float3 pos = hitPositions[qid];
     float3 normal = hitNormals[qid];
 
     Material &mtl = scene.materials[materialIndex];
 
-    BSDFVal bsdf = mtl.getTransparentBSDF(directions[qid], normal, rngs[qid], isInside);
-
+    BSDFVal bsdf = mtl.getTransparentBSDF(directions[qid], normal, rngs[qid], isIn);
+    isInsides[qid] = (isIn != 0);
     bool alive = (bsdf.pdf > 1e-4f);
 
     // ------------------------------------------------------------
