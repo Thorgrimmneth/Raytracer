@@ -293,7 +293,7 @@ Scene spheres(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
     float margin = 0.05f;
     float minDist = bigRadius + smallRadius + margin;
 
-    int numberOfSpheresPerSide = 500;
+    int numberOfSpheresPerSide = 50;
     // ===== PETITES SPHERES =====
     for (int i = -numberOfSpheresPerSide; i < numberOfSpheresPerSide; i++)
     {

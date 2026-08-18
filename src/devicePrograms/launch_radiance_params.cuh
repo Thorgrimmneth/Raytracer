@@ -20,6 +20,7 @@ struct LaunchRadianceParams
     float3* accum_buffer;
     float3* throughputs;
     int* lastBounceWasDelta;  // Tracks if previous bounce was from delta material
+    float* lastBsdfPdf;  // PDF of the last BSDF sample
     int* isInside;
     RNG* rngs;
 

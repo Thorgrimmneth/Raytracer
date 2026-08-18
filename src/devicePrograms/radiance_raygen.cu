@@ -35,6 +35,7 @@ extern "C" __global__ void __raygen__radiance()
         payload.contribution = make_float3(0.f);
 
         payload.lastBounceWasDelta = lastBounceWasDelta;
+        payload.lastBsdfPdf = params.lastBsdfPdf ? params.lastBsdfPdf[qid] : 0.f;
 
         payload.isInside = isInside;
 
@@ -112,13 +113,8 @@ extern "C" __global__ void __raygen__radiance()
                 break;
             params.throughputs[qid] = throughput / fmaxf(p, 1e-3f);
         }
+
+        params.lastBsdfPdf[qid] = payload.bsdfPdf;
+        
     }
-
-    // Store final path state if you still need it outside
-    params.origins[qid] = origin;
-    params.directions[qid] = normalize(direction);
-
-    params.lastBounceWasDelta[qid] = lastBounceWasDelta;
-
-    params.isInside[qid] = isInside;
 }

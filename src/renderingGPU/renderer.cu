@@ -367,6 +367,7 @@ float Renderer::render_no_text(bool outputImage, bool convergence)
     impl->radiance_pass.params.lastBounceWasDelta = impl->d_lastBounceWasDelta;
     impl->radiance_pass.params.isInside = impl->d_isInside;
     impl->radiance_pass.params.rngs = impl->d_rng;
+    impl->radiance_pass.params.lastBsdfPdf = impl->d_lastBsdfPdf;
 
     cudaMemcpy(reinterpret_cast<void *>(impl->radiance_pass.d_params), &impl->radiance_pass.params,
                sizeof(LaunchRadianceParams), cudaMemcpyHostToDevice);

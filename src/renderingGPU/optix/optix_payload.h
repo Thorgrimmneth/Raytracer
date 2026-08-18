@@ -19,6 +19,7 @@ struct Payload
     int isInside = 0;
     float bsdfPdf = 0.f;
     int lastBounceWasDelta = 0;  // 1 if last bounce was from mirror/transparent
+    float lastBsdfPdf = 0.f;  // PDF of the last BSDF sample
 };
 
 struct ShadowPayload

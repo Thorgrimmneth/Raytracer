@@ -5,6 +5,7 @@
 #include "../renderingGPU/optix/optix_sbt_manager.h"
 #include "../renderingGPU/utils/object_type.h"
 #include "../renderingGPU/utils/op.cuh"
+#include "../renderingGPU/optix/optix_ray_type.h"
 #include "../renderingGPU/utils/packing.h"
 #include "launch_radiance_params.cuh"
 #include <optix.h>
@@ -71,14 +72,32 @@ extern "C" __global__ void __closesthit__radiance__sdf()
         switch (matType)
         {
         case MaterialType::EMISSIVE: {
-            if(payload->depth == 0)
-            {
-                payload->contribution = mtl.color() * mtl.intensity();
-            }
-            else
+            if (payload->lastBounceWasDelta == 1 || payload->depth == 0)
             {
                 payload->contribution = mtl.color() * mtl.intensity() * params.throughputs[qid];
             }
+
+            else
+            {
+                float lightPdf = 0.f;
+
+                float dist2 = payload->t * payload->t;
+
+                float cosTheta = max(dot(NWorld, -optixGetWorldRayDirection()), 0.f);
+                if (cosTheta <= 0.f)
+                {
+                    return;
+                }
+                float areaPdf = 1.f / sdf.getArea();
+
+                lightPdf = getLightProbability(params.nbLights, params.lightProbabilities, sdf.lightIndex) * areaPdf *
+                           dist2 / cosTheta;
+
+                float w = powerHeuristic(payload->lastBsdfPdf, lightPdf);
+
+                payload->contribution += params.throughputs[qid] * mtl.color() * mtl.intensity() * w;
+            }
+
             payload->bsdfDir = make_float3(0.f);
             payload->bsdfPdf = 0.f;
             return;
@@ -86,7 +105,7 @@ extern "C" __global__ void __closesthit__radiance__sdf()
 
         case MaterialType::LAMBERT: {
             // NEE for diffuse
-            if (!payload->lastBounceWasDelta && params.nbLights > 0)
+            if (params.nbLights > 0)
             {
                 int lightIndex = selectLightByImportance(params.nbLights, params.lightCumulativeWeights, rng);
                 Light &light = params.lights[lightIndex];
@@ -115,7 +134,7 @@ extern "C" __global__ void __closesthit__radiance__sdf()
                         float shadowRayDist = ls.distance - 1e-3f;
 
                         optixTrace(params.traversable, shadowRayOrigin, ls.direction, 1e-3f, shadowRayDist, 0.0f,
-                                   OptixVisibilityMask(255), OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT, 1, 1, 1, p0, p1);
+                                   OptixVisibilityMask(255), OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT, RAY_TYPE_SHADOW, RAY_TYPE_COUNT, RAY_TYPE_SHADOW, p0, p1);
 
                         nee_contribution = params.throughputs[qid] * f_nee * ls.radiance * cosTheta_nee * w *
                                            (1.f / lightPdf) * shadowPayload.transmittance;
@@ -136,7 +155,7 @@ extern "C" __global__ void __closesthit__radiance__sdf()
 
         case MaterialType::PLASTIC: {
             // NEE for plastic (has diffuse component)
-            if (!payload->lastBounceWasDelta && params.nbLights > 0)
+            if (params.nbLights > 0)
             {
                 int lightIndex = selectLightByImportance(params.nbLights, params.lightCumulativeWeights, rng);
                 Light &light = params.lights[lightIndex];
@@ -165,7 +184,7 @@ extern "C" __global__ void __closesthit__radiance__sdf()
                         float shadowRayDist = ls.distance - 1e-3f;
 
                         optixTrace(params.traversable, shadowRayOrigin, ls.direction, 1e-3f, shadowRayDist, 0.0f,
-                                   OptixVisibilityMask(255), OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT, 1, 1, 1, p0, p1);
+                                   OptixVisibilityMask(255), OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT, RAY_TYPE_SHADOW, RAY_TYPE_COUNT, RAY_TYPE_SHADOW, p0, p1);
 
                         nee_contribution = params.throughputs[qid] * f_nee * ls.radiance * cosTheta_nee * w *
                                            (1.f / lightPdf) * shadowPayload.transmittance;
@@ -183,12 +202,14 @@ extern "C" __global__ void __closesthit__radiance__sdf()
             int tempIsInside = payload->isInside;
             bsdf = mtl.getBSDF(wo, NWorld, rng, tempIsInside);
             payload->isInside = tempIsInside;
+            payload->lastBounceWasDelta = 1;  // Mark that the last bounce was from a delta material
             break;
         }
 
         case MaterialType::MIRROR: {
             // No NEE for mirrors (delta material), only BSDF sampling
             bsdf = mtl.getBSDF(wo, NWorld, rng, payload->isInside);
+            payload->lastBounceWasDelta = 1;  // Mark that the last bounce was from a delta material
             break;
         }
 
