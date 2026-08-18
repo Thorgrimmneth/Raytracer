@@ -16,9 +16,11 @@ extern "C" __global__ void __anyhit__shadow__sdf()
     if (payload->depth >= 5) // Limit the depth of shadow rays to avoid infinite recursion
     {
         optixTerminateRay();
+        return;
     }
     const HitData *data = reinterpret_cast<const HitData *>(optixGetSbtDataPointer());
-    const SDF &sdf = data->sdf.sdfs[optixGetPrimitiveIndex()];
+    uint primIdx = optixGetPrimitiveIndex();
+    const SDF &sdf = data->sdf.sdfs[primIdx];
 
     const Material &mat = params.lightContext.materials[sdf.getMaterialIndex()];
     MaterialType type = mat.type();
@@ -29,6 +31,7 @@ extern "C" __global__ void __anyhit__shadow__sdf()
             payload->transmittance = make_float3(0.f);
         }
         optixTerminateRay();
+        return;
     }
 
     payload->transmittance *= mat.computeTransmission();
@@ -39,6 +42,7 @@ extern "C" __global__ void __anyhit__shadow__sdf()
     {
         payload->transmittance = make_float3(0.f);
         optixTerminateRay();
+        return;
     }
     optixIgnoreIntersection();
 }

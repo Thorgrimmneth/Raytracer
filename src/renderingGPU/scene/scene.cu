@@ -293,7 +293,7 @@ Scene spheres(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
     float margin = 0.05f;
     float minDist = bigRadius + smallRadius + margin;
 
-    int numberOfSpheresPerSide = 50;
+    int numberOfSpheresPerSide = 500;
     // ===== PETITES SPHERES =====
     for (int i = -numberOfSpheresPerSide; i < numberOfSpheresPerSide; i++)
     {
@@ -413,7 +413,7 @@ Scene spheres(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
     OptixPipelineManager pipelineManagerRadiance;
     OptixSBTManager sbtManagerRadiance;
     initPassParam(context, launchParamsManagerRadiance, pipelineManagerRadiance, sbtManagerRadiance, scene, helper);
-
+    printf("init pass param done\n");
     std::vector<OptixGAS> gasList;
 
     // Create GAS for each unique mesh geometry
@@ -424,13 +424,14 @@ Scene spheres(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
         gas.build(context, geometry, global_size);
         gasList.push_back(std::move(gas));
     }
+    printf("GAS built for mesh geometries\n");
     if (helper.sdfsGPU.size() > 0)
     {
         OptixGAS sdfGAS;
         sdfGAS.build(context, scene.sdfGeometries, global_size);
         gasList.push_back(std::move(sdfGAS));
     }
-
+    printf("GAS built for SDF geometries\n");
     std::vector<OptixInstance> instances;
     // Create instances for mesh instances with their transformations
     for (uint32_t i = 0; i < helper.meshInstancesGPU.size(); ++i)
@@ -452,6 +453,9 @@ Scene spheres(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
 
         instances.push_back(instance);
     }
+    std::cout << "SDF sbtOffset    = "
+          << helper.meshGeometriesGPU.size() * 2
+          << '\n';
     if (helper.sdfsGPU.size() > 0)
     {
         OptixInstance sdfInstance{};
@@ -467,6 +471,7 @@ Scene spheres(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass,
 
     OptixIAS ias;
     ias.build(context.deviceContext, instances);
+    printf("IAS built with %zu instances\n", instances.size());
 
     launchParamsManagerRadiance.params.traversable = ias.handle;
     launchParamsManagerRadiance.params.lastBounceWasDelta = nullptr;

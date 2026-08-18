@@ -20,7 +20,6 @@ extern "C" __global__ void __closesthit__radiance__sdf()
     Payload *payload = reinterpret_cast<Payload *>(unpackPointer(optixGetPayload_0(), optixGetPayload_1()));
 
     const uint primIdx = optixGetPrimitiveIndex();
-
     const SDF &sdf = data->sdf.sdfs[primIdx];
 
     float3 p = optixGetWorldRayOrigin() + optixGetRayTmax() * optixGetWorldRayDirection();
@@ -72,7 +71,14 @@ extern "C" __global__ void __closesthit__radiance__sdf()
         switch (matType)
         {
         case MaterialType::EMISSIVE: {
-            payload->contribution = params.throughputs[qid] * mtl.color() * mtl.intensity();
+            if(payload->depth == 0)
+            {
+                payload->contribution = mtl.color() * mtl.intensity();
+            }
+            else
+            {
+                payload->contribution = mtl.color() * mtl.intensity() * params.throughputs[qid];
+            }
             payload->bsdfDir = make_float3(0.f);
             payload->bsdfPdf = 0.f;
             return;

@@ -17,7 +17,6 @@ extern "C" __global__ void __intersection__sdf()
     const HitData *data = reinterpret_cast<const HitData *>(optixGetSbtDataPointer());
 
     const uint primIdx = optixGetPrimitiveIndex();
-
     const SDF &sdf = data->sdf.sdfs[primIdx];
     int materialIdx = sdf.getMaterialIndex();
     // si on est à l'intérieur d'un objet transparent, on applique la valeur absolue de la SDF pour éviter les

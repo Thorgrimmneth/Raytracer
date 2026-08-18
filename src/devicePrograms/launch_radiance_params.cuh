@@ -10,7 +10,6 @@
 #include "../renderingGPU/raytracingUtils/ray.cuh"
 #include "../renderingGPU/utils/op.cuh"
 #include "../renderingGPU/objects/triangle_mesh.cuh"
-#include "../renderingGPU/utils/shading_data.cuh"
 #include "../renderingGPU/lights/light_context.cuh"
 #include "../renderingGPU/lights/light.cuh"
 
@@ -25,7 +24,6 @@ struct LaunchRadianceParams
     RNG* rngs;
 
     int active_count;
-    int depth;
     OptixTraversableHandle traversable;
 
     int nbMeshInstances;
@@ -42,7 +40,6 @@ struct LaunchRadianceParams
     float atmosphereSize;
 
     int nbSkySamples;
-
     float sunAngularRadius;
     float sunHalfAngularRadius;
 

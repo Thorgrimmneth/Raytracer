@@ -26,7 +26,7 @@ struct SDF
     float3 translation = make_float3(0.f);
     Matrix3x3 rotation = Matrix3x3::identity();
     OptixAabb aabb;
-    int lightIndex = -1; // Index into the lights array, if this instance is emissive
+    int lightIndex = 0; // Index into the lights array, if this instance is emissive
     union {
         SphereAnalytic sphere;
         Tore tore;

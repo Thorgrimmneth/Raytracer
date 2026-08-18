@@ -17,7 +17,7 @@
         "reveal": "always",
         "panel": "dedicated",
         "clear": true,
-        "close": true
+        "close": false
       }
     },
     {

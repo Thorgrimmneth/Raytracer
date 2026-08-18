@@ -129,7 +129,7 @@ D_FORCEINLINE float smoothUnion(float d1, float d2, float k)
 {
     k *= 4.f;
     float h = fmaxf(k - fabsf(d1 - d2), 0.f);
-    return fminf(d1, d2) - h * h * 0.25 / k;
+    return fminf(d1, d2) - h * h * 0.25f / k;
 }
 
 D_FORCEINLINE float smoothIntersection(float d1, float d2, float k) { return -smoothUnion(-d1, -d2, k); }

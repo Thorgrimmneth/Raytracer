@@ -97,6 +97,21 @@ extern "C" __global__ void __raygen__radiance()
         lastBounceWasDelta = payload.lastBounceWasDelta;
 
         isInside = payload.isInside;
+
+        // ========================================================
+        // RUSSIAN ROULETTE
+        // ========================================================
+
+        if (bounce >= 3 && params.rngs)
+        {
+            float3 throughput = params.throughputs[qid];
+            float survivalProb = fminf(fmaxf(throughput.x, fmaxf(throughput.y, throughput.z)), 0.95f);
+
+            if (params.rngs[qid].nextFloat() > survivalProb)
+                break;
+
+            params.throughputs[qid] = throughput / fmaxf(survivalProb, 1e-3f);
+        }
     }
 
     // Store final path state if you still need it outside

@@ -37,7 +37,7 @@ void OptixContext::initialize()
 
     OptixDeviceContextOptions options = {};
     options.logCallbackFunction = contextLogCallback;
-    options.logCallbackLevel = 0; // 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
+    options.logCallbackLevel = 4; // 0 = no log, 1 = error, 2 = warning, 3 = info, 4 = debug
     options.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL;
 
     OPTIX_CHECK(optixDeviceContextCreate(cuContext, &options, &deviceContext));

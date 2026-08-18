@@ -3,35 +3,19 @@
 #include "../devicePrograms/launch_radiance_params.cuh"
 #include "camera/camera.cuh"
 #include "renderingUtils/post_treatment.cuh"
-#include "renderingUtils/shading_kernels.cuh"
 #include "scene/scene.cuh"
 #include "utils/constant.cuh"
 #include "utils/fill_buffers.cuh"
 #include "utils/optix_pass_data.cuh"
-#include "utils/shading_launch.cuh"
-#include "utils/shadow_data.cuh"
 #include "utils/simplified_def.cuh"
-#include "utils/sort_queues.cuh"
 #include <cstdio>
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
 #include <fstream>
 #include <map>
-#include <thrust/sort.h>
 
-__constant__ int NB_BOUNCES;
-__constant__ float EARTH_RADIUS;
-__constant__ float3 SUN_DIRECTION;
-__constant__ int NB_SKY_SAMPLES;
-__constant__ float HR;
-__constant__ float HM;
-__constant__ float3 BETA_R;
-__constant__ float3 BETA_M;
 __constant__ float EXPOSURE;
 __constant__ Camera camera;
-__constant__ float ATMOSPHERE_SIZE;
-__constant__ float SUN_ANGULAR_RADIUS;
-__constant__ float SUN_HALF_ANGULAR_RADIUS;
 
 class Renderer::Impl
 {
@@ -75,13 +59,6 @@ class Renderer::Impl
     float3 *d_directions = nullptr;
     float3 *d_throughputs = nullptr;
     RNG *d_rng = nullptr;
-
-    bool launched_shade_kernel = true;
-
-    int *d_keys = nullptr;
-    int *d_values = nullptr;
-    MaterialRanges *d_ranges = nullptr;
-    unsigned int *d_octant_keys = nullptr;
 
     dim3 block_size = dim3(16, 16);
     dim3 grid_size;
@@ -161,32 +138,10 @@ HOST Camera init_camera(int width, int height)
 
 HOST void init_constant(int width, int height, Camera c_camera, float4 sunDir)
 {
-    int c_nbBounces = 8;
-    float c_earthRadius = 6360e3f;
-    float3 c_sunDirection = normalize(make_float3(sunDir));
-    int c_skyColorSamples = 4;
-    float c_hr = 1.f / 7994.f;
-    float c_hm = 1.f / 1200.f;
-    float3 c_betaR = make_float3(3.8e-6f, 13.5e-6f, 33.1e-6f);
-    float3 c_betaM = make_float3(21e-6f);
     float c_exposure = 1.f;
-    float c_sizeAtmosphere = 60000.f;
-    float sunAngularRadius = 2.1f * GPUPIf / 180.f;
-    float c_sunAngularRadius = cosf(sunAngularRadius);
-    float c_sunAngularRadiusHalf = cosf(sunAngularRadius * 0.5f);
-    cudaMemcpyToSymbol(NB_BOUNCES, &c_nbBounces, sizeof(int));
-    cudaMemcpyToSymbol(EARTH_RADIUS, &c_earthRadius, sizeof(float));
-    cudaMemcpyToSymbol(SUN_DIRECTION, &c_sunDirection, sizeof(float3));
-    cudaMemcpyToSymbol(NB_SKY_SAMPLES, &c_skyColorSamples, sizeof(int));
-    cudaMemcpyToSymbol(HR, &c_hr, sizeof(float));
-    cudaMemcpyToSymbol(HM, &c_hm, sizeof(float));
-    cudaMemcpyToSymbol(BETA_R, &c_betaR, sizeof(float3));
-    cudaMemcpyToSymbol(BETA_M, &c_betaM, sizeof(float3));
     cudaMemcpyToSymbol(EXPOSURE, &c_exposure, sizeof(float));
     cudaMemcpyToSymbol(camera, &c_camera, sizeof(Camera));
-    cudaMemcpyToSymbol(ATMOSPHERE_SIZE, &c_sizeAtmosphere, sizeof(float));
-    cudaMemcpyToSymbol(SUN_ANGULAR_RADIUS, &c_sunAngularRadius, sizeof(float));
-    cudaMemcpyToSymbol(SUN_HALF_ANGULAR_RADIUS, &c_sunAngularRadiusHalf, sizeof(float));
+    
 }
 
 void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, float sunDirz, int rngManip)
@@ -220,20 +175,11 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     cudaMalloc(&impl->d_convergence_buffer, impl->BUFFER_SIZE_FLOAT3);
     global_size += impl->BUFFER_SIZE_FLOAT3 * 6;
     cudaMalloc(&impl->d_value, sizeof(float));
-    cudaMalloc(&impl->d_ranges, sizeof(MaterialRanges));
-    global_size += sizeof(MaterialRanges);
 
     size_t pixel_count = impl->WIDTH * impl->HEIGHT;
 
-    cudaMalloc(&impl->d_keys, pixel_count * sizeof(int));
-    cudaMalloc(&impl->d_values, pixel_count * sizeof(int));
-    global_size += pixel_count * sizeof(int) * 2;
-
-    cudaMalloc(&impl->d_octant_keys, pixel_count * sizeof(unsigned int));
-    global_size += pixel_count * sizeof(unsigned int);
-
     cudaMalloc(&impl->d_isInside, pixel_count * sizeof(int));
-    cudaMalloc(&impl->d_lastBounceWasDelta, pixel_count * sizeof(bool));
+    cudaMalloc(&impl->d_lastBounceWasDelta, pixel_count * sizeof(int));
     cudaMalloc(&impl->d_lastBsdfPdf, pixel_count * sizeof(float));
     cudaMalloc(&impl->d_origins, pixel_count * sizeof(float3));
     cudaMalloc(&impl->d_directions, pixel_count * sizeof(float3));
@@ -374,7 +320,8 @@ float Renderer::render_no_text(bool outputImage, bool convergence)
     float invHeight = 1.f / (float)(impl->HEIGHT - 1);
     generatePrimaryRaysKernel<<<grid2D, block2D>>>(impl->d_directions, impl->d_rng, impl->WIDTH, impl->HEIGHT,
                                                    impl->sample_count, invWidth, invHeight);
-
+    CUDA_CHECK(cudaGetLastError());
+    CUDA_CHECK(cudaDeviceSynchronize());
     err = cudaGetLastError();
     if (err != cudaSuccess)
     {
@@ -394,8 +341,6 @@ float Renderer::render_no_text(bool outputImage, bool convergence)
 
     initFloatBuffer<<<blocks, threads>>>(impl->d_lastBsdfPdf, pixel_count, 1.f);
 
-    initIntBuffer<<<blocks, threads>>>(impl->d_keys, pixel_count, (int)MISS);
-    initIntBuffer<<<blocks, threads>>>(impl->d_values, pixel_count, 0);
     int h_active_count = pixel_count;
     impl->radiance_pass.params.maxBounces = impl->MAX_BOUNCES;
     impl->radiance_pass.params.sunDirection = impl->sun_direction;
@@ -416,17 +361,30 @@ float Renderer::render_no_text(bool outputImage, bool convergence)
     // ---------------------------------------------------------------------
     impl->radiance_pass.params.origins = impl->d_origins;
     impl->radiance_pass.params.directions = impl->d_directions;
-    // impl->radiance_pass.params.hit_buffers = impl->hit_buffers;
     impl->radiance_pass.params.active_count = h_active_count;
     impl->radiance_pass.params.accum_buffer = impl->d_accum_buffer;
     impl->radiance_pass.params.throughputs = impl->d_throughputs;
     impl->radiance_pass.params.lastBounceWasDelta = impl->d_lastBounceWasDelta;
     impl->radiance_pass.params.isInside = impl->d_isInside;
-    impl->radiance_pass.params.depth = 0;
     impl->radiance_pass.params.rngs = impl->d_rng;
 
     cudaMemcpy(reinterpret_cast<void *>(impl->radiance_pass.d_params), &impl->radiance_pass.params,
                sizeof(LaunchRadianceParams), cudaMemcpyHostToDevice);
+    err = cudaGetLastError();
+
+    if (err != cudaSuccess)
+    {
+        std::cerr << "CUDA ERROR before OptiX: " << cudaGetErrorString(err) << std::endl;
+        return -1.f;
+    }
+
+    err = cudaDeviceSynchronize();
+
+    if (err != cudaSuccess)
+    {
+        std::cerr << "CUDA EXECUTION ERROR before OptiX: " << cudaGetErrorString(err) << std::endl;
+        return -1.f;
+    }
     OPTIX_CHECK(optixLaunch(impl->radiance_pass.pipeline,
                             0, // stream
                             impl->radiance_pass.d_params, sizeof(LaunchRadianceParams), &impl->radiance_pass.sbt,
@@ -583,8 +541,6 @@ float Renderer::render_with_text(bool outputImage, bool convergence, bool output
 
     initFloatBuffer<<<blocks, threads>>>(impl->d_lastBsdfPdf, pixel_count, 1.f);
 
-    initIntBuffer<<<blocks, threads>>>(impl->d_keys, pixel_count, (int)MISS);
-    initIntBuffer<<<blocks, threads>>>(impl->d_values, pixel_count, 0);
     cudaEventRecord(impl->event_stop);
     cudaEventSynchronize(impl->event_stop);
     milliseconds = 0;
@@ -801,13 +757,7 @@ void Renderer::clean_up()
     cudaFree(impl->d_accum_buffer);
     cudaFree(impl->d_value);
 
-    cudaFree(impl->d_ranges);
-
     cudaFree(impl->d_normalized_buffer);
-
-    cudaFree(impl->d_keys);
-    cudaFree(impl->d_values);
-    cudaFree(impl->d_octant_keys);
 
     cudaFree(impl->d_bloom_buffer);
     cudaFree(impl->d_hdrBloom_buffer);

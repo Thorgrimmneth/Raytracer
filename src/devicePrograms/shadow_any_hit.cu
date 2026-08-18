@@ -14,6 +14,7 @@ extern "C" __global__ void __anyhit__shadow()
     if (payload->depth >= 5) // Limit the depth of shadow rays to avoid infinite recursion
     {
         optixTerminateRay();
+        return;
     }
     
     uint instanceIndex = optixGetInstanceId();
@@ -32,6 +33,7 @@ extern "C" __global__ void __anyhit__shadow()
             payload->transmittance = make_float3(0.f);
         }
         optixTerminateRay();
+        return;
     }
 
     payload->transmittance *= mat.computeTransmission();
@@ -42,6 +44,7 @@ extern "C" __global__ void __anyhit__shadow()
     {
         payload->transmittance = make_float3(0.f);
         optixTerminateRay();
+        return;
     }
     optixIgnoreIntersection();
 }

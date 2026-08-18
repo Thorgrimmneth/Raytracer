@@ -57,7 +57,7 @@ inline void initOptix(OptixContext &context, OptixProgramGroupManager &programGr
     uint32_t dcStackState = 0;
     uint32_t continuationStack = 0;
 
-    OPTIX_CHECK(optixUtilComputeStackSizes(&stackSizes, 1, 0, 0, &dcStackTraversal, &dcStackState, &continuationStack));
+    OPTIX_CHECK(optixUtilComputeStackSizes(&stackSizes, 2, 0, 0, &dcStackTraversal, &dcStackState, &continuationStack));
 
     OPTIX_CHECK(
         optixPipelineSetStackSize(pipelineManager.pipeline, dcStackTraversal, dcStackState, continuationStack, 2));

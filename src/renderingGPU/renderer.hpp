@@ -2,7 +2,6 @@
 
 #include "../utils/defines_cpu.hpp"
 #include <memory>
-#include "utils/shading_data.cuh"
 struct cudaGraphicsResource;
 
 class Renderer

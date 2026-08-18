@@ -67,6 +67,10 @@ void OptixSBTManager::create(const std::vector<MeshGeometry> &meshes, const Opti
     const size_t sdfRecordCount = sdfGeometry.sdfCount > 0 ? RAY_TYPE_COUNT : 0;
 
     const size_t totalRecordCount = meshRecordCount + sdfRecordCount;
+    std::cout << "mesh count       = " << meshes.size() << '\n';
+std::cout << "sdf count        = " << sdfGeometry.sdfCount << '\n';
+std::cout << "mesh SBT records = " << meshes.size() * 2 << '\n';
+std::cout << "total SBT records= " << totalRecordCount << '\n';
 
     std::vector<HitRecordSBT> hitRecords(totalRecordCount);
 

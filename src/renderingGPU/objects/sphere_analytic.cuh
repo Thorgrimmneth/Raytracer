@@ -1,8 +1,8 @@
 #pragma once
 
 #include "../../utils/rng_cpu.hpp"
-#include "../utils/rng.cuh"
 #include "../utils/op.cuh"
+#include "../utils/rng.cuh"
 #include <optix.h>
 #include <optix_stubs.h>
 
@@ -11,10 +11,7 @@ struct SphereAnalytic
     float radius;
     int materialIndex;
 
-    static SphereAnalytic createRandomSphere(float radius, int materialIndex)
-    {
-        return create(radius, materialIndex);
-    }
+    static SphereAnalytic createRandomSphere(float radius, int materialIndex) { return create(radius, materialIndex); }
 
     static SphereAnalytic create(float r, int m) { return {r, m}; }
 
@@ -60,12 +57,13 @@ struct SphereAnalytic
     D_FORCEINLINE float3 getNormal(const float3 &point, const float3 &center) const
     {
         float3 localPoint = point - center;
-        float l = length(localPoint);
-        float4 normal = make_float4(l - radius, localPoint / l);
-        return make_float3(normal.y, normal.z, normal.w);
+        float invL = 1.f / sqrtf(dot(localPoint, localPoint));
+        return localPoint * invL;
     }
 
-    __device__ float intersect(const float3 &center, const float3 &ray_origin, const float3 &ray_direction, float &tMin, const float tMax = 20000.f) const {
+    __device__ float intersect(const float3 &center, const float3 &ray_origin, const float3 &ray_direction, float &tMin,
+                               const float tMax = 20000.f) const
+    {
         const float3 oc = ray_origin - center;
         const float half_b = dot(ray_direction, oc);
         const float c = dot(oc, oc) - radius * radius;
