@@ -102,15 +102,15 @@ extern "C" __global__ void __raygen__radiance()
         // RUSSIAN ROULETTE
         // ========================================================
 
-        if (bounce >= 3 && params.rngs)
+
+        if (bounce > 2)
         {
             float3 throughput = params.throughputs[qid];
-            float survivalProb = fminf(fmaxf(throughput.x, fmaxf(throughput.y, throughput.z)), 0.95f);
-
-            if (params.rngs[qid].nextFloat() > survivalProb)
+            float p = fmaxf(throughput.x, fmaxf(throughput.y, throughput.z));
+            p = clamp(p, 0.05f, 0.95f);
+            if (params.rngs[qid].nextFloat() > p)
                 break;
-
-            params.throughputs[qid] = throughput / fmaxf(survivalProb, 1e-3f);
+            params.throughputs[qid] = throughput / fmaxf(p, 1e-3f);
         }
     }
 
