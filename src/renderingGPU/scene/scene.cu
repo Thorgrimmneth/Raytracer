@@ -169,12 +169,13 @@ Scene showcase(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pass
     helper.sdfsGPU.push_back(sdf);
 
     // metallic dragon
-    Material metal = Material::makeMaterial(make_float3(11.f, 217.f, 121.f)/255.f, METAL, 0.2f * 0.2f, 1.f);
+    Material metal = Material::makeMaterial(make_float3(11.f, 217.f, 121.f) / 255.f, METAL, 0.2f * 0.2f, 1.f);
     helper.materialsGPU.push_back(metal);
     Quaternion rotation2 = quaternionFromAxisAngle(make_float3(0.f, 1.f, 0.f), 20.f);
     float3 scale2 = make_float3(15.f);
     float3 translation2 = make_float3(4.f, 0.f, 0.f);
-    MeshInstance instance2 = createMeshInstance(helper, 1, helper.materialsGPU.size() - 1, scale2, rotation2, translation2);
+    MeshInstance instance2 =
+        createMeshInstance(helper, 1, helper.materialsGPU.size() - 1, scale2, rotation2, translation2);
     helper.meshInstancesGPU.push_back(instance2);
     // add ground plane last to avoid messing up the mesh instance indices
     addGround(helper);
@@ -510,12 +511,12 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
         float manipRNG = randomFloat();
     }
     // create materials
-    createMaterials(helper);
+    // createMaterials(helper);
 
     // ===== MESH INSTANCING: Load geometry once, create multiple instances =====
-    MeshGeometry bunnyGeometry = loadMeshGeometry("data/bunny/Bunny.obj");
-    helper.meshGeometriesGPU.push_back(bunnyGeometry);
-    MeshGeometry dragonGeometry = loadMeshGeometry("data/dragon/dragon.obj", make_float3(10.f));
+    // MeshGeometry bunnyGeometry = loadMeshGeometry("data/bunny/Bunny.obj");
+    // helper.meshGeometriesGPU.push_back(bunnyGeometry);
+    /*MeshGeometry dragonGeometry = loadMeshGeometry("data/dragon/dragon.obj", make_float3(10.f));
     helper.meshGeometriesGPU.push_back(dragonGeometry);
 
     // Create instances with different transforms and materials
@@ -541,30 +542,305 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
             instance.lightIndex = (int)helper.lightsGPU.size() - 1;
         }
         helper.meshInstancesGPU.push_back(instance);
-    }
+    }*/
+    /*float3 scale = make_float3(1.f);
+    MeshGeometry bunnyGeometry = loadMeshGeometry("data/bunny_normalized/bunny_normalized.obj");
+
+    helper.meshGeometriesGPU.push_back(bunnyGeometry);
+
+    const int COLS = 12;
+    const int ROWS = 6;
+
+    const float spacingX = 2.0f;
+    const float spacingZ = 2.0f;
+
+    for (int i = 0; i < COLS; i++)
+    {
+        // 0 -> 1 across the row
+        float t = (float)i / (float)(COLS - 1);
+
+        for (int j = 0; j < ROWS; j++)
+        {
+            Material mat;
+
+            // =========================================================
+            // Create material
+            // =========================================================
+            switch (j)
+            {
+            // ---------------------------------------------------------
+            // LAMBERT
+            // Variation de couleur
+            // ---------------------------------------------------------
+            case 0: {
+                float3 color = make_float3(0.1f + 0.9f * t, 0.2f, 1.f - 0.8f * t);
+
+                mat = Material::makeMaterial(color, LAMBERT, 1.f, 0.f);
+
+                break;
+            }
+
+            // ---------------------------------------------------------
+            // METAL
+            // Roughness : 0.03 -> 0.38
+            // ---------------------------------------------------------
+            case 1: {
+                float rough = 0.03f + 0.35f * t;
+
+                float3 color = make_float3(0.8f, 0.8f, 0.8f);
+
+                mat = Material::makeMaterial(color, METAL, rough * rough, 1.f);
+
+                break;
+            }
+
+            // ---------------------------------------------------------
+            // PLASTIC
+            // Roughness : 0.05 -> 0.30
+            // ---------------------------------------------------------
+            case 2: {
+                float rough = 0.05f + 0.25f * t;
+
+                float3 color = make_float3(0.1f + 0.8f * t, 0.15f, 0.8f - 0.6f * t);
+
+                mat = Material::makeMaterial(color, PLASTIC, rough * rough, 0.f, 1.5f, 0.f);
+
+                break;
+            }
+
+            // ---------------------------------------------------------
+            // TRANSPARENT
+            // IOR : 1.25 -> 1.60
+            // ---------------------------------------------------------
+            case 3: {
+                float ior = 1.25f + 0.35f * t;
+
+                float3 color = make_float3(0.5f + 0.5f * t, 0.8f, 1.f);
+
+                mat = Material::makeMaterial(color, TRANSPARENT, 0.f, 0.f, ior, 0.f);
+
+                break;
+            }
+
+            // ---------------------------------------------------------
+            // EMISSIVE
+            // Intensity : 2 -> 11
+            // ---------------------------------------------------------
+            case 4: {
+                float intensity = 2.f + 9.f * t;
+
+                float3 color = make_float3(1.f, 0.1f + 0.9f * t, 0.05f);
+
+                mat = Material::makeMaterial(color, EMISSIVE, 0.f, 0.f, 1.f, intensity);
+
+                break;
+            }
+
+            // ---------------------------------------------------------
+            // MIRROR
+            // Shininess : 8 -> 128
+            // ---------------------------------------------------------
+            case 5: {
+                float shininess = 8.f + 120.f * t;
+
+                float3 color = make_float3(0.9f, 0.9f, 0.9f);
+
+                mat = Material::makeMaterial(color, MIRROR, 1.f, 1.f, 1.5f, shininess);
+
+                break;
+            }
+            }
+
+            // =========================================================
+            // Material index
+            // IMPORTANT : material must be added BEFORE creating
+            // the MeshInstance.
+            // =========================================================
+            int materialIndex = (int)helper.materialsGPU.size();
+
+            helper.materialsGPU.push_back(mat);
+
+            // =========================================================
+            // Transform
+            // =========================================================
+            Quaternion rotation = quaternionFromAxisAngle(make_float3(0.f, 1.f, 0.f), 270.f);
+
+            // Pour un showcase, éviter un scale aléatoire :
+            // tous les objets doivent avoir la même taille.
+
+            float3 translation =
+                make_float3((i - (COLS - 1) * 0.5f) * spacingX, 1.f, (j - (ROWS - 1) * 0.5f) * spacingZ);
+
+            // =========================================================
+            // Create mesh instance
+            // =========================================================
+            MeshInstance instance = createMeshInstance(helper,
+                                                       0, // bunnyGeometry
+                                                       materialIndex, scale, rotation, translation);
+
+            // =========================================================
+            // Emissive mesh -> create light
+            // =========================================================
+            if (helper.materialsGPU[materialIndex].type() == EMISSIVE)
+            {
+                Light light;
+
+                light.metadata = Light::packMetadata(LightType::MESH_GEOM, (int)helper.meshInstancesGPU.size());
+
+                helper.lightsGPU.push_back(light);
+
+                instance.lightIndex = (int)helper.lightsGPU.size() - 1;
+            }
+
+            // =========================================================
+            // Store instance
+            // =========================================================
+            helper.meshInstancesGPU.push_back(instance);
+        }
+    }*/
 
     // Add ground plane
     addGround(helper);
+    SDF sdfGrid = load_sdf("data/bunnySDF/bunny_64.sdf");
+    const int COLS = 12;
+    const int ROWS = 6;
 
-    // Add spheres SDFs
-    for (int i = 0; i < 0; i++)
+    const float spacingX = 2.0f;
+    const float spacingZ = 2.0f;
+
+    for (int i = 0; i < COLS; i++)
     {
-        int materialIndex = int(randomFloat() * helper.materialsGPU.size());
-        SDF sdf = SDF::createRandomSphereAnalytic(materialIndex);
-        if (helper.materialsGPU[materialIndex].type() == EMISSIVE)
+        float t = (float)i / (float)(COLS - 1);
+
+        for (int j = 0; j < ROWS; j++)
         {
-            Light light;
-            light.metadata = Light::packMetadata(LightType::SDF_GEOM, (int)helper.sdfsGPU.size());
-            helper.lightsGPU.push_back(light);
-            sdf.lightIndex = (int)helper.lightsGPU.size() - 1;
+            
+            SDF sdf = sdfGrid;
+            Material mat;
+
+            switch (j)
+            {
+            // =====================================================
+            // LAMBERT
+            // Variation de couleur
+            // =====================================================
+            case 0: {
+                float3 color = make_float3(0.1f + 0.9f * t, 0.2f, 1.f - 0.8f * t);
+
+                mat = Material::makeMaterial(color, LAMBERT, 1.f, 0.f);
+
+                break;
+            }
+
+            // =====================================================
+            // METAL
+            // Roughness : 0.03 -> 0.38
+            // =====================================================
+            case 1: {
+                float rough = 0.03f + 0.35f * t;
+
+                float3 color = make_float3(0.8f, 0.8f, 0.8f);
+
+                mat = Material::makeMaterial(color, METAL, rough * rough, 1.f);
+
+                break;
+            }
+
+            // =====================================================
+            // PLASTIC
+            // Roughness : 0.05 -> 0.30
+            // =====================================================
+            case 2: {
+                float rough = 0.05f + 0.25f * t;
+
+                float3 color = make_float3(0.1f + 0.8f * t, 0.15f, 0.8f - 0.6f * t);
+
+                mat = Material::makeMaterial(color, PLASTIC, rough * rough, 0.f, 1.5f, 0.f);
+
+                break;
+            }
+
+            // =====================================================
+            // TRANSPARENT
+            // IOR : 1.25 -> 1.60
+            // =====================================================
+            case 3: {
+                float ior = 1.25f + 0.35f * t;
+
+                float3 color = make_float3(0.5f + 0.5f * t, 0.8f, 1.f);
+
+                mat = Material::makeMaterial(color, TRANSPARENT, 0.f, 0.f, ior, 0.f);
+
+                break;
+            }
+
+            // =====================================================
+            // EMISSIVE
+            // Intensity : 2 -> 11
+            // =====================================================
+            case 4: {
+                float intensity = 2.f + 9.f * t;
+
+                float3 color = make_float3(1.f, 0.1f + 0.9f * t, 0.05f);
+
+                mat = Material::makeMaterial(color, EMISSIVE, 0.f, 0.f, 1.f, intensity);
+
+                break;
+            }
+
+            // =====================================================
+            // MIRROR
+            // On fait varier le shininess.
+            //
+            // Si ton shader MIRROR n'utilise pas params.w,
+            // cette ligne peut simplement être adaptée.
+            // =====================================================
+            case 5: {
+                float shininess = 8.f + 120.f * t;
+
+                float3 color = make_float3(0.9f, 0.9f, 0.9f);
+
+                mat = Material::makeMaterial(color, MIRROR, 1.f, 1.f, 1.5f, shininess);
+
+                break;
+            }
+            }
+
+            // ---------------------------------------------------------
+            // Material
+            // ---------------------------------------------------------
+            sdf.signedGrid.materialIndex = (int)helper.materialsGPU.size();
+
+            helper.materialsGPU.push_back(mat);
+
+            // ---------------------------------------------------------
+            // Transform
+            // ---------------------------------------------------------
+            sdf.aabb = sdf.getAABB();
+            Quaternion rotation = quaternionFromAxisAngle(make_float3(0.f, 1.f, 0.f), 90.f);
+            Matrix3x3 rotationMatrix = quaternionToMatrix(rotation);
+            sdf.rotation = rotationMatrix;
+
+            sdf.translation = make_float3((i - (COLS - 1) * 0.5f) * spacingX, 1.f, (j - (ROWS - 1) * 0.5f) * spacingZ);
+
+            // ---------------------------------------------------------
+            // Light pour les emissives
+            // ---------------------------------------------------------
+            if (mat.type() == EMISSIVE)
+            {
+                Light light;
+
+                light.metadata = Light::packMetadata(LightType::SDF_GEOM, (int)helper.sdfsGPU.size());
+
+                helper.lightsGPU.push_back(light);
+
+                sdf.lightIndex = (int)helper.lightsGPU.size() - 1;
+            }
+
+            helper.sdfsGPU.push_back(sdf);
         }
-        helper.sdfsGPU.push_back(sdf);
     }
-    SDF sdf = load_sdf("data/bunnySDF/bunny_256.sdf");
-    sdf.translation = make_float3(0.f, 2.f, 0.f);
-    sdf.signedGrid.materialIndex = 1;
-    sdf.aabb = sdf.getAABB();
-    helper.sdfsGPU.push_back(sdf);
+
     /*
     // Add torus SDFs
     for (int i = 0; i < 15; i++)
