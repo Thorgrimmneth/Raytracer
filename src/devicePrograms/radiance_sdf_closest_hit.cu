@@ -149,6 +149,44 @@ extern "C" __global__ void __closesthit__radiance__sdf()
 
         case MaterialType::METAL: {
             // No NEE for metals, only BSDF sampling
+            if (params.nbLights > 0)
+            {
+                int lightIndex = selectLightByImportance(params.nbLights, params.lightCumulativeWeights, rng);
+                Light &light = params.lights[lightIndex];
+                LightSample ls = light.sample(payload->position, rng, params.lightContext);
+
+                float cosTheta_nee = fmaxf(dot(NWorld, ls.direction), 0.0f);
+                float lightPdf = ls.pdf * getLightProbability(params.nbLights, params.lightProbabilities, lightIndex);
+
+                if (lightPdf > 0.f && cosTheta_nee > 0.f && ls.pdf > 0.f)
+                {
+                    float3 f_nee = mtl.evalBSDF(wo, NWorld, ls.direction);
+
+                    if (dot(f_nee, f_nee) > 0.f)
+                    {
+                        float pdf_bsdf = mtl.pdf(wo, NWorld, ls.direction);
+                        float w = powerHeuristic(lightPdf, pdf_bsdf);
+
+                        ShadowPayload shadowPayload;
+                        shadowPayload.transmittance = make_float3(1.f);
+                        shadowPayload.depth = 0;
+
+                        uint32_t p0, p1;
+                        packPointer(&shadowPayload, p0, p1);
+
+                        float3 shadowRayOrigin = payload->position + NWorld * 1e-3f;
+                        float shadowRayDist = ls.distance - 1e-3f;
+
+                        optixTrace(params.traversable, shadowRayOrigin, ls.direction, 1e-3f, shadowRayDist, 0.0f,
+                                   OptixVisibilityMask(255), OPTIX_RAY_FLAG_DISABLE_CLOSESTHIT, RAY_TYPE_SHADOW, RAY_TYPE_COUNT, RAY_TYPE_SHADOW, p0, p1);
+
+                        nee_contribution = params.throughputs[qid] * f_nee * ls.radiance * cosTheta_nee * w *
+                                           (1.f / lightPdf) * shadowPayload.transmittance;
+                    }
+                }
+            }
+
+            // BSDF sampling
             bsdf = mtl.getBSDF(wo, NWorld, rng, payload->isInside);
             break;
         }
