@@ -327,23 +327,18 @@ struct Material
         float specW = (F.x + F.y + F.z) / 3.f;
 
         if (rngStates.nextFloat() < specW)
-        {
             bsdf.direction = samplingGGX(wo, normal, rngStates);
-
-            if (dot(normal, bsdf.direction) <= 0.f)
-            {
-                bsdf.pdf = 0.f;
-                bsdf.brdf = make_float3(0.f);
-                return bsdf;
-            }
-
-            bsdf.brdf = evaluateGGX(wo, normal, bsdf.direction, F0);
-        }
         else
-        {
             bsdf.direction = samplingLambert(normal, rngStates);
-            bsdf.brdf = evaluateLambert();
+
+        if (dot(normal, bsdf.direction) <= 0.f)
+        {
+            bsdf.pdf = 0.f;
+            bsdf.brdf = make_float3(0.f);
+            return bsdf;
         }
+
+        bsdf.brdf = evalPlasticBSDF(direction, normal, bsdf.direction);
         bsdf.pdf = specW * pdfGGX(normal, bsdf.direction, wo) + (1.f - specW) * pdfLambert(normal, bsdf.direction);
 
         return bsdf;

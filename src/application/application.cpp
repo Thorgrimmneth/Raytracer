@@ -219,6 +219,7 @@ int Application::launchApp(int argc, char **argv)
         {
             value = 1000.f;
             chrono.start();
+            t = (float)i / (float)nbImage;
             sunDir = computeSunDir(t);
 
             Renderer renderer;

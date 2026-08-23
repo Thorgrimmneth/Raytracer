@@ -79,9 +79,7 @@ struct SignedGrid
         float ty = gridPos.y - y0;
         float tz = gridPos.z - z0;
 
-        auto index = [this](int x, int y, int z) {
-            return x * resolution * resolution + y * resolution + z;
-        };
+        auto index = [this](int x, int y, int z) { return x * resolution * resolution + y * resolution + z; };
 
         float c000 = data[index(x0, y0, z0)];
         float c100 = data[index(x1, y0, z0)];
@@ -114,12 +112,58 @@ struct SignedGrid
 
     __device__ float3 getNormal(const float3 &point) const
     {
-        float h = 0.5f * (2.0f / resolution);
+        const float h = 1.0f / (float)(resolution - 1);
         float3 normal = make_float3(sdf(point + make_float3(h, 0.0f, 0.0f)) - sdf(point - make_float3(h, 0.0f, 0.0f)),
                                     sdf(point + make_float3(0.0f, h, 0.0f)) - sdf(point - make_float3(0.0f, h, 0.0f)),
                                     sdf(point + make_float3(0.0f, 0.0f, h)) - sdf(point - make_float3(0.0f, 0.0f, h)));
         return normalize(normal);
     }
+    /*__device__ float3 getNormal(const float3 &point) const
+    {
+        float3 gridPos = (point + make_float3(1.0f)) * (0.5f * (resolution - 1));
+
+        gridPos.x = fmaxf(0.0f, fminf((float)(resolution - 1), gridPos.x));
+
+        gridPos.y = fmaxf(0.0f, fminf((float)(resolution - 1), gridPos.y));
+
+        gridPos.z = fmaxf(0.0f, fminf((float)(resolution - 1), gridPos.z));
+
+        int x0 = floorf(gridPos.x);
+        int y0 = floorf(gridPos.y);
+        int z0 = floorf(gridPos.z);
+
+        int x1 = fminf(x0 + 1, (int)resolution - 1);
+        int y1 = fminf(y0 + 1, (int)resolution - 1);
+        int z1 = fminf(z0 + 1, (int)resolution - 1);
+
+        float tx = gridPos.x - x0;
+        float ty = gridPos.y - y0;
+        float tz = gridPos.z - z0;
+
+        auto index = [this](int x, int y, int z) { return x * resolution * resolution + y * resolution + z; };
+
+        float c000 = data[index(x0, y0, z0)];
+        float c100 = data[index(x1, y0, z0)];
+        float c010 = data[index(x0, y1, z0)];
+        float c110 = data[index(x1, y1, z0)];
+
+        float c001 = data[index(x0, y0, z1)];
+        float c101 = data[index(x1, y0, z1)];
+        float c011 = data[index(x0, y1, z1)];
+        float c111 = data[index(x1, y1, z1)];
+
+        // Gradient dans l'espace voxel
+        float dfdx = (1.0f - ty) * (1.0f - tz) * (c100 - c000) + ty * (1.0f - tz) * (c110 - c010) +
+                     (1.0f - ty) * tz * (c101 - c001) + ty * tz * (c111 - c011);
+
+        float dfdy = (1.0f - tx) * (1.0f - tz) * (c010 - c000) + tx * (1.0f - tz) * (c110 - c100) +
+                     (1.0f - tx) * tz * (c011 - c001) + tx * tz * (c111 - c101);
+
+        float dfdz = (1.0f - tx) * (1.0f - ty) * (c001 - c000) + tx * (1.0f - ty) * (c101 - c100) +
+                     (1.0f - tx) * ty * (c011 - c010) + tx * ty * (c111 - c110);
+
+        return normalize(make_float3(dfdx, dfdy, dfdz));
+    }*/
 
     __device__ float getArea() const { return 1.f; }
 };
