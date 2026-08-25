@@ -54,8 +54,6 @@ HOST void Scene::uploadLights(SceneHelper &helper)
 
     float totalWeight = 0.0f;
 
-    constexpr float sunAngularRadius = 3.0f * GPUPIf / 180.0f;
-
     for (int i = 0; i < nbLights; ++i)
     {
         const Light &light = helper.lightsGPU[i];
@@ -86,6 +84,19 @@ HOST void Scene::uploadLights(SceneHelper &helper)
 
             break;
         }
+        case SDF_GEOM: {
+            const uint32_t sdfIndex = light.getSDFIndex();
+
+            const SDF &sdf = helper.sdfsGPU[sdfIndex];
+
+            const Material &material = helper.materialsGPU[sdf.getMaterialIndex()];
+
+            Le = luminance(material.color() * material.intensity());
+
+            weight = Le * sdf.getArea();
+
+            break;
+        }
 
         default:
             weight = Le;
@@ -108,11 +119,11 @@ HOST void Scene::uploadLights(SceneHelper &helper)
         cumulativeWeights[i] = cumulative;
         probabilities[i] = weights[i] / totalWeight;
     }
-    for (int i = 0; i < nbLights; ++i)
+    /*for (int i = 0; i < nbLights; ++i)
     {
         const Light &light = helper.lightsGPU[i];
         printf("Light %d type=%d weight=%f prob=%f\n", i, int(light.getType()), weights[i], probabilities[i]);
-    }
+    }*/
 
     cudaMalloc(&lights, nbLights * sizeof(Light));
     cudaMemcpy(lights, helper.lightsGPU.data(), nbLights * sizeof(Light), cudaMemcpyHostToDevice);

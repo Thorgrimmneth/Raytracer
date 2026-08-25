@@ -3,6 +3,7 @@
 #pragma once
 
 #include "../../utils/rng_cpu.hpp"
+#include "../utils/simplified_def.cuh"
 #include "../utils/op.cuh"
 #include "../utils/rng.cuh"
 #include "cone.cuh"
@@ -386,7 +387,7 @@ struct CSGTree
         return normalize(normal);
     }
 
-    __device__ float getArea() const { return area; }
+    HD float getArea() const { return area; }
 
     uint32_t buildTree(uint32_t firstPrim, uint32_t lastPrim, std::vector<CSGNode> &nodes)
     {
