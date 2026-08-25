@@ -47,6 +47,7 @@ extern "C" __global__ void __intersection__sdf()
     {
         epsilon = fminf(epsilon, 0.25f * (2.0f / (float)(sdf.signedGrid.resolution - 1)));
     }
+    epsilon = 0.001f;
     for (int i = 0; i < 256; i++)
     {
         float3 p = rayOriginLocal + tMin * rayDirectionLocal;
@@ -54,6 +55,7 @@ extern "C" __global__ void __intersection__sdf()
         float d = sdf.sdf(p);
         if (applyAbs)
             d = fabsf(d);
+        
         if (d < epsilon)
         {
             //Payload *payload = reinterpret_cast<Payload *>(unpackPointer(optixGetPayload_0(), optixGetPayload_1()));
@@ -64,7 +66,7 @@ extern "C" __global__ void __intersection__sdf()
         if (d > 20000.f)
             return;
 
-        tMin += d;
+        tMin += d * 0.5f;
 
         if (tMin > tMax)
             break;
