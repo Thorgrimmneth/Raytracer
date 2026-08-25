@@ -128,7 +128,7 @@ struct Cone
         return n;
     }
 
-    D_FORCEINLINE float getArea() const { return area; }
+    HD_FORCEINLINE float getArea() const { return area; }
 
     __device__ float sdf(const float3 &point) const
     {

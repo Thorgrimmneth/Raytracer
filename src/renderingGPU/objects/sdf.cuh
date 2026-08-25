@@ -55,7 +55,7 @@ struct SDF
         }
     }
 
-    DEVICE int getMaterialIndex() const
+    HD int getMaterialIndex() const
     {
         switch (type)
         {
@@ -119,7 +119,7 @@ struct SDF
         }
     }
 
-    DEVICE float getArea() const
+    HD float getArea() const
     {
         switch (type)
         {

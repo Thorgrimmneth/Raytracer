@@ -3,6 +3,7 @@
 #include "../../utils/rng_cpu.hpp"
 #include "../utils/op.cuh"
 #include "../utils/rng.cuh"
+#include "../utils/simplified_def.cuh"
 #include <optix.h>
 #include <optix_stubs.h>
 
@@ -165,5 +166,5 @@ struct SignedGrid
         return normalize(make_float3(dfdx, dfdy, dfdz));
     }*/
 
-    __device__ float getArea() const { return 1.f; }
+    HD float getArea() const { return 1.f; }
 };

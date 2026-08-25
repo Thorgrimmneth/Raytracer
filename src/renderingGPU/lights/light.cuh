@@ -62,8 +62,8 @@ struct alignas(16) Light
 
     HD_FORCEINLINE LightType getType() const { return LightType(uint8_t(metadata & 0xFF)); }
 
-    D_FORCEINLINE uint32_t getMeshInstanceIndex() const { return metadata >> 8; }
-    D_FORCEINLINE uint32_t getSDFIndex() const { return metadata >> 8; }
+    HD_FORCEINLINE uint32_t getMeshInstanceIndex() const { return metadata >> 8; }
+    HD_FORCEINLINE uint32_t getSDFIndex() const { return metadata >> 8; }
 
     HD_FORCEINLINE float3 getColor() const { return make_float3(color_power); }
 
