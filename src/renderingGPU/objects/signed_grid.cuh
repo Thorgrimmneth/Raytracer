@@ -113,7 +113,7 @@ struct SignedGrid
 
     __device__ float3 getNormal(const float3 &point) const
     {
-        const float h = 1.0f / (float)(resolution - 1);
+        const float h = 2.0f / (float)(resolution - 1);
         float3 normal = make_float3(sdf(point + make_float3(h, 0.0f, 0.0f)) - sdf(point - make_float3(h, 0.0f, 0.0f)),
                                     sdf(point + make_float3(0.0f, h, 0.0f)) - sdf(point - make_float3(0.0f, h, 0.0f)),
                                     sdf(point + make_float3(0.0f, 0.0f, h)) - sdf(point - make_float3(0.0f, 0.0f, h)));

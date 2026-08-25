@@ -161,4 +161,5 @@ extern "C" __global__ void __miss__radiance()
     //------------------------------------------------------------------
     payload->contribution = params.throughputs[optixGetLaunchIndex().x] * sky;
     payload->hit = 0;
+    //payload->normal = make_float3(0.f, 0.f, 0.f);
 }

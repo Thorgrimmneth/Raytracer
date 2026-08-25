@@ -74,7 +74,9 @@ extern "C" __global__ void __raygen__radiance()
         // ========================================================
 
         params.accum_buffer[qid] += payload.contribution;
-
+        //params.accum_buffer[qid] = payload.normal;
+        //params.accum_buffer[qid] = make_float3((float)payload.nbIter/128.f, 0.f, (1.f - (float)payload.nbIter/128.f));
+        //return;
         // ========================================================
         // TERMINATE PATH
         // ========================================================

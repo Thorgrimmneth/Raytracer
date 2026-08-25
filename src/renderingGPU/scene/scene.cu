@@ -741,7 +741,7 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
 
     // Add ground plane
     addGround(helper);
-    SDF sdfGrid = load_sdf("data/bunnySDF/bunny_64.sdf");
+    SDF sdfGrid = load_sdf("data/bunnySDF/bunny_256.sdf");
     const int COLS = 12;
     const int ROWS = 6;
 

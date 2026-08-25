@@ -14,7 +14,7 @@ struct Payload
     float3 contribution = make_float3(0.f);
     int materialIndex;
     int depth = 0;
-    
+    //int nbIter = 0;
     float3 bsdfDir = make_float3(0.f);
     int isInside = 0;
     float bsdfPdf = 0.f;

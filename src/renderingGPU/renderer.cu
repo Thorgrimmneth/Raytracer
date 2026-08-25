@@ -110,10 +110,10 @@ int Renderer::get_frame_number() { return impl->sample_count; }
 HOST Camera init_camera(int width, int height)
 {
     // ===== Camera =====
-    float3 cam_pos = make_float3(0.f, 3.f, 8.f);
-    float3 cam_target = make_float3(0.f, 1.f, 0.f);
-    //float3 cam_pos = make_float3(0.f, 7.f, 12.f);
-    //float3 cam_target = make_float3(0.f, 0.f, 0.f);
+    //float3 cam_pos = make_float3(0.f, 3.f, 8.f);
+    //float3 cam_target = make_float3(0.f, 1.f, 0.f);
+    float3 cam_pos = make_float3(0.f, 7.f, 12.f);
+    float3 cam_target = make_float3(0.f, 0.f, 0.f);
     float3 cam_up = make_float3(0.f, 1.f, 0.f);
 
     float fov = 60.f;
@@ -157,9 +157,9 @@ void Renderer::init(int p_width, int p_height, float sunDirx, float sunDiry, flo
     impl->WIDTH = p_width;
     impl->HEIGHT = p_height;
     setSeed(43);
-    impl->scene = spheres(sunDir, impl->radiance_pass, global_size, rngManip);
+    //impl->scene = spheres(sunDir, impl->radiance_pass, global_size, rngManip);
     //impl->scene = showcase(sunDir, impl->radiance_pass, global_size);
-    //impl->scene = loadScene(sunDir, impl->radiance_pass, global_size, rngManip);
+    impl->scene = loadScene(sunDir, impl->radiance_pass, global_size, rngManip);
 
     impl->BUFFER_SIZE_FLOAT3 = impl->WIDTH * impl->HEIGHT * sizeof(float3);
 
