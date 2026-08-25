@@ -335,7 +335,6 @@ HOST MeshInstance createMeshInstance(SceneHelper &sceneHelper, int geometryIndex
     instance.geometryIndex = geometryIndex;
     instance.materialIndex = materialIndex;
     instance.worldArea = sceneHelper.meshGeometriesGPU[geometryIndex].meshArea * scale.x * scale.x;
-
     buildTransformMatrix(instance.transform, scale, rotation, translation);
     return instance;
 }

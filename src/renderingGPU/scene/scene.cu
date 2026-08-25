@@ -34,6 +34,8 @@ HOST void Scene::uploadObjects(SceneHelper &helper)
     }
 }
 
+HD_FORCEINLINE float luminance(const float3 &c) { return 0.2126f * c.x + 0.7152f * c.y + 0.0722f * c.z; }
+
 HOST void Scene::uploadLights(SceneHelper &helper)
 {
     nbLights = helper.lightsGPU.size();
@@ -52,14 +54,44 @@ HOST void Scene::uploadLights(SceneHelper &helper)
 
     float totalWeight = 0.0f;
 
-    // Compute weights
+    constexpr float sunAngularRadius = 3.0f * GPUPIf / 180.0f;
+
     for (int i = 0; i < nbLights; ++i)
     {
         const Light &light = helper.lightsGPU[i];
 
-        float weight = length(light.getColorPower());
+        float Le = luminance(light.getColorPower());
 
-        // Avoid zero-weight lights
+        float weight = 0.0f;
+
+        switch (light.getType())
+        {
+        case SUN: {
+
+            weight = Le;
+
+            break;
+        }
+
+        case MESH_GEOM: {
+            const uint32_t instanceIndex = light.getMeshInstanceIndex();
+
+            const float area = helper.meshInstancesGPU[instanceIndex].worldArea;
+
+            const Material &material = helper.materialsGPU[helper.meshInstancesGPU[instanceIndex].materialIndex];
+
+            Le = luminance(material.color() * material.intensity());
+
+            weight = Le * area;
+
+            break;
+        }
+
+        default:
+            weight = Le;
+            break;
+        }
+
         weight = fmaxf(weight, 1e-8f);
 
         weights[i] = weight;
@@ -75,6 +107,11 @@ HOST void Scene::uploadLights(SceneHelper &helper)
 
         cumulativeWeights[i] = cumulative;
         probabilities[i] = weights[i] / totalWeight;
+    }
+    for (int i = 0; i < nbLights; ++i)
+    {
+        const Light &light = helper.lightsGPU[i];
+        printf("Light %d type=%d weight=%f prob=%f\n", i, int(light.getType()), weights[i], probabilities[i]);
     }
 
     cudaMalloc(&lights, nbLights * sizeof(Light));
@@ -543,7 +580,7 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
         }
         helper.meshInstancesGPU.push_back(instance);
     }*/
-    /*float3 scale = make_float3(1.f);
+    float3 scale = make_float3(1.f);
     MeshGeometry bunnyGeometry = loadMeshGeometry("data/bunny_normalized/bunny_normalized.obj");
 
     helper.meshGeometriesGPU.push_back(bunnyGeometry);
@@ -697,11 +734,11 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
             // =========================================================
             helper.meshInstancesGPU.push_back(instance);
         }
-    }*/
+    }
 
     // Add ground plane
     addGround(helper);
-    SDF sdfGrid = load_sdf("data/bunnySDF/bunny_64.sdf");
+    /*SDF sdfGrid = load_sdf("data/bunnySDF/bunny_64.sdf");
     const int COLS = 12;
     const int ROWS = 6;
 
@@ -714,7 +751,7 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
 
         for (int j = 0; j < ROWS; j++)
         {
-            
+
             SDF sdf = sdfGrid;
             Material mat;
 
@@ -839,7 +876,7 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
 
             helper.sdfsGPU.push_back(sdf);
         }
-    }
+    }*/
 
     /*
     // Add torus SDFs

@@ -153,7 +153,7 @@ int Application::launchApp(int argc, char **argv)
                 }
                 std::cout << "converged after " << renderer.get_frame_number() << " with " << value << " error"
                           << std::endl;
-                const std::string imageName = "performance.png";
+                const std::string imageName = "performance1.png";
                 writePNG((char*)(RESULTS_PATH + imageName).c_str(), img_data, width, height);
                 std::cout << "saved : " + imageName << std::endl;
                 chrono.stop();
