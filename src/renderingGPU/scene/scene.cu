@@ -84,19 +84,19 @@ HOST void Scene::uploadLights(SceneHelper &helper)
 
             break;
         }
-        case SDF_GEOM: {
-            const uint32_t sdfIndex = light.getSDFIndex();
+            /*case SDF_GEOM: {
+                const uint32_t sdfIndex = light.getSDFIndex();
 
-            const SDF &sdf = helper.sdfsGPU[sdfIndex];
+                const SDF &sdf = helper.sdfsGPU[sdfIndex];
 
-            const Material &material = helper.materialsGPU[sdf.getMaterialIndex()];
+                const Material &material = helper.materialsGPU[sdf.getMaterialIndex()];
 
-            Le = luminance(material.color() * material.intensity());
+                Le = luminance(material.color() * material.intensity());
 
-            weight = Le * sdf.getArea();
+                weight = Le * sdf.getArea();
 
-            break;
-        }
+                break;
+            }*/
 
         default:
             weight = Le;
@@ -595,7 +595,31 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
     MeshGeometry bunnyGeometry = loadMeshGeometry("data/bunny_normalized/bunny_normalized.obj");
 
     helper.meshGeometriesGPU.push_back(bunnyGeometry);
+    float3 color = make_float3(0.8f, 0.2f, 0.3f);
+    Material mat = Material::makeMaterial(color, LAMBERT, 1.f, 0.f);
+    int materialIndex = (int)helper.materialsGPU.size();
 
+    helper.materialsGPU.push_back(mat);
+
+    // =========================================================
+    // Transform
+    // =========================================================
+    Quaternion rotation = quaternionFromAxisAngle(make_float3(0.f, 1.f, 0.f), 270.f);
+
+    // Pour un showcase, éviter un scale aléatoire :
+    // tous les objets doivent avoir la même taille.
+
+    float3 translation = make_float3(0.f, 2.f, 2.f);
+
+    // =========================================================
+    // Create mesh instance
+    // =========================================================
+    MeshInstance instance = createMeshInstance(helper,
+                                               0, // bunnyGeometry
+                                               materialIndex, scale, rotation, translation);
+    helper.meshInstancesGPU.push_back(instance);
+
+    /*
     const int COLS = 12;
     const int ROWS = 6;
 
@@ -745,12 +769,22 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
             // =========================================================
             helper.meshInstancesGPU.push_back(instance);
         }
-    }
+    }*/
 
     // Add ground plane
     addGround(helper);
-    /*SDF sdfGrid = load_sdf("data/bunnySDF/bunny_64.sdf");
-    const int COLS = 12;
+    /*SDF sdfGrid = load_sdf("data/bunnySDF/bunny_256.sdf");
+    float3 color = make_float3(0.8f, 0.2f, 0.3f);
+    Material mat = Material::makeMaterial(color, LAMBERT, 1.f, 0.f);
+    helper.materialsGPU.push_back(mat);
+    sdfGrid.aabb = sdfGrid.getAABB();
+    Quaternion rotation = quaternionFromAxisAngle(make_float3(0.f, 1.f, 0.f), 90.f);
+    Matrix3x3 rotationMatrix = quaternionToMatrix(rotation);
+    sdfGrid.rotation = rotationMatrix;
+    sdfGrid.signedGrid.materialIndex = (int)helper.materialsGPU.size() - 1;
+    sdfGrid.translation = make_float3(0.f, 2.f, 2.f);
+    helper.sdfsGPU.push_back(sdfGrid);*/
+    /*const int COLS = 12;
     const int ROWS = 6;
 
     const float spacingX = 2.0f;
@@ -887,7 +921,7 @@ Scene loadScene(float3 sunDir, OptixPassData<LaunchRadianceParams> &radiance_pas
 
             helper.sdfsGPU.push_back(sdf);
         }
-    }*/
+    }
 
     /*
     // Add torus SDFs

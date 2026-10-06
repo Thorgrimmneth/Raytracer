@@ -40,17 +40,21 @@ extern "C" __global__ void __intersection__sdf__shadow()
 
         return;
 
-    for (int i = 0; i < 128; i++)
+    float epsilon = 1e-4f;
+    if(sdf.type == SDFType::SignedGrid){
+        epsilon = fminf(0.001, 0.1275f * (2.0f / ((float)sdf.signedGrid.resolution - 1.f)));
+    }
+    for (int i = 0; i < 256; i++)
     {
         float3 p = rayOriginLocal + tMin * rayDirectionLocal;
 
         float d = sdf.sdf(p);
-        if (d < 1e-4f)
+        if (d < epsilon)
         {
             optixReportIntersection(tMin, 0);
             return;
         }
-        if(d > 20000.f)
+        if (d > 20000.f)
             return;
         tMin += d;
 

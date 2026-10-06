@@ -219,11 +219,12 @@ int Application::launchApp(int argc, char **argv)
         {
             value = 1000.f;
             chrono.start();
-            t = (float)(i + skipImage) / (float)nbImage;
+            t = -0.1f + (float)(i + skipImage) / (float)nbImage;
+            printf("Rendering image %d/%d with t = %f\n", i + 1, nbImage, t);
             sunDir = computeSunDir(t);
 
             Renderer renderer;
-            renderer.init(width, height, sunDir.x, sunDir.y, sunDir.z, i);
+            renderer.init(width, height, sunDir.x, sunDir.y, sunDir.z);
             printf("Rendering image %d/%d\n", i + 1, nbImage);
             for (int j = 0; j < nbRPP && value > threshold; j++)
             {
